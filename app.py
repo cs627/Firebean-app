@@ -14,11 +14,11 @@ SYSTEM_INSTRUCTION = """
 語音轉錄任務：請精確還原廣東話口語文字。
 """
 
-# --- 2. 初始化所有狀態 ---
+# --- 2. 初始化所有狀態 (解決 AttributeError) ---
 def init_session_state():
     fields = [
         "event_date", "client_name", "project_name", "venue", "raw_transcript",
-        "category", "scope", "challenge", "solution", "logo_b64"
+        "category", "scope", "challenge", "solution", "logo_b64", "youtube_link", "project_drive_folder"
     ]
     for field in fields:
         if field not in st.session_state:
@@ -33,6 +33,7 @@ def apply_neu_theme():
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
+    # 這裡所有的 CSS 大括號都必須雙重 {{ }} 以避免 SyntaxError
     st.markdown(f"""
         <style>
         header {{visibility: hidden;}}
@@ -77,7 +78,7 @@ def apply_neu_theme():
             display: block;
             margin-left: auto;
             margin-right: auto;
-        }
+        }}
 
         /* --- 對話框樣式 (Speech Bubbles) --- */
         [data-testid="stChatMessage"] {{ background-color: transparent !important; }}
@@ -96,20 +97,20 @@ def apply_neu_theme():
         }}
         span, p, .stMarkdown {{ color: #2D3436 !important; font-weight: 500; }}
 
-        /* --- 修正深灰色 Box (不再是黑色) --- */
+        /* --- 修正淺灰色 Box (淺 50% 灰色 + 白色文字) --- */
         div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer, [data-testid="stAudioInput"], .stFileUploader {{
-            background-color: #BEC3C9 !important; /* 淺 50% 灰色 */
+            background-color: #BEC3C9 !important; 
             border-radius: 20px !important;
             box-shadow: inset 6px 6px 12px #9da3ab, inset -6px -6px 12px #ffffff !important;
             border: 1px solid rgba(255, 75, 75, 0.3) !important;
-        }
+        }}
         input, textarea, .stChatInputContainer textarea {{
             color: white !important;
             -webkit-text-fill-color: white !important;
-        }
-        .stFileUploader label, .stFileUploader span {{ color: white !important; }}
+        }}
+        .stFileUploader label, .stFileUploader span, .stFileUploader p {{ color: white !important; }}
 
-        /* 凸起卡片 */
+        /* 凸起卡片 (Molded Clay) */
         .neu-card {{
             background: #E0E5EC;
             border-radius: 30px;
@@ -124,7 +125,7 @@ def apply_neu_theme():
             background-color: #E0E5EC !important;
             color: #FF4B4B !important; font-weight: 800 !important;
             box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important;
-        }
+        }}
         </style>
 
         <div class="energy-container">
@@ -132,6 +133,10 @@ def apply_neu_theme():
             <div class="energy-text">BRAIN ENERGY: {progress_percent}%</div>
         </div>
     """, unsafe_allow_html=True)
+
+# 圖片轉 Base64 輔助
+def get_base64_image(file):
+    return base64.b64encode(file.getvalue()).decode()
 
 def main():
     st.set_page_config(page_title="Firebean Brain Command", layout="wide")
@@ -143,7 +148,10 @@ def main():
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
 
-    # Logo (已加 CSS 置中)
+    # Webhook URL
+    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
+
+    # Logo
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
 
     tab1, tab2 = st.tabs(["💬 Brain Hub", "⚙️ Admin & Sync"])
@@ -166,7 +174,7 @@ def main():
                     st.session_state.messages.append({"role": "user", "content": f"🎤 [錄音轉錄]: {res.text}"})
                     st.rerun()
 
-            if p := st.chat_input("打字傾計亦得..."):
+            if p := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -176,17 +184,20 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🎨 Logo Studio")
             logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo")
-            if logo_f and st.button("🪄 Convert to White Icon"):
-                out = remove(Image.open(logo_f))
-                final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
-                st.image(final, width=120)
-                st.session_state['logo_b64'] = base64.b64encode(io.BytesIO().getvalue()).decode()
+            if logo_f:
+                if st.button("🪄 Convert to White Icon"):
+                    out = remove(Image.open(logo_f))
+                    final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
+                    st.image(final, width=120)
+                    buf = io.BytesIO()
+                    final.save(buf, format="PNG")
+                    st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
             st.markdown('</div>', unsafe_allow_html=True)
 
             # Gallery (8格)
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
-            up_files = st.file_uploader("Upload 8 photos", type=['jpg','png'], accept_multiple_files=True)
+            up_files = st.file_uploader("Upload 8 photos (Limit 200MB)", type=['jpg','png'], accept_multiple_files=True)
             st.markdown('---')
             g1, g2, g3, g4 = st.columns(4); g5, g6, g7, g8 = st.columns(4)
             slots = [g1, g2, g3, g4, g5, g6, g7, g8]
@@ -199,13 +210,37 @@ def main():
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("⚙️ Final Review")
-        # 顯示所有欄位以便確認
+        # 資料同步確認
         st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
         st.session_state.client_name = st.text_input("Client Name", st.session_state.client_name)
         st.session_state.venue = st.text_input("Venue", st.session_state.venue)
+        st.session_state.event_date = st.text_input("Date", st.session_state.event_date)
+        st.session_state.category = st.text_input("Category", st.session_state.category)
         st.session_state.scope = st.text_area("Scope", st.session_state.scope)
+        st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution", st.session_state.solution)
+        
         if st.button("🚀 Confirm & Sync to Master Slide"):
-            st.balloons()
+            with st.spinner("Uploading to Master Slide..."):
+                img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
+                payload = {
+                    "project_name": st.session_state.project_name,
+                    "client_name": st.session_state.client_name,
+                    "category": st.session_state.category,
+                    "event_date": st.session_state.event_date,
+                    "venue": st.session_state.venue,
+                    "scope": st.session_state.scope,
+                    "challenge": st.session_state.challenge,
+                    "solution": st.session_state.solution,
+                    "logo_base64": st.session_state.get('logo_b64', ""),
+                    "images_base64": img_b64_list
+                }
+                try:
+                    res = requests.post(WEBHOOK_URL, json=payload)
+                    st.balloons()
+                    st.success("✅ 已成功追加 2 頁至 Master Slide！")
+                except:
+                    st.error("傳送失敗")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
