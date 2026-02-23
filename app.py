@@ -10,7 +10,7 @@ from rembg import remove
 # --- 1. 核心性格與指令 ---
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，頂尖 PR 策略大腦。性格可愛高明。
-目標：套出 Client, Project, Venue, Challenge, Result 等資料。
+目標：透過對話套出 Client, Project, Venue, Challenge, Result 等資料。
 語音轉錄任務：請精確還原廣東話口語文字並分析項目細節。
 """
 
@@ -24,71 +24,64 @@ def init_session_state():
         if field not in st.session_state:
             st.session_state[field] = ""
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "嘩！老細✨！終於升級用 Gemini Pro 腦袋，轉數快好多！今日個 Project 搞成點？快啲錄音或者喺右邊餵相俾我啦！📸"}]
+        st.session_state.messages = [{"role": "assistant", "content": "嘩！老細✨！今日搞完 Event 係咪攰到唔想打字？你可以直接錄音話我知發生咩事，我幫你聽清楚佢！📸"}]
 
-# --- 3. UI 視覺強化 (Energy Bar + 手機 2x4 Gallery + 置中 Logo) ---
+# --- 3. UI 視覺強化 (手機 2x4 Gallery + 置中 Logo + 深色文字) ---
 def apply_neu_theme():
-    # 計算能量值
+    # 計算進度百分比
     track_fields = ["client_name", "project_name", "event_date", "venue", "category", "scope", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
     st.markdown(f"""
         <style>
-        header {{visibility: hidden;}}
-        footer {{visibility: hidden;}}
+        header {{ visibility: hidden; }}
+        footer {{ visibility: hidden; }}
+
+        /* 全局背景 */
         .stApp {{ background-color: #E0E5EC; color: #2D3436; }}
 
-        /* --- 頂部能量進度條 (Energy Bar) --- */
-        .energy-container {{
-            width: 100%; background: #E0E5EC; padding: 10px 0;
-            position: sticky; top: 0; z-index: 999;
-        }}
-        .energy-bar-bg {{
-            height: 14px; background: #E0E5EC; border-radius: 10px;
-            box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff;
-            overflow: hidden; margin: 0 20px;
-        }}
-        .energy-bar-fill {{
-            height: 100%; width: {progress_percent}%;
-            background: linear-gradient(90deg, #FF4B4B, #FF8080);
-            box-shadow: 0 0 15px #FF4B4B; transition: width 0.8s ease-in-out;
-        }}
-        .energy-text {{
-            font-size: 11px; font-weight: 800; color: #FF4B4B;
-            text-align: right; margin: 5px 25px 0 0;
-        }}
+        /* --- Energy Bar --- */
+        .energy-container {{ width: 100%; background: #E0E5EC; padding: 10px 0; position: sticky; top: 0; z-index: 999; }}
+        .energy-bar-bg {{ height: 12px; background: #E0E5EC; border-radius: 10px; box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff; overflow: hidden; margin: 0 20px; }}
+        .energy-bar-fill {{ height: 100%; width: {progress_percent}%; background: linear-gradient(90deg, #FF4B4B, #FF8080); box-shadow: 0 0 15px #FF4B4B; transition: width 0.8s ease-in-out; }}
+        .energy-text {{ font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px; margin-top: 5px; }}
 
-        /* --- Logo 強制置中 (手機及電腦通用) --- */
+        /* --- Logo 強制置中修復 --- */
         [data-testid="stImage"] {{
-            display: flex !important; justify-content: center !important; align-items: center !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
             width: 100% !important;
+            text-align: center !important;
         }}
-        [data-testid="stImage"] img {{ 
-            margin: 0 auto !important; 
+        [data-testid="stImage"] img {{
+            margin: 0 auto !important;
             max-width: 180px !important;
         }}
 
         /* --- 文字顏色修復：深石墨灰確保清晰 --- */
         input, textarea, [data-baseweb="input"] *, .stChatInputContainer textarea {{
-            color: #2D3436 !important; -webkit-text-fill-color: #2D3436 !important; font-weight: 600 !important;
+            color: #2D3436 !important;
+            -webkit-text-fill-color: #2D3436 !important;
+            font-weight: 600 !important;
         }}
         .stFileUploader label, .stFileUploader span, .stFileUploader p, .stFileUploader small {{
             color: #2D3436 !important;
         }}
         p, label, span, .stMarkdown {{ color: #2D3436 !important; }}
         h1, h2, h3 {{ color: #FF4B4B !important; }}
-
-        /* --- 2x4 手機 Gallery 網格實現 --- */
+        
+        /* --- 2x4 手機 Gallery 網格 --- */
         .gallery-grid {{
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); /* 電腦版 4 欄 */
-            gap: 12px; 
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
             margin-top: 15px;
         }}
         @media (max-width: 640px) {{
-            .gallery-grid {{ 
-                grid-template-columns: repeat(2, 1fr) !important; /* 手機版強制 2 欄 */
+            .gallery-grid {{
+                grid-template-columns: repeat(2, 1fr) !important;
             }}
         }}
         .gallery-item {{
@@ -99,7 +92,7 @@ def apply_neu_theme():
             aspect-ratio: 1/1; background: #E0E5EC; border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
             box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff;
-            color: #888; font-size: 10px; font-weight: bold;
+            color: #888 !important; font-size: 10px; font-weight: bold;
         }}
 
         /* --- UI Box 元件 --- */
@@ -115,11 +108,7 @@ def apply_neu_theme():
         }}
 
         /* 按鈕凸起 */
-        .stButton > button {{
-            width: 100%; border-radius: 20px !important; background-color: #E0E5EC !important;
-            color: #FF4B4B !important; font-weight: 800 !important;
-            box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important;
-        }}
+        .stButton > button {{ width: 100%; border-radius: 20px !important; background-color: #E0E5EC !important; color: #FF4B4B !important; font-weight: 800 !important; box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important; }}
         </style>
         
         <div class="energy-container">
@@ -138,12 +127,13 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- 修正後的 API 設定 (使用 Gemini 1.5 Pro) ---
+    # --- 修復後的 API 設定 ---
+    # 這裡直接使用 gemini-1.5-pro 字符串，不加 models/ 前綴以提高兼容性
     api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" 
     genai.configure(api_key=api_key)
-    
-    # 這裡使用 1.5-pro 以應對你提到的 Pro 需求，並修復版本不匹配問題
     model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
+
+    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
 
     # Logo
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
@@ -162,17 +152,16 @@ def main():
             st.markdown("---")
             # --- 修復後的錄音功能 ---
             audio_input = st.audio_input("🎤 撳住錄音話我知 Project 詳情...")
-            if audio_input is not None:
+            if audio_input:
                 audio_bytes = audio_input.getvalue()
                 if audio_bytes:
                     with st.spinner("聽緊你講咩... Gemini Pro 正在分析..."):
                         try:
-                            # 確保調用格式正確
-                            content_parts = [
+                            # 採用更穩定的 content 格式
+                            response = model.generate_content([
                                 "請精確轉錄這段廣東話錄音，並提取項目詳情 (Client, Venue, Challenge, Result)。",
                                 {"mime_type": "audio/wav", "data": audio_bytes}
-                            ]
-                            response = model.generate_content(content_parts)
+                            ])
                             if response:
                                 st.session_state.messages.append({"role": "user", "content": f"🎤 [錄音轉錄]: {response.text}"})
                                 st.rerun()
