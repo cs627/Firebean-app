@@ -31,29 +31,104 @@ def init_session_state():
             {"role": "assistant", "content": "嘩！見到你真係好✨！今日個 Project 係咪搞得好 Firm？話我知發生咩事，順便喺右邊餵埋相片同 Logo 俾我啦！📸"}
         ]
 
-# --- 3. UI 視覺強化 ---
+# --- 3. UI 視覺強化 (Red & White Neumorphism) ---
 def apply_modern_ui():
     st.markdown("""
         <style>
-        .stApp { background-color: #F8F9FA; }
-        h1, h2, h3, p { color: #212529 !important; }
-        .module-card {
-            background-color: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-            border: 1px solid #E9ECEF;
+        /* 全局樣式 - 柔和背景 */
+        .stApp {
+            background-color: #eef2f7; /* 淺灰背景，突顯白色物件 */
+            font-family: 'Inter', sans-serif;
         }
+
+        /* 通用 Neumorphic 凸起卡片 */
+        .neu-card {
+            background-color: #eef2f7;
+            border-radius: 25px; /* 更圓潤的泥膠感 */
+            box-shadow: 12px 12px 24px #c8d0e7, -12px -12px 24px #ffffff;
+            padding: 25px;
+            border: none;
+        }
+
+        /* Neumorphic 凹陷效果 + 紅色發光 (用於標題強調) */
+        .neu-inset {
+            background-color: #eef2f7;
+            border-radius: 50%;
+            box-shadow: inset 6px 6px 12px #c8d0e7, inset -6px -6px 12px #ffffff, 0 0 15px #ff5252; /* 紅色外發光 */
+            padding: 10px;
+            display: inline-block;
+        }
+
+        /* 標題樣式 */
+        h1, h2, h3 {
+            color: #444 !important;
+            font-weight: 700 !important;
+            text-shadow: 1px 1px 2px #ffffff;
+        }
+        
+        /* 側邊欄樣式 */
+        [data-testid="stSidebar"] {
+            background-color: #eef2f7;
+            box-shadow: 8px 0 16px #c8d0e7;
+        }
+        [data-testid="stSidebar"] .neu-card {
+             box-shadow: inset 4px 4px 8px #c8d0e7, inset -4px -4px 8px #ffffff; /* 側邊欄內凹效果 */
+        }
+
+        /* 輸入框樣式 (凹陷) */
+        .stTextInput > div > div, .stTextArea > div > div {
+            background-color: #eef2f7 !important;
+            border-radius: 15px !important;
+            box-shadow: inset 5px 5px 10px #c8d0e7, inset -5px -5px 10px #ffffff !important;
+            border: none !important;
+            transition: all 0.3s ease;
+        }
+        .stTextInput > div > div:focus-within, .stTextArea > div > div:focus-within {
+            box-shadow: inset 5px 5px 10px #c8d0e7, inset -5px -5px 10px #ffffff, 0 0 10px #ff5252 !important; /* 聚焦時發紅光 */
+        }
+
+        /* 按鈕樣式 (凸起發光) */
+        .stButton > button {
+            width: 100%;
+            border-radius: 15px !important;
+            background-color: #eef2f7 !important;
+            color: #ff5252 !important; /* 紅色文字 */
+            font-weight: bold !important;
+            border: none !important;
+            box-shadow: 8px 8px 16px #c8d0e7, -8px -8px 16px #ffffff !important;
+            transition: all 0.3s ease !important;
+        }
+        .stButton > button:hover {
+            box-shadow: 12px 12px 24px #c8d0e7, -12px -12px 24px #ffffff, 0 0 10px #ff5252 !important; /* 懸停發紅光 */
+            transform: translateY(-2px);
+        }
+        .stButton > button:active {
+            box-shadow: inset 4px 4px 8px #c8d0e7, inset -4px -4px 8px #ffffff !important; /* 按下凹陷 */
+        }
+
+        /* Tab 樣式 (選中發紅光) */
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 15px 15px 0 0 !important;
+            background-color: #eef2f7 !important;
+            box-shadow: 4px 4px 8px #c8d0e7, -4px -4px 8px #ffffff !important;
+            color: #444 !important;
+            border: none !important;
+        }
+        .stTabs [aria-selected="true"] {
+            box-shadow: inset 4px 4px 8px #c8d0e7, inset -4px -4px 8px #ffffff, 0 0 10px #ff5252 !important; /* 選中凹陷發紅光 */
+            color: #ff5252 !important;
+        }
+
+        /* 相片 Slot 樣式 */
         .photo-slot-box {
-            border: 2px dashed #CED4DA;
-            border-radius: 10px;
+            border: none;
+            border-radius: 15px;
             height: 90px;
             display: flex; align-items: center; justify-content: center;
-            background-color: #FFFFFF; color: #ADB5BD; font-weight: bold;
+            background-color: #eef2f7;
+            color: #ADB5BD; font-weight: bold;
+            box-shadow: inset 4px 4px 8px #c8d0e7, inset -4px -4px 8px #ffffff; /* 凹陷 */
         }
-        [data-testid="stSidebar"] { background-color: #1A1C1E; }
-        .stButton>button { width: 100%; border-radius: 10px; background-color: #FF4B4B !important; color: white !important; font-weight: bold; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -65,11 +140,17 @@ def main():
 
     # 頂部 Logo
     logo_url = "https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png"
-    st.image(logo_url, width=180)
-    st.title("Firebean Brain AI Command Center")
+    col_l, col_r = st.columns([1, 4])
+    with col_l:
+        # 為 Logo 添加凹陷發光效果
+        st.markdown(f'<div class="neu-inset"><img src="{logo_url}" width="150"></div>', unsafe_allow_html=True)
+    with col_r:
+        # 為標題添加凹陷發光效果
+        st.markdown('<h1><span class="neu-inset" style="border-radius: 15px; padding: 10px 20px;">Firebean Brain AI Command Center</span></h1>', unsafe_allow_html=True)
 
     # --- 側邊欄 ---
     with st.sidebar:
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📊 Project Progress")
         essential = ["client_name", "project_name", "venue"]
         done = sum(1 for f in essential if st.session_state[f])
@@ -78,11 +159,13 @@ def main():
         st.markdown("---")
         api_key = st.text_input("Gemini API Key", value="AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI", type="password")
         if api_key: genai.configure(api_key=api_key)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["💬 Project Brain Hub (Chat, Gallery & Logo)", "⚙️ Admin Review & Slides"])
+    tab1, tab2 = st.tabs(["💬 Project Brain Hub", "⚙️ Admin Review & Slides"])
 
     # --- TAB 1: 整合中心 ---
     with tab1:
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col_left, col_right = st.columns([1.2, 1])
         
         # 左邊：人性化對話
@@ -135,9 +218,11 @@ def main():
                             st.image(up_files[i], use_column_width=True)
                         else:
                             st.markdown(f'<div class="photo-slot-box">{i+1}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # --- TAB 2: 審核與簡報 ---
     with tab2:
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("⚙️ Final Review & Slides")
         c1, c2 = st.columns(2)
         with c1:
@@ -149,7 +234,7 @@ def main():
         
         st.markdown("---")
         st.subheader("🗂️ Company Profile Preview (Black Bar Mode)")
-        st.markdown("""<div style="background-color:black; color:white; padding:20px; border-radius:10px;">
+        st.markdown("""<div style="background-color:black; color:white; padding:20px; border-radius:10px; box-shadow: 8px 8px 16px #c8d0e7;">
             <h3>Project: {{project_name}}</h3>
             <p>Venue: {{venue}}</p>
             <ul><li>AI 會根據對話自動生成 4-5 個 Key Points...</li></ul>
@@ -158,6 +243,7 @@ def main():
         if st.button("🚀 Confirm & Sync to Google Sheet + Slides"):
             st.balloons()
             st.success("成功！資料已同步到 Google Sheet 並開始生成 PPT 模板。")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
