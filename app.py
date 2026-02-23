@@ -4,6 +4,7 @@ import requests
 from PIL import Image
 import io
 import json
+import base64
 
 # --- FIREBEAN BRAIN GUIDELINES (SYSTEM PROMPT) ---
 FIREBEAN_BRAIN_GUIDELINES = """
