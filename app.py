@@ -183,13 +183,16 @@ def init_session_state():
         "title_en", "challenge_en", "solution_en", "result_en",
         "title_ch", "challenge_ch", "solution_ch", "result_ch",
         "title_jp", "challenge_jp", "solution_jp", "result_jp",
-        "slide_points_en", "linkedin_draft", "fb_post",
+        "linkedin_draft", "fb_post",
         "ig_caption", "threads_post", "newsletter_topic",
         "slide_1_cover", "slide_2_challenge", "slide_3_solution", "slide_4_results"
     ]
     for field in fields:
         if field not in st.session_state:
-            st.session_state[field] = ""
+            if "slide_" in field:
+                st.session_state[field] = []
+            else:
+                st.session_state[field] = ""
     
     # Chat history for the "Interviewer"
     if "messages" not in st.session_state:
@@ -374,6 +377,7 @@ def get_base64_logo(url):
 
 # --- MAIN APP ---
 def main():
+    st.set_page_config(page_title="Firebean AI", layout="wide", page_icon="🔥")
     # --- SIDEBAR: CONFIGURATION ---
     with st.sidebar:
         # Language Selector
@@ -383,7 +387,7 @@ def main():
         
         st.title(t["sidebar_title"])
         st.markdown(f"### {t['config_title']}")
-        api_key = st.text_input(t["api_key_label"], type="password")
+        api_key = st.text_input(t["api_key_label"], type="password", value="AIzaSyAhhiB3djyljE0zkas8bMvvHXFOqNPYrVU")
         
         if api_key:
             genai.configure(api_key=api_key)
@@ -398,7 +402,6 @@ def main():
         st.session_state.youtube_embed_code = st.text_input(t["youtube_embed_label"], value=st.session_state.youtube_embed_code)
         st.session_state.best_image_url = st.text_input(t["best_image_label"], value=st.session_state.best_image_url)
 
-    st.set_page_config(page_title=t["page_title"], layout="wide", page_icon="🔥")
     apply_neumorphism_style()
     init_session_state()
 
@@ -532,7 +535,7 @@ def main():
                         title_en, challenge_en, solution_en, result_en,
                         title_ch, challenge_ch, solution_ch, result_ch,
                         title_jp, challenge_jp, solution_jp, result_jp,
-                        slide_points_en, linkedin_draft, fb_post, ig_caption, threads_post, newsletter_topic,
+                        linkedin_draft, fb_post, ig_caption, threads_post, newsletter_topic,
                         slide_1_cover, slide_2_challenge, slide_3_solution, slide_4_results
                         
                         For slide_1_cover, slide_2_challenge, slide_3_solution, slide_4_results, each should be a list of 3-4 punchy bullet points.
@@ -597,7 +600,7 @@ def main():
             st.session_state.result_jp = st.text_area("Result (JP)", value=st.session_state.result_jp)
 
         st.markdown(f"### {t['social_title']}")
-        st.session_state.slide_points_en = st.text_area("Slide Points (EN)", value=st.session_state.slide_points_en)
+
         st.session_state.linkedin_draft = st.text_area("LinkedIn Draft (Institutional Cool)", value=st.session_state.linkedin_draft, height=200)
         st.session_state.fb_post = st.text_area("Facebook Post (Weekend Planner)", value=st.session_state.fb_post, height=200)
         st.session_state.ig_caption = st.text_area("Instagram Caption (Lifestyle Curator)", value=st.session_state.ig_caption, height=200)
@@ -634,12 +637,16 @@ def main():
                 "challenge_jp": st.session_state.challenge_jp,
                 "solution_jp": st.session_state.solution_jp,
                 "result_jp": st.session_state.result_jp,
-                "slide_points_en": st.session_state.slide_points_en,
+
                 "linkedin_draft": st.session_state.linkedin_draft,
                 "fb_post": st.session_state.fb_post,
                 "ig_caption": st.session_state.ig_caption,
                 "threads_post": st.session_state.threads_post,
-                "newsletter_topic": st.session_state.newsletter_topic
+                "newsletter_topic": st.session_state.newsletter_topic,
+                "slide_1_cover": st.session_state.slide_1_cover,
+                "slide_2_challenge": st.session_state.slide_2_challenge,
+                "slide_3_solution": st.session_state.slide_3_solution,
+                "slide_4_results": st.session_state.slide_4_results
             }
             
             # Send Webhook
