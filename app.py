@@ -24,7 +24,6 @@ Return the output ONLY as a valid JSON object.
 
 # --- 2. 初始化所有欄位 (SESSION STATE) ---
 def init_session_state():
-    # 35 個核心欄位 + 簡報欄位
     fields = [
         "event_date", "client_name", "project_name", "venue", "raw_transcript",
         "category_who", "category_what", "highlight_order", "youtube_link", 
@@ -43,7 +42,7 @@ def init_session_state():
     
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "Hello Dickson! I am Firebean Brain. Ready to turn policy into play? Tell me about your latest project!"}
+            {"role": "assistant", "content": "Hello Dickson! I am Firebean Brain. Your default API Key is loaded. Ready to turn policy into play!"}
         ]
 
 # --- 3. UI 樣式設定 (NEUMORPHISM) ---
@@ -88,10 +87,13 @@ def main():
     # --- 側邊欄：設定與進度 ---
     with st.sidebar:
         st.header("🔐 Config")
-        api_key = st.text_input("Gemini API Key", type="password")
+        # 這裡已經填入你的預設 API Key
+        default_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI"
+        api_key = st.text_input("Gemini API Key", value=default_key, type="password")
+        
         if api_key:
             genai.configure(api_key=api_key)
-            st.success("API Connected")
+            st.success("API Connected (Default)")
         
         st.markdown("---")
         st.subheader("📊 Sync Assets")
@@ -123,7 +125,7 @@ def main():
         st.markdown("---")
         if st.button("🚀 Activate Firebean Brain (Generate Everything)", type="primary"):
             if not api_key:
-                st.error("Please enter API Key in sidebar!")
+                st.error("Please enter API Key!")
             else:
                 with st.spinner("Firebean Brain is thinking..."):
                     try:
@@ -131,7 +133,6 @@ def main():
                         full_prompt = f"Transcript Content: {st.session_state.raw_transcript}"
                         response = model.generate_content(full_prompt, generation_config={"response_mime_type": "application/json"})
                         
-                        # 解析 JSON 並更新到 Session State
                         res_data = json.loads(response.text)
                         for k, v in res_data.items():
                             if k in st.session_state:
@@ -159,8 +160,6 @@ def main():
 
         if st.button("✅ Approve & Save to Google Sheet"):
             webhook_url = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
-            
-            # 準備發送到 Webhook 的 35 個欄位資料
             payload = {field: st.session_state[field] for field in st.session_state if field not in ["messages"]}
             
             try:
@@ -175,14 +174,12 @@ def main():
     # TAB 3: 簡報腳本預覽
     with tab3:
         st.header("🗂️ Company Profile Slide Script")
-        st.info("These points are optimized for a 4-page Case Study PowerPoint template.")
+        st.info("Ready-to-use points for your 4-page Case Study PowerPoint.")
         
         slide_cols = st.columns(2)
-        
         with slide_cols[0]:
             st.markdown(f'<div class="slide-preview"><b>Slide 1: Cover</b><br>{st.session_state.slide_1_cover}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="slide-preview"><b>Slide 3: Solution</b><br>{st.session_state.slide_3_solution}</div>', unsafe_allow_html=True)
-            
         with slide_cols[1]:
             st.markdown(f'<div class="slide-preview"><b>Slide 2: Challenge</b><br>{st.session_state.slide_2_challenge}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="slide-preview"><b>Slide 4: Results</b><br>{st.session_state.slide_4_results}</div>', unsafe_allow_html=True)
