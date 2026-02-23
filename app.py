@@ -52,6 +52,124 @@ Generate content based on the provided project details.
 Return the output as a valid JSON object with the exact keys requested.
 """
 
+# --- TRANSLATIONS ---
+TRANSLATIONS = {
+    "Chinese (繁體中文)": {
+        "page_title": "Firebean AI 指揮中心",
+        "sidebar_title": "🔥 Firebean AI",
+        "config_title": "🔐 設定",
+        "api_key_label": "Gemini API 金鑰",
+        "api_key_success": "API 金鑰已設定",
+        "api_key_warning": "請輸入 Gemini API 金鑰",
+        "assets_title": "📂 專案素材",
+        "client_logo_label": "客戶 Logo URL",
+        "drive_folder_label": "專案 Drive 資料夾",
+        "youtube_embed_label": "YouTube 嵌入代碼",
+        "best_image_label": "精選圖片 URL",
+        "tab1_title": "💬 員工聊天機器人 (訪談)",
+        "tab2_title": "⚙️ 管理儀表板 (審核)",
+        "chatbot_header": "💬 Firebean 員工聊天機器人",
+        "progress_title": "📊 收集進度",
+        "chatbot_sub": "🤖 Firebean Brain 助手",
+        "chat_placeholder": "告訴我關於活動的資訊... (例如：'客戶是 CMAB，日期是 2024-05-10')",
+        "manual_entry_title": "🛠️ 手動資料輸入 & 圖片上傳",
+        "date_label": "活動日期 (YYYY-MM-DD)",
+        "client_label": "客戶名稱",
+        "project_label": "專案名稱",
+        "venue_label": "地點",
+        "youtube_link_label": "YouTube 連結",
+        "transcript_label": "原始逐字稿 / 專案筆記 (詳細)",
+        "image_upload_header": "📸 圖片上傳",
+        "image_upload_label": "上傳活動照片",
+        "generate_btn": "🚀 啟動 Firebean Brain (生成所有素材)",
+        "admin_header": "⚙️ 管理儀表板 (審核 & 發布)",
+        "cat_title": "🏷️ 分類",
+        "cat_who_label": "分類 (對象)",
+        "cat_what_label": "分類 (內容)",
+        "highlight_order_label": "精選順序",
+        "pr_copy_title": "📝 多語言公關文案",
+        "social_title": "📱 社群媒體內容",
+        "approve_btn": "✅ 批准並儲存至資料庫",
+        "save_success": "✅ 成功儲存至資料庫！",
+        "save_error": "❌ 儲存失敗。狀態碼：",
+        "conn_error": "❌ 連線錯誤：",
+        "initial_msg": "你好！我是 Firebean Brain (Beta)。我來協助你撰寫完美的案例研究。請在側邊欄或表單中填寫專案詳情，並分享原始逐字稿。我準備好將政策轉化為遊戲了！",
+        "progress_labels": {
+            "Date": "日期",
+            "Client": "客戶",
+            "Project": "專案",
+            "Venue": "地點",
+            "Notes": "筆記",
+            "Photos": "照片"
+        },
+        "lang_label": "語言 / Language",
+        "bot_extracted": "收到！已更新以下欄位：{fields}。還有什麼關於結果或「氛圍」的資訊嗎？",
+        "bot_fallback": "已將其加入專案筆記。請繼續分享活動詳情或結果！",
+        "bot_more_info": "已將其加入專案筆記。請告訴我更多！",
+        "bot_no_api": "已將其加入專案筆記。（注意：設定 API 金鑰以啟用自動提取）",
+        "gen_success": "✅ 內容生成成功！請在管理儀表板分頁中查看。",
+        "gen_error": "生成失敗：",
+        "provide_transcript": "請提供原始逐字稿。"
+    },
+    "English": {
+        "page_title": "Firebean AI Command Center",
+        "sidebar_title": "🔥 Firebean AI",
+        "config_title": "🔐 Configuration",
+        "api_key_label": "Gemini API Key",
+        "api_key_success": "API Key Configured",
+        "api_key_warning": "Please enter Gemini API Key",
+        "assets_title": "📂 Project Assets",
+        "client_logo_label": "Client Logo URL",
+        "drive_folder_label": "Project Drive Folder",
+        "youtube_embed_label": "YouTube Embed Code",
+        "best_image_label": "Best Image URL",
+        "tab1_title": "💬 Staff Chatbot (Interviewer)",
+        "tab2_title": "⚙️ Admin Dashboard (Review)",
+        "chatbot_header": "💬 Firebean Staff Chatbot",
+        "progress_title": "📊 Collection Progress",
+        "chatbot_sub": "🤖 Firebean Brain Assistant",
+        "chat_placeholder": "Tell me about the event... (e.g., 'Client is CMAB, Date was 2024-05-10')",
+        "manual_entry_title": "🛠️ Manual Data Entry & Image Upload",
+        "date_label": "Event Date (YYYY-MM-DD)",
+        "client_label": "Client Name",
+        "project_label": "Project Name",
+        "venue_label": "Venue",
+        "youtube_link_label": "YouTube Link",
+        "transcript_label": "Raw Transcript / Project Notes (Detailed)",
+        "image_upload_header": "📸 Image Upload",
+        "image_upload_label": "Upload Event Photos",
+        "generate_btn": "🚀 Activate Firebean Brain (Generate All Assets)",
+        "admin_header": "⚙️ Admin Dashboard (Review & Publish)",
+        "cat_title": "🏷️ Categorization",
+        "cat_who_label": "Category Who",
+        "cat_what_label": "Category What",
+        "highlight_order_label": "Highlight Order",
+        "pr_copy_title": "📝 Multilingual PR Copy",
+        "social_title": "📱 Social Media Content",
+        "approve_btn": "✅ Approve & Save to Database",
+        "save_success": "✅ Successfully saved to database!",
+        "save_error": "❌ Failed to save. Status Code:",
+        "conn_error": "❌ Connection Error:",
+        "initial_msg": "Hello! I am the Firebean Brain (Beta). I'm here to help you craft the perfect case study. Please fill in the Project Details in the sidebar or form, and share the Raw Transcript. I'm ready to turn Policy into Play!",
+        "progress_labels": {
+            "Date": "Date",
+            "Client": "Client",
+            "Project": "Project",
+            "Venue": "Venue",
+            "Notes": "Notes",
+            "Photos": "Photos"
+        },
+        "lang_label": "Language / 語言",
+        "bot_extracted": "Got it! I've updated the following fields: {fields}. What else can you tell me about the results or the 'vibe'?",
+        "bot_fallback": "I've added that to the project notes. Please continue sharing the event details or results!",
+        "bot_more_info": "I've added that to the project notes. Tell me more!",
+        "bot_no_api": "I've added that to the project notes. (Note: Configure API Key for auto-extraction)",
+        "gen_success": "✅ Content Generated Successfully! Please review in the Admin Dashboard tab.",
+        "gen_error": "Generation Failed: ",
+        "provide_transcript": "Please provide a Raw Transcript."
+    }
+}
+
 # --- INITIALIZATION ---
 def init_session_state():
     # List of all 35 database fields required
@@ -72,8 +190,9 @@ def init_session_state():
     
     # Chat history for the "Interviewer"
     if "messages" not in st.session_state:
+        # Default to Chinese initial message if not set, or generic
         st.session_state.messages = [
-            {"role": "assistant", "content": "Hello! I am the Firebean Brain (Beta). I'm here to help you craft the perfect case study. Please fill in the Project Details in the sidebar or form, and share the Raw Transcript. I'm ready to turn Policy into Play!"}
+            {"role": "assistant", "content": TRANSLATIONS["Chinese (繁體中文)"]["initial_msg"]}
         ]
 
 # --- UI STYLING: NEUMORPHISM ---
@@ -218,14 +337,15 @@ def apply_neumorphism_style():
     """, unsafe_allow_html=True)
     st.markdown('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">', unsafe_allow_html=True)
 
-def display_progress():
+def display_progress(lang):
+    t = TRANSLATIONS[lang]
     required_fields = {
-        "Date": st.session_state.event_date,
-        "Client": st.session_state.client_name,
-        "Project": st.session_state.project_name,
-        "Venue": st.session_state.venue,
-        "Notes": st.session_state.raw_transcript,
-        "Photos": st.session_state.gallery_image_urls
+        t["progress_labels"]["Date"]: st.session_state.event_date,
+        t["progress_labels"]["Client"]: st.session_state.client_name,
+        t["progress_labels"]["Project"]: st.session_state.project_name,
+        t["progress_labels"]["Venue"]: st.session_state.venue,
+        t["progress_labels"]["Notes"]: st.session_state.raw_transcript,
+        t["progress_labels"]["Photos"]: st.session_state.gallery_image_urls
     }
     
     # Use a container for the pills
@@ -251,7 +371,31 @@ def get_base64_logo(url):
 
 # --- MAIN APP ---
 def main():
-    st.set_page_config(page_title="Firebean AI Command Center", layout="wide", page_icon="🔥")
+    # --- SIDEBAR: CONFIGURATION ---
+    with st.sidebar:
+        # Language Selector
+        lang_options = ["Chinese (繁體中文)", "English"]
+        lang = st.selectbox("語言 / Language", lang_options, index=0)
+        t = TRANSLATIONS[lang]
+        
+        st.title(t["sidebar_title"])
+        st.markdown(f"### {t['config_title']}")
+        api_key = st.text_input(t["api_key_label"], type="password")
+        
+        if api_key:
+            genai.configure(api_key=api_key)
+            st.success(t["api_key_success"])
+        else:
+            st.warning(t["api_key_warning"])
+
+        st.markdown("---")
+        st.markdown(f"### {t['assets_title']}")
+        st.session_state.client_logo_url = st.text_input(t["client_logo_label"], value=st.session_state.client_logo_url)
+        st.session_state.project_drive_folder = st.text_input(t["drive_folder_label"], value=st.session_state.project_drive_folder)
+        st.session_state.youtube_embed_code = st.text_input(t["youtube_embed_label"], value=st.session_state.youtube_embed_code)
+        st.session_state.best_image_url = st.text_input(t["best_image_label"], value=st.session_state.best_image_url)
+
+    st.set_page_config(page_title=t["page_title"], layout="wide", page_icon="🔥")
     apply_neumorphism_style()
     init_session_state()
 
@@ -266,38 +410,19 @@ def main():
         # Fallback to direct URL if base64 fails
         st.markdown(f'<div class="logo-container"><img src="{logo_url}" class="logo-img"></div>', unsafe_allow_html=True)
 
-    # --- SIDEBAR: CONFIGURATION ---
-    with st.sidebar:
-        st.title("🔥 Firebean AI")
-        st.markdown("### 🔐 Configuration")
-        api_key = st.text_input("Gemini API Key", type="password")
-        
-        if api_key:
-            genai.configure(api_key=api_key)
-            st.success("API Key Configured")
-        else:
-            st.warning("Please enter Gemini API Key")
-
-        st.markdown("---")
-        st.markdown("### 📂 Project Assets")
-        st.session_state.client_logo_url = st.text_input("Client Logo URL", value=st.session_state.client_logo_url)
-        st.session_state.project_drive_folder = st.text_input("Project Drive Folder", value=st.session_state.project_drive_folder)
-        st.session_state.youtube_embed_code = st.text_input("YouTube Embed Code", value=st.session_state.youtube_embed_code)
-        st.session_state.best_image_url = st.text_input("Best Image URL", value=st.session_state.best_image_url)
-
     # --- TABS ---
-    tab1, tab2 = st.tabs(["💬 Staff Chatbot (Interviewer)", "⚙️ Admin Dashboard (Review)"])
+    tab1, tab2 = st.tabs([t["tab1_title"], t["tab2_title"]])
 
     # --- TAB 1: STAFF CHATBOT & COLLECTOR ---
     with tab1:
-        st.header("💬 Firebean Staff Chatbot")
+        st.header(t["chatbot_header"])
         
         # Progress Tracker
-        st.markdown("### 📊 Collection Progress")
-        display_progress()
+        st.markdown(f"### {t['progress_title']}")
+        display_progress(lang)
 
         # Chat Interface for Interaction (The Main Lead)
-        st.subheader("🤖 Firebean Brain Assistant")
+        st.subheader(t["chatbot_sub"])
         
         # Display chat messages in a container
         chat_container = st.container()
@@ -307,7 +432,7 @@ def main():
                     st.markdown(message["content"])
 
         # Chat Input (For refining transcript or asking questions)
-        if prompt := st.chat_input("Tell me about the event... (e.g., 'Client is CMAB, Date was 2024-05-10')"):
+        if prompt := st.chat_input(t["chat_placeholder"]):
             # Add user message to chat history
             st.session_state.messages.append({"role": "user", "content": prompt})
             
@@ -348,21 +473,21 @@ def main():
         st.markdown("---")
         
         # Secondary: Manual Overrides & Image Upload
-        with st.expander("🛠️ Manual Data Entry & Image Upload", expanded=False):
+        with st.expander(t["manual_entry_title"], expanded=False):
             col1, col2 = st.columns(2)
             with col1:
-                st.session_state.event_date = st.text_input("Event Date (YYYY-MM-DD)", value=st.session_state.event_date)
-                st.session_state.client_name = st.text_input("Client Name", value=st.session_state.client_name)
-                st.session_state.project_name = st.text_input("Project Name", value=st.session_state.project_name)
+                st.session_state.event_date = st.text_input(t["date_label"], value=st.session_state.event_date)
+                st.session_state.client_name = st.text_input(t["client_label"], value=st.session_state.client_name)
+                st.session_state.project_name = st.text_input(t["project_label"], value=st.session_state.project_name)
             with col2:
-                st.session_state.venue = st.text_input("Venue", value=st.session_state.venue)
-                st.session_state.youtube_link = st.text_input("YouTube Link", value=st.session_state.youtube_link)
+                st.session_state.venue = st.text_input(t["venue_label"], value=st.session_state.venue)
+                st.session_state.youtube_link = st.text_input(t["youtube_link_label"], value=st.session_state.youtube_link)
             
-            st.session_state.raw_transcript = st.text_area("Raw Transcript / Project Notes (Detailed)", value=st.session_state.raw_transcript, height=150)
+            st.session_state.raw_transcript = st.text_area(t["transcript_label"], value=st.session_state.raw_transcript, height=150)
 
             # Image Uploader
-            st.subheader("📸 Image Upload")
-            uploaded_files = st.file_uploader("Upload Event Photos", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
+            st.subheader(t["image_upload_header"])
+            uploaded_files = st.file_uploader(t["image_upload_label"], accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
             
             if uploaded_files:
                 mock_urls = []
@@ -375,9 +500,9 @@ def main():
                 st.info(f"✅ {len(uploaded_files)} images processed.")
 
         # GENERATE BUTTON
-        if st.button("🚀 Activate Firebean Brain (Generate All Assets)", type="primary", use_container_width=True):
+        if st.button(t["generate_btn"], type="primary", use_container_width=True):
             if not api_key:
-                st.error("Please configure Gemini API Key in the sidebar.")
+                st.error(t["api_key_warning"])
             elif not st.session_state.raw_transcript:
                 st.error("Please provide a Raw Transcript.")
             else:
@@ -434,18 +559,18 @@ def main():
 
     # --- TAB 2: ADMIN DASHBOARD ---
     with tab2:
-        st.header("⚙️ Admin Dashboard (Review & Publish)")
+        st.header(t["admin_header"])
         
-        st.markdown("### 🏷️ Categorization")
+        st.markdown(f"### {t['cat_title']}")
         col_cat1, col_cat2, col_cat3 = st.columns(3)
         with col_cat1:
-            st.session_state.category_who = st.text_input("Category Who", value=st.session_state.category_who)
+            st.session_state.category_who = st.text_input(t["cat_who_label"], value=st.session_state.category_who)
         with col_cat2:
-            st.session_state.category_what = st.text_input("Category What", value=st.session_state.category_what)
+            st.session_state.category_what = st.text_input(t["cat_what_label"], value=st.session_state.category_what)
         with col_cat3:
-            st.session_state.highlight_order = st.selectbox("Highlight Order", ["", "1", "2", "3", "4", "5"], index=0 if st.session_state.highlight_order == "" else ["", "1", "2", "3", "4", "5"].index(st.session_state.highlight_order))
+            st.session_state.highlight_order = st.selectbox(t["highlight_order_label"], ["", "1", "2", "3", "4", "5"], index=0 if st.session_state.highlight_order == "" else ["", "1", "2", "3", "4", "5"].index(st.session_state.highlight_order))
 
-        st.markdown("### 📝 Multilingual PR Copy")
+        st.markdown(f"### {t['pr_copy_title']}")
         tab_en, tab_ch, tab_jp = st.tabs(["English", "Chinese (Trad)", "Japanese"])
         
         with tab_en:
@@ -466,7 +591,7 @@ def main():
             st.session_state.solution_jp = st.text_area("Solution (JP)", value=st.session_state.solution_jp)
             st.session_state.result_jp = st.text_area("Result (JP)", value=st.session_state.result_jp)
 
-        st.markdown("### 📱 Social Media Content")
+        st.markdown(f"### {t['social_title']}")
         st.session_state.slide_points_en = st.text_area("Slide Points (EN)", value=st.session_state.slide_points_en)
         st.session_state.linkedin_draft = st.text_area("LinkedIn Draft (Institutional Cool)", value=st.session_state.linkedin_draft, height=200)
         st.session_state.fb_post = st.text_area("Facebook Post (Weekend Planner)", value=st.session_state.fb_post, height=200)
@@ -475,7 +600,7 @@ def main():
         st.session_state.newsletter_topic = st.text_input("Newsletter Topic", value=st.session_state.newsletter_topic)
 
         st.markdown("---")
-        if st.button("✅ Approve & Save to Database", type="primary"):
+        if st.button(t["approve_btn"], type="primary"):
             # Prepare Payload
             payload = {
                 "event_date": st.session_state.event_date,
@@ -518,12 +643,12 @@ def main():
                 with st.spinner("Syncing to Firebean Database..."):
                     response = requests.post(webhook_url, json=payload)
                     if response.status_code == 200:
-                        st.success("✅ Successfully saved to database!")
+                        st.success(t["save_success"])
                         st.balloons()
                     else:
-                        st.error(f"❌ Failed to save. Status Code: {response.status_code}")
+                        st.error(f"{t['save_error']} {response.status_code}")
             except Exception as e:
-                st.error(f"❌ Connection Error: {str(e)}")
+                st.error(f"{t['conn_error']} {str(e)}")
 
 if __name__ == "__main__":
     main()
