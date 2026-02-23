@@ -11,7 +11,7 @@ from rembg import remove
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，頂尖 PR 策略大腦。性格可愛高明。
 目標：透過對話套出 Client, Project, Venue, Challenge, Result 等資料。
-語音轉錄任務：請精確還原廣東話口語文字並分析項目細節。
+語音任務已取消，現在請專注於文字對話與資料整理。
 """
 
 # --- 2. 初始化所有狀態 ---
@@ -24,11 +24,11 @@ def init_session_state():
         if field not in st.session_state:
             st.session_state[field] = ""
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "嘩！老細✨！今日搞完 Event 係咪攰到唔想打字？你可以直接錄音話我知發生咩事，我幫你聽清楚佢！📸"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！今日搞完 Event 辛苦晒。資料已經準備好，你可以直接喺度同我傾，或者喺右邊上載相片同 Logo！📸"}]
 
-# --- 3. UI 視覺強化 (手機 2x4 Gallery + 置中 Logo + 深色文字) ---
+# --- 3. UI 視覺強化 (泥膠風格 + 手機 2x4 Gallery) ---
 def apply_neu_theme():
-    # 計算進度百分比
+    # 計算能量值 (進度百分比)
     track_fields = ["client_name", "project_name", "event_date", "venue", "category", "scope", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
@@ -70,7 +70,7 @@ def apply_neu_theme():
             color: #2D3436 !important;
         }}
         p, label, span, .stMarkdown {{ color: #2D3436 !important; }}
-        h1, h2, h3 {{ color: #FF4B4B !important; }}
+        h1, h2, h3 {{ color: #FF4B4B !important; font-weight: 800; }}
         
         /* --- 2x4 手機 Gallery 網格 --- */
         .gallery-grid {{
@@ -101,14 +101,18 @@ def apply_neu_theme():
             box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff;
             padding: 20px; margin-bottom: 20px;
         }}
-        div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer, [data-testid="stAudioInput"], .stFileUploader {{
+        div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer, .stFileUploader {{
             background-color: #BEC3C9 !important; border-radius: 20px !important;
             box-shadow: inset 6px 6px 12px #9da3ab, inset -6px -6px 12px #ffffff !important;
             border: 1px solid rgba(255, 75, 75, 0.2) !important;
         }}
 
         /* 按鈕凸起 */
-        .stButton > button {{ width: 100%; border-radius: 20px !important; background-color: #E0E5EC !important; color: #FF4B4B !important; font-weight: 800 !important; box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important; }}
+        .stButton > button {{ 
+            width: 100%; border-radius: 20px !important; background-color: #E0E5EC !important; 
+            color: #FF4B4B !important; font-weight: 800 !important; 
+            box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important; 
+        }}
         </style>
         
         <div class="energy-container">
@@ -117,18 +121,18 @@ def apply_neu_theme():
         </div>
     """, unsafe_allow_html=True)
 
+# 圖片轉 Base64 輔助
 def get_base64_image(file):
     try:
         return base64.b64encode(file.getvalue()).decode()
     except: return ""
 
 def main():
-    st.set_page_config(page_title="Firebean Brain Center", layout="wide")
+    st.set_page_config(page_title="Firebean Brain Command", layout="wide")
     init_session_state()
     apply_neu_theme()
 
-    # --- 修復後的 API 設定 ---
-    # 這裡直接使用 gemini-1.5-pro 字符串，不加 models/ 前綴以提高兼容性
+    # API 設定
     api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" 
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
@@ -146,30 +150,21 @@ def main():
         with col_l:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Brain Assistant")
+            
+            # 對話歷史
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             
-            st.markdown("---")
-            # --- 修復後的錄音功能 ---
-            audio_input = st.audio_input("🎤 撳住錄音話我知 Project 詳情...")
-            if audio_input:
-                audio_bytes = audio_input.getvalue()
-                if audio_bytes:
-                    with st.spinner("聽緊你講咩... Gemini Pro 正在分析..."):
-                        try:
-                            # 採用更穩定的 content 格式
-                            response = model.generate_content([
-                                "請精確轉錄這段廣東話錄音，並提取項目詳情 (Client, Venue, Challenge, Result)。",
-                                {"mime_type": "audio/wav", "data": audio_bytes}
-                            ])
-                            if response:
-                                st.session_state.messages.append({"role": "user", "content": f"🎤 [錄音轉錄]: {response.text}"})
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"錄音處理失敗: {str(e)}")
-
+            # 文字輸入框
             if p := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
                 st.session_state.messages.append({"role": "user", "content": p})
+                with st.chat_message("user"): st.write(p)
+                
+                with st.chat_message("assistant"):
+                    with st.spinner("思考中..."):
+                        response = model.generate_content(p)
+                        st.write(response.text)
+                        st.session_state.messages.append({"role": "assistant", "content": response.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -188,7 +183,7 @@ def main():
                 st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # --- 2x4 手機 Gallery 網格實現 ---
+            # 2x4 手機 Gallery
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             up_files = st.file_uploader("上傳現場相片", type=['jpg','png'], accept_multiple_files=True)
@@ -210,11 +205,33 @@ def main():
         st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
         st.session_state.client_name = st.text_input("Client Name", st.session_state.client_name)
         st.session_state.venue = st.text_input("Venue", st.session_state.venue)
-        st.session_state.scope = st.text_area("Scope", st.session_state.scope)
+        st.session_state.event_date = st.text_input("Date", st.session_state.event_date)
+        st.session_state.category = st.text_input("Category", st.session_state.category)
+        st.session_state.scope = st.text_area("Scope of Work", st.session_state.scope)
+        st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution", st.session_state.solution)
         
         if st.button("🚀 Confirm & Sync to Master Slide"):
-            st.balloons()
-            st.success("成功追加至 Master Slide！")
+            with st.spinner("同步中..."):
+                img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
+                payload = {
+                    "project_name": st.session_state.project_name,
+                    "client_name": st.session_state.client_name,
+                    "category": st.session_state.category,
+                    "event_date": st.session_state.event_date,
+                    "venue": st.session_state.venue,
+                    "scope": st.session_state.scope,
+                    "challenge": st.session_state.challenge,
+                    "solution": st.session_state.solution,
+                    "logo_base64": st.session_state.get('logo_b64', ""),
+                    "images_base64": img_b64_list
+                }
+                try:
+                    requests.post(WEBHOOK_URL, json=payload)
+                    st.balloons()
+                    st.success("成功追加至 Master Slide！")
+                except:
+                    st.error("傳送失敗，請檢查網路或 API 設定。")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
