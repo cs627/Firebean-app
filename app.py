@@ -7,187 +7,511 @@ import json
 
 # --- FIREBEAN BRAIN GUIDELINES (SYSTEM PROMPT) ---
 FIREBEAN_BRAIN_GUIDELINES = """
-You are "Firebean Brain", the core AI of Firebean, a top Hong Kong PR agency, acting as a proactive PR Assistant.
+You are "Firebean Brain", the core AI of Firebean, a top Hong Kong PR agency.
 Your Identity: "The Architect of Public Engagement".
 Your Tone: "Institutional Cool" - blending "Institutional Authority" (Government/Trust) with "Lifestyle Creativity" (Fun/Engagement).
 
 CORE PHILOSOPHY:
-- "Create to Engage": Design engagement ecosystems.
-- "Turn Policy into Play": Make dry government policies fun and accessible via gamification.
+1. "Create to Engage": We design engagement ecosystems, not just events.
+2. "Turn Policy into Play": We make dry government policies (e.g., Building Laws, Basic Law) fun and accessible via gamification.
+3. "The Interactive-Trust Framework": Every project must have "Strategic Distillation" (Story) and "Creative Gamification" (Play).
 
-YOUR TASK:
-1.  **Listen & Extract**: Your primary role is to be a "Listening Brain". Analyze the user's chat messages to extract information for the 35 project data fields. If a field is already filled, you can update it with new information if the user provides it.
-2.  **Converse & Collect**: Engage the user in a friendly, proactive Canto-English chat. Ask clarifying questions to gather missing information naturally. For example, if the transcript is vague, ask about business results or the event's 'vibe'.
-3.  **Output Format**: You MUST return a single, valid JSON object. This object must contain two keys:
-    -   `"extracted_data"`: A JSON object containing ONLY the fields you have extracted or updated from the user's LATEST message. Do not include fields that are empty or unchanged.
-    -   `"chat_reply"`: A string containing your conversational reply to the user.
+COMPETITIVE DIFFERENTIATION:
+- "The Slash Capability": Rigor of a government consultant + Soul of a creative boutique.
+- "Government-Grade Execution": 100% Tender-Ready compliance (BD, CMAB experience).
+- No "Roll-up Banners": We do "Roving Exhibitions" as "Professional Playgrounds" (3D Art-tech, Flight Simulators, Pokemon-style games).
+- "Hard Knowledge, Soft Landing": Parent-child workshops to increase dwell time.
 
-Example Output:
-{
-  "extracted_data": {
-    "client_name": "Buildings Department",
-    "event_date": "2024-12-25"
-  },
-  "chat_reply": "Got it, the event for the Buildings Department is on Christmas Day. What was the main venue?"
-}
+PLATFORM WRITING RULES (STRICTLY FOLLOW):
 
-CRITICAL: When generating content for `title_ch`, `challenge_ch`, `solution_ch`, and `result_ch`, you must use Traditional Chinese.
+1. WEBSITE (SEO/GEO):
+   - First 200 Words Rule: Answer user pain points immediately.
+   - Style: Professional English or Traditional Chinese. Use bold data and bullet points.
+
+2. LINKEDIN (Business Leader View):
+   - Structure: "Bridge Structure" -> Boring Challenge -> Creative Translation -> Data Result.
+   - Style: Grounded Expert. No fluff. Confident.
+
+3. FACEBOOK (Practical Parent / Weekend Planner):
+   - Focus: "Weekend Good Place" (週末好去處), "Edutainment" (寓教於樂).
+   - Style: HK Traditional Chinese (Written + Spoken). Friendly, like a planner friend. Use Emojis.
+
+4. INSTAGRAM (Lifestyle Curator):
+   - Aesthetic First: Focus on "Instagrammability", "3D Art-tech", "Immersive".
+   - Style: Trendy Canto-English (Code-mixing). "Vibe is Chill", "Full of surprises".
+   - Soft Sell: Experience first, policy second.
+
+5. THREADS (The Unfiltered Creator / Industry Insider):
+   - Contrast Flex: "Who knew the Buildings Dept could be this cool?".
+   - Style: Raw & Real. Canto-English. Short, punchy sentences. "Firm", "Slay", "World Class" (世一).
+   - Content: Behind-the-scenes struggles, self-deprecation, "Insider Info".
+
+TASK:
+Generate content based on the provided project details.
+Return the output as a valid JSON object with the exact keys requested.
 """
-
-# --- FIELD DEFINITIONS ---
-FIELD_GROUPS = {
-    "Basic Info": ["event_date", "client_name", "project_name", "venue"],
-    "Multimedia": ["youtube_link", "gallery_image_urls", "project_drive_folder", "best_image_url", "client_logo_url", "youtube_embed_code"],
-    "Content": [
-        "raw_transcript", "title_en", "challenge_en", "solution_en", "result_en",
-        "title_ch", "challenge_ch", "solution_ch", "result_ch",
-        "title_jp", "challenge_jp", "solution_jp", "result_jp"
-    ],
-    "Social & Admin": [
-        "category_who", "category_what", "highlight_order", "slide_points_en", "linkedin_draft", "fb_post",
-        "ig_caption", "threads_post", "newsletter_topic"
-    ]
-}
-ALL_FIELDS = [field for group in FIELD_GROUPS.values() for field in group]
 
 # --- INITIALIZATION ---
 def init_session_state():
-    for field in ALL_FIELDS:
+    # List of all 35 database fields required
+    fields = [
+        "event_date", "client_name", "project_name", "venue",
+        "category_who", "category_what", "highlight_order",
+        "raw_transcript", "youtube_link", "gallery_image_urls",
+        "project_drive_folder", "best_image_url", "client_logo_url", "youtube_embed_code",
+        "title_en", "challenge_en", "solution_en", "result_en",
+        "title_ch", "challenge_ch", "solution_ch", "result_ch",
+        "title_jp", "challenge_jp", "solution_jp", "result_jp",
+        "slide_points_en", "linkedin_draft", "fb_post",
+        "ig_caption", "threads_post", "newsletter_topic"
+    ]
+    for field in fields:
         if field not in st.session_state:
             st.session_state[field] = ""
+    
+    # Chat history for the "Interviewer"
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "Ready to turn Policy into Play! Just start telling me about your project. I'll listen, ask questions, and fill out the details as we go."}
+            {"role": "assistant", "content": "Hello! I am the Firebean Brain (Beta). I'm here to help you craft the perfect case study. Please fill in the Project Details in the sidebar or form, and share the Raw Transcript. I'm ready to turn Policy into Play!"}
         ]
 
-# --- SIDEBAR: PROGRESS DASHBOARD ---
-def display_progress_sidebar():
-    with st.sidebar:
-        st.title("📊 Project Data Progress")
-        st.markdown("I'll update this as you provide details in the chat.")
+# --- UI STYLING: NEUMORPHISM ---
+def apply_neumorphism_style():
+    st.markdown("""
+        <style>
+        /* Main background */
+        .stApp {
+            background-color: #e0e5ec;
+        }
         
-        for group_name, fields in FIELD_GROUPS.items():
-            st.subheader(group_name)
-            for field in fields:
-                status_icon = "🟢" if st.session_state.get(field) else "⚪️"
-                st.markdown(f"{status_icon} {field.replace('_', ' ').title()}")
-        st.markdown("---")
-        # Image uploader in sidebar
-        uploaded_files = st.file_uploader(
-            "📸 Upload Event Photos", 
-            accept_multiple_files=True, 
-            type=['png', 'jpg', 'jpeg']
-        )
-        if uploaded_files:
-            handle_image_upload(uploaded_files)
+        /* Neumorphic Container */
+        .neu-container {
+            background-color: #e0e5ec;
+            border-radius: 20px;
+            box-shadow: 9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        /* Neumorphic Input */
+        div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-baseweb="select"] {
+            background-color: #e0e5ec !important;
+            border-radius: 10px !important;
+            box-shadow: inset 5px 5px 10px #b8bec5, inset -5px -5px 10px #ffffff !important;
+            border: none !important;
+        }
+        
+        /* Buttons */
+        .stButton>button {
+            background-color: #e0e5ec !important;
+            color: #444 !important;
+            border-radius: 12px !important;
+            border: none !important;
+            box-shadow: 6px 6px 12px #b8bec5, -6px -6px 12px #ffffff !important;
+            transition: all 0.2s ease !important;
+            font-weight: 600 !important;
+        }
+        .stButton>button:hover {
+            box-shadow: 2px 2px 5px #b8bec5, -2px -2px 5px #ffffff !important;
+            transform: translateY(2px);
+        }
+        .stButton>button:active {
+            box-shadow: inset 4px 4px 8px #b8bec5, inset -4px -4px 8px #ffffff !important;
+        }
+        
+        /* Sidebar */
+        [data-testid="stSidebar"] {
+            background-color: #e0e5ec;
+            box-shadow: 4px 0px 10px rgba(0,0,0,0.05);
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: transparent !important;
+            gap: 10px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #e0e5ec !important;
+            border-radius: 10px 10px 0 0 !important;
+            box-shadow: 4px 4px 8px #b8bec5, -4px -4px 8px #ffffff !important;
+            padding: 10px 20px !important;
+            border: none !important;
+        }
+        
+        /* Logo styling */
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .logo-img {
+            width: 180px;
+            filter: drop-shadow(4px 4px 6px rgba(0,0,0,0.1));
+        }
+        /* Typography */
+        h1, h2, h3, p, span, label {
+            color: #4a4a4a !important;
+            font-family: 'Inter', sans-serif !important;
+        }
+        
+        /* Expander styling */
+        .stExpander {
+            background-color: #e0e5ec !important;
+            border-radius: 15px !important;
+            box-shadow: 6px 6px 12px #b8bec5, -6px -6px 12px #ffffff !important;
+            border: none !important;
+            margin-bottom: 20px !important;
+        }
+        
+        /* Chat messages */
+        .stChatMessage {
+            background-color: #e0e5ec !important;
+            border-radius: 15px !important;
+            box-shadow: 4px 4px 8px #b8bec5, -4px -4px 8px #ffffff !important;
+            margin-bottom: 10px !important;
+            border: none !important;
+        }
+        
+        /* Success/Error messages */
+        .stAlert {
+            border-radius: 12px !important;
+            box-shadow: 4px 4px 8px #b8bec5, -4px -4px 8px #ffffff !important;
+            border: none !important;
+        }
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .logo-img {
+                width: 120px;
+            }
+            .neu-container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.5rem !important;
+            }
+        }
+        
+        /* Progress Indicator */
+        .status-pill {
+            display: inline-block;
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-right: 12px;
+            margin-bottom: 12px;
+            background-color: #e0e5ec;
+            box-shadow: 4px 4px 8px #b8bec5, -4px -4px 8px #ffffff;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+        .status-complete {
+            color: #2e7d32 !important;
+            box-shadow: inset 2px 2px 5px #b8bec5, inset -2px -2px 5px #ffffff;
+        }
+        .status-pending {
+            color: #757575 !important;
+            opacity: 0.7;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">', unsafe_allow_html=True)
 
-def handle_image_upload(uploaded_files):
-    mock_urls = []
-    for i, uploaded_file in enumerate(uploaded_files):
-        try:
-            image = Image.open(uploaded_file)
-            if image.width < 1200:
-                st.toast(f"⚠️ Low-res image: '{uploaded_file.name}' is {image.width}px wide.", icon="⚠️")
-            mock_urls.append(f"url{i+1}.jpg")
-        except Exception as e:
-            st.error(f"Error processing {uploaded_file.name}: {e}")
-    st.session_state.gallery_image_urls = ", ".join(mock_urls)
-    st.toast(f"✅ {len(uploaded_files)} images processed!", icon="📸")
+def display_progress():
+    required_fields = {
+        "Date": st.session_state.event_date,
+        "Client": st.session_state.client_name,
+        "Project": st.session_state.project_name,
+        "Venue": st.session_state.venue,
+        "Notes": st.session_state.raw_transcript,
+        "Photos": st.session_state.gallery_image_urls
+    }
+    
+    # Use a container for the pills
+    pills_html = '<div style="display: flex; flex-wrap: wrap; margin-bottom: 20px;">'
+    for label, value in required_fields.items():
+        is_complete = bool(value and value.strip())
+        status_class = "status-complete" if is_complete else "status-pending"
+        icon = "✅" if is_complete else "⚪"
+        pills_html += f'<div class="status-pill {status_class}">{icon} {label}</div>'
+    pills_html += '</div>'
+    st.markdown(pills_html, unsafe_allow_html=True)
+
+# --- LOGO LOADING ---
+@st.cache_data
+def get_base64_logo(url):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return base64.b64encode(response.content).decode()
+    except Exception:
+        pass
+    return None
 
 # --- MAIN APP ---
 def main():
-    st.set_page_config(page_title="Firebean AI Command Center", layout="centered", page_icon="🔥")
+    st.set_page_config(page_title="Firebean AI Command Center", layout="wide", page_icon="🔥")
+    apply_neumorphism_style()
     init_session_state()
 
-    # --- HEADER ---
-    LOGO_URL = "https://drive.google.com/uc?export=view&id=1d3M0KGD88nksyq8EWew8UvI9MgrTZNYl"
-    st.markdown(
-        f'<div style="text-align: center;"><img src="{LOGO_URL}" width="100"></div>',
-        unsafe_allow_html=True
-    )
-    st.title("AI Command Center", anchor=False)
+    # Logo Display (Using Base64 to avoid Google Drive blocking)
+    logo_id = "1d3M0KGD88nksyq8EWew8UvI9MgrTZNYl"
+    logo_url = f"https://drive.google.com/uc?id={logo_id}"
+    logo_base64 = get_base64_logo(logo_url)
+    
+    if logo_base64:
+        st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_base64}" class="logo-img"></div>', unsafe_allow_html=True)
+    else:
+        # Fallback to direct URL if base64 fails
+        st.markdown(f'<div class="logo-container"><img src="{logo_url}" class="logo-img"></div>', unsafe_allow_html=True)
 
-    # --- SIDEBAR (must be called before main content to appear) ---
-    api_key = st.sidebar.text_input("Gemini API Key", type="password", key="api_key_input")
-    if api_key:
-        try:
+    # --- SIDEBAR: CONFIGURATION ---
+    with st.sidebar:
+        st.title("🔥 Firebean AI")
+        st.markdown("### 🔐 Configuration")
+        api_key = st.text_input("Gemini API Key", type="password")
+        
+        if api_key:
             genai.configure(api_key=api_key)
-            st.sidebar.success("API Key Configured")
-        except Exception as e:
-            st.sidebar.error(f"API Key Error: {e}")
-    display_progress_sidebar()
+            st.success("API Key Configured")
+        else:
+            st.warning("Please enter Gemini API Key")
 
-    # --- PRIMARY VIEW: CHAT INTERFACE ---
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        st.markdown("---")
+        st.markdown("### 📂 Project Assets")
+        st.session_state.client_logo_url = st.text_input("Client Logo URL", value=st.session_state.client_logo_url)
+        st.session_state.project_drive_folder = st.text_input("Project Drive Folder", value=st.session_state.project_drive_folder)
+        st.session_state.youtube_embed_code = st.text_input("YouTube Embed Code", value=st.session_state.youtube_embed_code)
+        st.session_state.best_image_url = st.text_input("Best Image URL", value=st.session_state.best_image_url)
 
-    if prompt := st.chat_input("Tell me about the project..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # --- TABS ---
+    tab1, tab2 = st.tabs(["💬 Staff Chatbot (Interviewer)", "⚙️ Admin Dashboard (Review)"])
 
-        if not api_key:
-            st.error("Please enter your Gemini API Key in the sidebar to begin.")
-            return
+    # --- TAB 1: STAFF CHATBOT & COLLECTOR ---
+    with tab1:
+        st.header("💬 Firebean Staff Chatbot")
+        
+        # Progress Tracker
+        st.markdown("### 📊 Collection Progress")
+        display_progress()
 
-        with st.chat_message("assistant"):
-            with st.spinner("Firebean Brain is thinking..."):
+        # Chat Interface for Interaction (The Main Lead)
+        st.subheader("🤖 Firebean Brain Assistant")
+        
+        # Display chat messages in a container
+        chat_container = st.container()
+        with chat_container:
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+        # Chat Input (For refining transcript or asking questions)
+        if prompt := st.chat_input("Tell me about the event... (e.g., 'Client is CMAB, Date was 2024-05-10')"):
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            
+            # AI Logic to "understand" and "extract" info from chat
+            if api_key:
                 try:
-                    model = genai.GenerativeModel(
+                    extractor_model = genai.GenerativeModel(
                         model_name="gemini-1.5-flash",
-                        system_instruction=FIREBEAN_BRAIN_GUIDELINES,
+                        system_instruction="Extract project details from the user message. Return JSON with keys: event_date, client_name, project_name, venue. If not found, leave empty string. Format date as YYYY-MM-DD.",
                         generation_config={"response_mime_type": "application/json"}
                     )
+                    extraction_response = extractor_model.generate_content(prompt)
+                    extracted_data = json.loads(extraction_response.text)
                     
-                    # Construct a prompt that includes chat history for context
-                    chat_history_for_prompt = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages])
-                    full_prompt = f"Current Conversation:\n{chat_history_for_prompt}"
-
-                    response = model.generate_content(full_prompt)
-                    response_json = json.loads(response.text)
-
-                    # Extract data and update session state
-                    if 'extracted_data' in response_json and isinstance(response_json['extracted_data'], dict):
-                        for key, value in response_json['extracted_data'].items():
-                            if key in ALL_FIELDS:
-                                st.session_state[key] = value
-                                st.toast(f"Updated: {key.replace('_', ' ').title()}", icon="📝")
+                    # Auto-fill session state
+                    updated = []
+                    for k, v in extracted_data.items():
+                        if v and not st.session_state[k]:
+                            st.session_state[k] = v
+                            updated.append(k.replace('_', ' ').title())
                     
-                    # Get and display chat reply
-                    chat_reply = response_json.get('chat_reply', "I'm sorry, I couldn't process that. Could you rephrase?")
-                    st.markdown(chat_reply)
-                    st.session_state.messages.append({"role": "assistant", "content": chat_reply})
-                    st.rerun()
+                    if updated:
+                        response = f"Got it! I've updated the following fields: {', '.join(updated)}. What else can you tell me about the results or the 'vibe'?"
+                    else:
+                        # Fallback logic for transcript
+                        st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                        response = "I've added that to the project notes. Please continue sharing the event details or results!"
+                except:
+                    st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                    response = "I've added that to the project notes. Tell me more!"
+            else:
+                st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                response = "I've added that to the project notes. (Note: Configure API Key for auto-extraction)"
 
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"Sorry, I hit an error: {e}"})
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.rerun()
 
-    # --- ADMIN REVIEW & PUBLISH (COLLAPSIBLE SECTION) ---
-    with st.expander("⚙️ Admin Dashboard (Review & Publish)"):
-        st.markdown("### 🏷️ Categorization & Admin")
-        col1, col2 = st.columns(2)
-        st.session_state.category_who = col1.text_input("Category Who", st.session_state.category_who)
-        st.session_state.category_what = col2.text_input("Category What", st.session_state.category_what)
-        st.session_state.highlight_order = st.selectbox("Highlight Order", ["", "1", "2", "3", "4", "5"], index=0 if not st.session_state.highlight_order else int(st.session_state.highlight_order))
-
-        st.markdown("### 📝 Content Review")
-        tab_en, tab_ch, tab_jp = st.tabs(["EN", "CH", "JP"])
-        with tab_en:
-            st.session_state.title_en = st.text_input("Title (EN)", st.session_state.title_en)
-            st.session_state.challenge_en = st.text_area("Challenge (EN)", st.session_state.challenge_en)
-        with tab_ch:
-            st.session_state.title_ch = st.text_input("Title (CH)", st.session_state.title_ch)
-            st.session_state.challenge_ch = st.text_area("Challenge (CH)", st.session_state.challenge_ch)
-        with tab_jp:
-            st.session_state.title_jp = st.text_input("Title (JP)", st.session_state.title_jp)
-            st.session_state.challenge_jp = st.text_area("Challenge (JP)", st.session_state.challenge_jp)
+        st.markdown("---")
         
-        # Button to save to database
+        # Secondary: Manual Overrides & Image Upload
+        with st.expander("🛠️ Manual Data Entry & Image Upload", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.session_state.event_date = st.text_input("Event Date (YYYY-MM-DD)", value=st.session_state.event_date)
+                st.session_state.client_name = st.text_input("Client Name", value=st.session_state.client_name)
+                st.session_state.project_name = st.text_input("Project Name", value=st.session_state.project_name)
+            with col2:
+                st.session_state.venue = st.text_input("Venue", value=st.session_state.venue)
+                st.session_state.youtube_link = st.text_input("YouTube Link", value=st.session_state.youtube_link)
+            
+            st.session_state.raw_transcript = st.text_area("Raw Transcript / Project Notes (Detailed)", value=st.session_state.raw_transcript, height=150)
+
+            # Image Uploader
+            st.subheader("📸 Image Upload")
+            uploaded_files = st.file_uploader("Upload Event Photos", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
+            
+            if uploaded_files:
+                mock_urls = []
+                for i, uploaded_file in enumerate(uploaded_files):
+                    image = Image.open(uploaded_file)
+                    if image.width < 1200:
+                        st.warning(f"⚠️ Image '{uploaded_file.name}' low res ({image.width}px).")
+                    mock_urls.append(f"https://firebean-gallery.com/{st.session_state.project_name.replace(' ', '_')}_{i+1}.jpg")
+                st.session_state.gallery_image_urls = ", ".join(mock_urls)
+                st.info(f"✅ {len(uploaded_files)} images processed.")
+
+        # GENERATE BUTTON
+        if st.button("🚀 Activate Firebean Brain (Generate All Assets)", type="primary", use_container_width=True):
+            if not api_key:
+                st.error("Please configure Gemini API Key in the sidebar.")
+            elif not st.session_state.raw_transcript:
+                st.error("Please provide a Raw Transcript.")
+            else:
+                with st.spinner("Firebean Brain Online... Turning Policy into Play..."):
+                    try:
+                        # Construct the Prompt
+                        user_prompt = f"""
+                        PROJECT DETAILS:
+                        Event Date: {st.session_state.event_date}
+                        Client: {st.session_state.client_name}
+                        Project: {st.session_state.project_name}
+                        Venue: {st.session_state.venue}
+                        Transcript: {st.session_state.raw_transcript}
+
+                        INSTRUCTIONS:
+                        1. Analyze the transcript based on the Firebean Brain Guidelines.
+                        2. Select the best 'Category_Who' strictly from: [Government & Public Sector, Lifestyle & Consumer, F&B & Hospitality, Malls & Venues].
+                        3. Select the best 'Category_What' strictly from: [Roving Exhibitions, Social & Content, Interactive & Tech, PR & Media, Events & Ceremonies].
+                        4. Generate Multilingual PR Copy (EN, CH, JP).
+                        5. Generate Social Copy for LinkedIn, FB, IG, Threads, Newsletter based on the specific Platform Writing Rules defined in the system instruction.
+                        
+                        OUTPUT FORMAT:
+                        Return ONLY a valid JSON object with the following keys:
+                        category_who, category_what, 
+                        title_en, challenge_en, solution_en, result_en,
+                        title_ch, challenge_ch, solution_ch, result_ch,
+                        title_jp, challenge_jp, solution_jp, result_jp,
+                        slide_points_en, linkedin_draft, fb_post, ig_caption, threads_post, newsletter_topic
+                        """
+
+                        model = genai.GenerativeModel(
+                            model_name="gemini-1.5-flash",
+                            system_instruction=FIREBEAN_BRAIN_GUIDELINES,
+                            generation_config={"response_mime_type": "application/json"}
+                        )
+                        
+                        response = model.generate_content(user_prompt)
+                        result_json = json.loads(response.text)
+
+                        # Update Session State
+                        for key, value in result_json.items():
+                            if key in st.session_state:
+                                st.session_state[key] = value
+                        
+                        # Show Success in Chat
+                        success_msg = "✅ Content Generated Successfully! Please review in the Admin Dashboard tab."
+                        st.session_state.messages.append({"role": "assistant", "content": success_msg})
+                        with st.chat_message("assistant"):
+                            st.markdown(success_msg)
+                            st.json(result_json, expanded=False)
+
+                    except Exception as e:
+                        st.error(f"Generation Failed: {str(e)}")
+
+    # --- TAB 2: ADMIN DASHBOARD ---
+    with tab2:
+        st.header("⚙️ Admin Dashboard (Review & Publish)")
+        
+        st.markdown("### 🏷️ Categorization")
+        col_cat1, col_cat2, col_cat3 = st.columns(3)
+        with col_cat1:
+            st.session_state.category_who = st.text_input("Category Who", value=st.session_state.category_who)
+        with col_cat2:
+            st.session_state.category_what = st.text_input("Category What", value=st.session_state.category_what)
+        with col_cat3:
+            st.session_state.highlight_order = st.selectbox("Highlight Order", ["", "1", "2", "3", "4", "5"], index=0 if st.session_state.highlight_order == "" else ["", "1", "2", "3", "4", "5"].index(st.session_state.highlight_order))
+
+        st.markdown("### 📝 Multilingual PR Copy")
+        tab_en, tab_ch, tab_jp = st.tabs(["English", "Chinese (Trad)", "Japanese"])
+        
+        with tab_en:
+            st.session_state.title_en = st.text_input("Title (EN)", value=st.session_state.title_en)
+            st.session_state.challenge_en = st.text_area("Challenge (EN)", value=st.session_state.challenge_en)
+            st.session_state.solution_en = st.text_area("Solution (EN)", value=st.session_state.solution_en)
+            st.session_state.result_en = st.text_area("Result (EN)", value=st.session_state.result_en)
+        
+        with tab_ch:
+            st.session_state.title_ch = st.text_input("Title (CH)", value=st.session_state.title_ch)
+            st.session_state.challenge_ch = st.text_area("Challenge (CH)", value=st.session_state.challenge_ch)
+            st.session_state.solution_ch = st.text_area("Solution (CH)", value=st.session_state.solution_ch)
+            st.session_state.result_ch = st.text_area("Result (CH)", value=st.session_state.result_ch)
+
+        with tab_jp:
+            st.session_state.title_jp = st.text_input("Title (JP)", value=st.session_state.title_jp)
+            st.session_state.challenge_jp = st.text_area("Challenge (JP)", value=st.session_state.challenge_jp)
+            st.session_state.solution_jp = st.text_area("Solution (JP)", value=st.session_state.solution_jp)
+            st.session_state.result_jp = st.text_area("Result (JP)", value=st.session_state.result_jp)
+
+        st.markdown("### 📱 Social Media Content")
+        st.session_state.slide_points_en = st.text_area("Slide Points (EN)", value=st.session_state.slide_points_en)
+        st.session_state.linkedin_draft = st.text_area("LinkedIn Draft (Institutional Cool)", value=st.session_state.linkedin_draft, height=200)
+        st.session_state.fb_post = st.text_area("Facebook Post (Weekend Planner)", value=st.session_state.fb_post, height=200)
+        st.session_state.ig_caption = st.text_area("Instagram Caption (Lifestyle Curator)", value=st.session_state.ig_caption, height=200)
+        st.session_state.threads_post = st.text_area("Threads Post (Unfiltered)", value=st.session_state.threads_post, height=150)
+        st.session_state.newsletter_topic = st.text_input("Newsletter Topic", value=st.session_state.newsletter_topic)
+
+        st.markdown("---")
         if st.button("✅ Approve & Save to Database", type="primary"):
-            # Prepare payload from all fields in session state
-            payload = {field: st.session_state.get(field, "") for field in ALL_FIELDS}
+            # Prepare Payload
+            payload = {
+                "event_date": st.session_state.event_date,
+                "client_name": st.session_state.client_name,
+                "project_name": st.session_state.project_name,
+                "venue": st.session_state.venue,
+                "category_who": st.session_state.category_who,
+                "category_what": st.session_state.category_what,
+                "highlight_order": st.session_state.highlight_order,
+                "raw_transcript": st.session_state.raw_transcript,
+                "youtube_link": st.session_state.youtube_link,
+                "gallery_image_urls": st.session_state.gallery_image_urls,
+                "project_drive_folder": st.session_state.project_drive_folder,
+                "best_image_url": st.session_state.best_image_url,
+                "client_logo_url": st.session_state.client_logo_url,
+                "youtube_embed_code": st.session_state.youtube_embed_code,
+                "title_en": st.session_state.title_en,
+                "challenge_en": st.session_state.challenge_en,
+                "solution_en": st.session_state.solution_en,
+                "result_en": st.session_state.result_en,
+                "title_ch": st.session_state.title_ch,
+                "challenge_ch": st.session_state.challenge_ch,
+                "solution_ch": st.session_state.solution_ch,
+                "result_ch": st.session_state.result_ch,
+                "title_jp": st.session_state.title_jp,
+                "challenge_jp": st.session_state.challenge_jp,
+                "solution_jp": st.session_state.solution_jp,
+                "result_jp": st.session_state.result_jp,
+                "slide_points_en": st.session_state.slide_points_en,
+                "linkedin_draft": st.session_state.linkedin_draft,
+                "fb_post": st.session_state.fb_post,
+                "ig_caption": st.session_state.ig_caption,
+                "threads_post": st.session_state.threads_post,
+                "newsletter_topic": st.session_state.newsletter_topic
+            }
+            
+            # Send Webhook
             webhook_url = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
             try:
                 with st.spinner("Syncing to Firebean Database..."):
@@ -196,9 +520,9 @@ def main():
                         st.success("✅ Successfully saved to database!")
                         st.balloons()
                     else:
-                        st.error(f"❌ Failed to save. Status: {response.status_code} - {response.text}")
+                        st.error(f"❌ Failed to save. Status Code: {response.status_code}")
             except Exception as e:
-                st.error(f"❌ Connection Error: {e}")
+                st.error(f"❌ Connection Error: {str(e)}")
 
 if __name__ == "__main__":
     main()
