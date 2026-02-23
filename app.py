@@ -272,9 +272,9 @@ def apply_neumorphism_style():
             filter: drop-shadow(4px 4px 6px rgba(0,0,0,0.1));
         }
         /* Typography */
-        h1, h2, h3, p, span, label {
+        h1, h2, h3, p, label {
             color: #4a4a4a !important;
-            font-family: 'Inter', sans-serif !important;
+            font-family: 'Inter', sans-serif;
         }
         
         /* Expander styling */
