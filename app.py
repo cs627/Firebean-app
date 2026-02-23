@@ -10,7 +10,7 @@ from rembg import remove
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，頂尖 PR 策略大腦。性格可愛高明，語氣「Positive & Playful」。
 使用 Canto-English (Vibe, Firm, Chill)。
-目標：套出資料並引導員工上載相片，說話要帶有泥膠質感般嘅溫柔但有紅光般嘅影響力。
+目標：套出資料並引導員工上載相片，語氣要溫柔有活力。
 """
 
 # --- 2. 初始化所有狀態 ---
@@ -28,7 +28,7 @@ def init_session_state():
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "嘩！老細✨！個 Project 係咪搞得好 Firm？話我知發生咩事，順便喺右邊餵埋相片同 Logo 俾我啦！📸"}]
 
-# --- 3. UI 視覺強化 (White & Red Neu-Molded Edition) ---
+# --- 3. UI 視覺強化 (Light Gray Neu-Molded Edition) ---
 def apply_neu_theme():
     st.markdown("""
         <style>
@@ -43,10 +43,11 @@ def apply_neu_theme():
             color: #444;
         }
 
-        /* 文字顏色：主標題用 Firebean Red */
+        /* 文字顏色：主標題用 Firebean Red，其餘深灰 */
         h1, h2, h3 { color: #FF4B4B !important; font-weight: 800 !important; }
+        p, label, span, .stMarkdown { color: #444 !important; }
         
-        /* 側邊欄：由深黑改為淺灰 50% 泥膠感 */
+        /* 側邊欄 */
         [data-testid="stSidebar"] {
             background-color: #E0E5EC;
             border-right: none;
@@ -60,22 +61,39 @@ def apply_neu_theme():
             margin: 10px;
         }
 
-        /* 核心組件：凹陷暗槽效果 (用於 Chat, Input, Uploader) */
-        div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer, .stFileUploader {
-            background-color: #E0E5EC !important;
+        /* --- 重點修改區域：將深黑色改為淺灰色凹槽 --- */
+        
+        /* 1. 輸入框 (API Key, Text Input) 和 Chat Input 容器 */
+        div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer {
+            background-color: #F0F5FA !important; /* 極淺灰背景 */
             border-radius: 20px !important;
-            box-shadow: inset 8px 8px 16px #bec3c9, 
-                        inset -8px -8px 16px #ffffff,
-                        0 0 15px rgba(255, 75, 75, 0.2) !important; /* 暗槽紅光滲透 */
-            border: 1px solid rgba(255, 75, 75, 0.1) !important;
-            color: white !important; /* 內部字體改為白色 */
+            /* 使用非常柔和的淺灰色內陰影 */
+            box-shadow: inset 6px 6px 12px #d1d9e6, 
+                        inset -6px -6px 12px #ffffff,
+                        0 0 10px rgba(255, 75, 75, 0.1) !important; /* 淡淡紅光 */
+            border: 1px solid #F0F5FA !important;
         }
         
-        /* 修正 Input 內的文字顏色為白色 */
-        input, textarea {
-            color: white !important;
-            -webkit-text-fill-color: white !important;
+        /* 2. 檔案上載區 (File Uploader) */
+        [data-testid="stFileUploader"] {
+            background-color: #F0F5FA !important; /* 極淺灰背景 */
+            border-radius: 20px !important;
+            padding: 15px;
+            /* 柔和淺灰內陰影 */
+            box-shadow: inset 5px 5px 10px #d1d9e6, inset -5px -5px 10px #ffffff !important;
         }
+        /* 上載區內的文字顏色改為深灰 */
+        [data-testid="stFileUploader"] label, [data-testid="stFileUploader"] span, [data-testid="stFileUploader"] small {
+            color: #666 !important;
+        }
+        
+        /* 3. 輸入框內的文字顏色改回深灰色 */
+        input, textarea, .stChatInputContainer textarea {
+            color: #444 !important;
+            -webkit-text-fill-color: #444 !important;
+            background-color: transparent !important;
+        }
+        /* ------------------------------------------ */
 
         /* 凸起卡片 (Molded Clay) */
         .neu-card {
@@ -99,19 +117,29 @@ def apply_neu_theme():
         }
         .stButton > button:hover {
             box-shadow: 5px 5px 10px #bec3c9, -5px -5px 10px #ffffff, 0 0 20px rgba(255, 75, 75, 0.5) !important;
-            color: #ff3333 !important;
         }
 
-        /* 相片 Slot：泥膠凹陷 */
+        /* 相片 Slot：淺灰泥膠凹陷 */
         .photo-slot-box {
             border-radius: 15px;
             height: 90px;
             display: flex; align-items: center; justify-content: center;
             background-color: #E0E5EC;
             box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff;
-            color: #ADB5BD; font-weight: bold;
+            color: #aaa; font-weight: bold;
         }
 
+        /* 進度條底色改為淺灰凹陷 */
+        [data-testid="stProgress"] > div > div {
+             background-color: #d1d9e6 !important;
+             box-shadow: inset 2px 2px 4px #bec3c9, inset -2px -2px 4px #ffffff;
+        }
+        /* 進度條顏色 Firebean Red */
+        .stProgress > div > div > div > div {
+            background-color: #FF4B4B !important;
+            box-shadow: 0 0 8px rgba(255, 75, 75, 0.6);
+        }
+        
         /* 標籤頁面樣式 */
         .stTabs [data-baseweb="tab-list"] { background-color: transparent; gap: 10px; }
         .stTabs [data-baseweb="tab"] {
@@ -143,7 +171,7 @@ def main():
     with col_header_r:
         st.markdown('<h1 style="font-size: 2.5em; margin-top: 10px;">Firebean Brain AI Command Center</h1>', unsafe_allow_html=True)
 
-    # --- 側邊欄：修飾後的 50% 淺灰 Card ---
+    # --- 側邊欄 ---
     with st.sidebar:
         st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
         st.markdown('### 📊 Project Status', unsafe_allow_html=True)
@@ -154,7 +182,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         
         st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
-        st.markdown('<p style="font-size: 0.9em; margin-bottom: 5px; color:#444;">Gemini API Key</p>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size: 0.9em; margin-bottom: 5px;">Gemini API Key</p>', unsafe_allow_html=True)
         api_key = st.text_input("Key", value="AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI", type="password", label_visibility="collapsed")
         if api_key: genai.configure(api_key=api_key)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -172,8 +200,9 @@ def main():
             with chat_container:
                 for msg in st.session_state.messages:
                     with st.chat_message(msg["role"]): 
-                        st.markdown(f'<span style="color:#444;">{msg["content"]}</span>', unsafe_allow_html=True)
+                        st.markdown(f'<span>{msg["content"]}</span>', unsafe_allow_html=True)
             
+            # Chat Input (已改為淺灰色凹槽)
             if prompt := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"): st.markdown(prompt)
@@ -189,9 +218,10 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_right:
-            # Logo Studio 模組 (凹陷槽)
+            # Logo Studio 模組
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.markdown("### 🎨 Logo Studio")
+            # File Uploader (已改為淺灰色凹槽)
             l_file = st.file_uploader("上傳項目 Logo", type=['png', 'jpg', 'jpeg'], key="main_logo_up")
             l_color = st.radio("目標顏色", ["Black (純黑)", "White (純白)"], horizontal=True)
             if l_file:
@@ -209,6 +239,7 @@ def main():
             # 8 格 Gallery
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.markdown("### 📸 Project Gallery")
+            # File Uploader (已改為淺灰色凹槽)
             up_files = st.file_uploader("上傳現場相片", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
             st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
             g1, g2, g3, g4 = st.columns(4); g5, g6, g7, g8 = st.columns(4)
