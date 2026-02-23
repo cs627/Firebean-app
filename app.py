@@ -378,6 +378,7 @@ def get_base64_logo(url):
 # --- MAIN APP ---
 def main():
     st.set_page_config(page_title="Firebean AI", layout="wide", page_icon="🔥")
+    init_session_state()
     # --- SIDEBAR: CONFIGURATION ---
     with st.sidebar:
         # Language Selector
@@ -403,7 +404,6 @@ def main():
         st.session_state.best_image_url = st.text_input(t["best_image_label"], value=st.session_state.best_image_url)
 
     apply_neumorphism_style()
-    init_session_state()
 
     # Logo Display (Using Base64 to avoid Google Drive blocking)
     logo_url = "https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png"
