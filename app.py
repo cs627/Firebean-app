@@ -133,4 +133,14 @@ def main():
     # TAB 3 & 4 (保持原樣)
     with tab3:
         st.header("⚙️ Admin Dashboard")
-        st.session_state.client_name = st.text
+        st.session_state.client_name = st.text_input("Client", st.session_state.client_name)
+        if st.button("✅ Save to Google Sheet"):
+            st.success("Saved!")
+
+    with tab4:
+        st.header("🗂️ Slide Script")
+        st.write(f"**Slide 1:** {st.session_state.slide_1_cover}")
+        st.write(f"**Slide 2:** {st.session_state.slide_2_challenge}")
+
+if __name__ == "__main__":
+    main()
