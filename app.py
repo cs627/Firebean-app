@@ -68,6 +68,7 @@ TRANSLATIONS = {
         "best_image_label": "精選圖片 URL",
         "tab1_title": "💬 員工聊天機器人 (訪談)",
         "tab2_title": "⚙️ 管理儀表板 (審核)",
+        "tab3_title": "🗂️ 投影片預覽",
         "chatbot_header": "💬 Firebean 員工聊天機器人",
         "progress_title": "📊 收集進度",
         "chatbot_sub": "🤖 Firebean Brain 助手",
@@ -125,6 +126,7 @@ TRANSLATIONS = {
         "best_image_label": "Best Image URL",
         "tab1_title": "💬 Staff Chatbot (Interviewer)",
         "tab2_title": "⚙️ Admin Dashboard (Review)",
+        "tab3_title": "🗂️ Slide Preview",
         "chatbot_header": "💬 Firebean Staff Chatbot",
         "progress_title": "📊 Collection Progress",
         "chatbot_sub": "🤖 Firebean Brain Assistant",
@@ -182,7 +184,8 @@ def init_session_state():
         "title_ch", "challenge_ch", "solution_ch", "result_ch",
         "title_jp", "challenge_jp", "solution_jp", "result_jp",
         "slide_points_en", "linkedin_draft", "fb_post",
-        "ig_caption", "threads_post", "newsletter_topic"
+        "ig_caption", "threads_post", "newsletter_topic",
+        "slide_1_cover", "slide_2_challenge", "slide_3_solution", "slide_4_results"
     ]
     for field in fields:
         if field not in st.session_state:
@@ -400,8 +403,7 @@ def main():
     init_session_state()
 
     # Logo Display (Using Base64 to avoid Google Drive blocking)
-    logo_id = "1d3M0KGD88nksyq8EWew8UvI9MgrTZNYl"
-    logo_url = f"https://drive.google.com/uc?id={logo_id}"
+    logo_url = "https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png"
     logo_base64 = get_base64_logo(logo_url)
     
     if logo_base64:
@@ -411,7 +413,7 @@ def main():
         st.markdown(f'<div class="logo-container"><img src="{logo_url}" class="logo-img"></div>', unsafe_allow_html=True)
 
     # --- TABS ---
-    tab1, tab2 = st.tabs([t["tab1_title"], t["tab2_title"]])
+    tab1, tab2, tab3 = st.tabs([t["tab1_title"], t["tab2_title"], t["tab3_title"]])
 
     # --- TAB 1: STAFF CHATBOT & COLLECTOR ---
     with tab1:
@@ -530,7 +532,10 @@ def main():
                         title_en, challenge_en, solution_en, result_en,
                         title_ch, challenge_ch, solution_ch, result_ch,
                         title_jp, challenge_jp, solution_jp, result_jp,
-                        slide_points_en, linkedin_draft, fb_post, ig_caption, threads_post, newsletter_topic
+                        slide_points_en, linkedin_draft, fb_post, ig_caption, threads_post, newsletter_topic,
+                        slide_1_cover, slide_2_challenge, slide_3_solution, slide_4_results
+                        
+                        For slide_1_cover, slide_2_challenge, slide_3_solution, slide_4_results, each should be a list of 3-4 punchy bullet points.
                         """
 
                         model = genai.GenerativeModel(
@@ -649,6 +654,25 @@ def main():
                         st.error(f"{t['save_error']} {response.status_code}")
             except Exception as e:
                 st.error(f"{t['conn_error']} {str(e)}")
+
+    # --- TAB 3: SLIDE PREVIEW ---
+    with tab3:
+        st.header(t["tab3_title"])
+        
+        def render_slide(title, content_list, slide_number):
+            st.markdown(f"<div class='neu-container' style='min-height: 250px; border-left: 5px solid #F27D26; margin-bottom: 20px;'>", unsafe_allow_html=True)
+            st.markdown(f"#### Slide {slide_number}: {title}")
+            if content_list:
+                for item in content_list:
+                    st.markdown(f"- {item}")
+            else:
+                st.info("No content generated for this slide yet.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        render_slide("Cover", st.session_state.slide_1_cover, 1)
+        render_slide("Challenge", st.session_state.slide_2_challenge, 2)
+        render_slide("Solution", st.session_state.slide_3_solution, 3)
+        render_slide("Results", st.session_state.slide_4_results, 4)
 
 if __name__ == "__main__":
     main()
