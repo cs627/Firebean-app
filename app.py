@@ -188,11 +188,8 @@ def init_session_state():
         "slide_1_cover", "slide_2_challenge", "slide_3_solution", "slide_4_results"
     ]
     for field in fields:
-        if field not in st.session_state:
-            if "slide_" in field:
-                st.session_state[field] = []
-            else:
-                st.session_state[field] = ""
+        default_val = [] if "slide_" in field else ""
+        st.session_state.setdefault(field, default_val)
     
     # Chat history for the "Interviewer"
     if "messages" not in st.session_state:
@@ -311,9 +308,22 @@ def apply_neumorphism_style():
             }
             .neu-container {
                 padding: 15px;
+                border-radius: 15px;
             }
             h1 {
                 font-size: 1.5rem !important;
+            }
+            .status-pill {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+                margin-right: 8px;
+                margin-bottom: 8px;
+            }
+            /* Make tabs scrollable on small screens */
+            .stTabs [data-baseweb="tab-list"] {
+                overflow-x: auto;
+                white-space: nowrap;
+                padding-bottom: 10px;
             }
         }
         
@@ -346,12 +356,12 @@ def apply_neumorphism_style():
 def display_progress(lang):
     t = TRANSLATIONS[lang]
     required_fields = {
-        t["progress_labels"]["Date"]: st.session_state.event_date,
-        t["progress_labels"]["Client"]: st.session_state.client_name,
-        t["progress_labels"]["Project"]: st.session_state.project_name,
-        t["progress_labels"]["Venue"]: st.session_state.venue,
-        t["progress_labels"]["Notes"]: st.session_state.raw_transcript,
-        t["progress_labels"]["Photos"]: st.session_state.gallery_image_urls
+        t["progress_labels"]["Date"]: st.session_state["event_date"],
+        t["progress_labels"]["Client"]: st.session_state["client_name"],
+        t["progress_labels"]["Project"]: st.session_state["project_name"],
+        t["progress_labels"]["Venue"]: st.session_state["venue"],
+        t["progress_labels"]["Notes"]: st.session_state["raw_transcript"],
+        t["progress_labels"]["Photos"]: st.session_state["gallery_image_urls"]
     }
     
     # Use a container for the pills
@@ -398,10 +408,10 @@ def main():
 
         st.markdown("---")
         st.markdown(f"### {t['assets_title']}")
-        st.session_state.client_logo_url = st.text_input(t["client_logo_label"], value=st.session_state.client_logo_url)
-        st.session_state.project_drive_folder = st.text_input(t["drive_folder_label"], value=st.session_state.project_drive_folder)
-        st.session_state.youtube_embed_code = st.text_input(t["youtube_embed_label"], value=st.session_state.youtube_embed_code)
-        st.session_state.best_image_url = st.text_input(t["best_image_label"], value=st.session_state.best_image_url)
+        st.session_state["client_logo_url"] = st.text_input(t["client_logo_label"], value=st.session_state["client_logo_url"])
+        st.session_state["project_drive_folder"] = st.text_input(t["drive_folder_label"], value=st.session_state["project_drive_folder"])
+        st.session_state["youtube_embed_code"] = st.text_input(t["youtube_embed_label"], value=st.session_state["youtube_embed_code"])
+        st.session_state["best_image_url"] = st.text_input(t["best_image_label"], value=st.session_state["best_image_url"])
 
     apply_neumorphism_style()
 
@@ -432,14 +442,14 @@ def main():
         # Display chat messages in a container
         chat_container = st.container()
         with chat_container:
-            for message in st.session_state.messages:
+            for message in st.session_state["messages"]:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
         # Chat Input (For refining transcript or asking questions)
         if prompt := st.chat_input(t["chat_placeholder"]):
             # Add user message to chat history
-            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state["messages"].append({"role": "user", "content": prompt})
             
             # AI Logic to "understand" and "extract" info from chat
             if api_key:
@@ -463,16 +473,16 @@ def main():
                         response = f"Got it! I've updated the following fields: {', '.join(updated)}. What else can you tell me about the results or the 'vibe'?"
                     else:
                         # Fallback logic for transcript
-                        st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                        st.session_state["raw_transcript"] += f"\n\n[Chat Note]: {prompt}"
                         response = "I've added that to the project notes. Please continue sharing the event details or results!"
                 except:
-                    st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                    st.session_state["raw_transcript"] += f"\n\n[Chat Note]: {prompt}"
                     response = "I've added that to the project notes. Tell me more!"
             else:
-                st.session_state.raw_transcript += f"\n\n[Chat Note]: {prompt}"
+                st.session_state["raw_transcript"] += f"\n\n[Chat Note]: {prompt}"
                 response = "I've added that to the project notes. (Note: Configure API Key for auto-extraction)"
 
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state["messages"].append({"role": "assistant", "content": response})
             st.rerun()
 
         st.markdown("---")
@@ -481,14 +491,14 @@ def main():
         with st.expander(t["manual_entry_title"], expanded=False):
             col1, col2 = st.columns(2)
             with col1:
-                st.session_state.event_date = st.text_input(t["date_label"], value=st.session_state.event_date)
-                st.session_state.client_name = st.text_input(t["client_label"], value=st.session_state.client_name)
-                st.session_state.project_name = st.text_input(t["project_label"], value=st.session_state.project_name)
+                st.session_state["event_date"] = st.text_input(t["date_label"], value=st.session_state["event_date"])
+                st.session_state["client_name"] = st.text_input(t["client_label"], value=st.session_state["client_name"])
+                st.session_state["project_name"] = st.text_input(t["project_label"], value=st.session_state["project_name"])
             with col2:
-                st.session_state.venue = st.text_input(t["venue_label"], value=st.session_state.venue)
-                st.session_state.youtube_link = st.text_input(t["youtube_link_label"], value=st.session_state.youtube_link)
+                st.session_state["venue"] = st.text_input(t["venue_label"], value=st.session_state["venue"])
+                st.session_state["youtube_link"] = st.text_input(t["youtube_link_label"], value=st.session_state["youtube_link"])
             
-            st.session_state.raw_transcript = st.text_area(t["transcript_label"], value=st.session_state.raw_transcript, height=150)
+            st.session_state["raw_transcript"] = st.text_area(t["transcript_label"], value=st.session_state["raw_transcript"], height=150)
 
             # Image Uploader
             st.subheader(t["image_upload_header"])
@@ -500,15 +510,15 @@ def main():
                     image = Image.open(uploaded_file)
                     if image.width < 1200:
                         st.warning(f"⚠️ Image '{uploaded_file.name}' low res ({image.width}px).")
-                    mock_urls.append(f"https://firebean-gallery.com/{st.session_state.project_name.replace(' ', '_')}_{i+1}.jpg")
-                st.session_state.gallery_image_urls = ", ".join(mock_urls)
+                    mock_urls.append(f"https://firebean-gallery.com/{st.session_state['project_name'].replace(' ', '_')}_{i+1}.jpg")
+                st.session_state["gallery_image_urls"] = ", ".join(mock_urls)
                 st.info(f"✅ {len(uploaded_files)} images processed.")
 
         # GENERATE BUTTON
         if st.button(t["generate_btn"], type="primary", use_container_width=True):
             if not api_key:
                 st.error(t["api_key_warning"])
-            elif not st.session_state.raw_transcript:
+            elif not st.session_state["raw_transcript"]:
                 st.error("Please provide a Raw Transcript.")
             else:
                 with st.spinner("Firebean Brain Online... Turning Policy into Play..."):
@@ -516,11 +526,11 @@ def main():
                         # Construct the Prompt
                         user_prompt = f"""
                         PROJECT DETAILS:
-                        Event Date: {st.session_state.event_date}
-                        Client: {st.session_state.client_name}
-                        Project: {st.session_state.project_name}
-                        Venue: {st.session_state.venue}
-                        Transcript: {st.session_state.raw_transcript}
+                        Event Date: {st.session_state['event_date']}
+                        Client: {st.session_state['client_name']}
+                        Project: {st.session_state['project_name']}
+                        Venue: {st.session_state['venue']}
+                        Transcript: {st.session_state['raw_transcript']}
 
                         INSTRUCTIONS:
                         1. Analyze the transcript based on the Firebean Brain Guidelines.
@@ -557,7 +567,7 @@ def main():
                         
                         # Show Success in Chat
                         success_msg = "✅ Content Generated Successfully! Please review in the Admin Dashboard tab."
-                        st.session_state.messages.append({"role": "assistant", "content": success_msg})
+                        st.session_state["messages"].append({"role": "assistant", "content": success_msg})
                         with st.chat_message("assistant"):
                             st.markdown(success_msg)
                             st.json(result_json, expanded=False)
@@ -572,81 +582,80 @@ def main():
         st.markdown(f"### {t['cat_title']}")
         col_cat1, col_cat2, col_cat3 = st.columns(3)
         with col_cat1:
-            st.session_state.category_who = st.text_input(t["cat_who_label"], value=st.session_state.category_who)
+            st.session_state["category_who"] = st.text_input(t["cat_who_label"], value=st.session_state["category_who"])
         with col_cat2:
-            st.session_state.category_what = st.text_input(t["cat_what_label"], value=st.session_state.category_what)
+            st.session_state["category_what"] = st.text_input(t["cat_what_label"], value=st.session_state["category_what"])
         with col_cat3:
-            st.session_state.highlight_order = st.selectbox(t["highlight_order_label"], ["", "1", "2", "3", "4", "5"], index=0 if st.session_state.highlight_order == "" else ["", "1", "2", "3", "4", "5"].index(st.session_state.highlight_order))
+            st.session_state["highlight_order"] = st.selectbox(t["highlight_order_label"], ["", "1", "2", "3", "4", "5"], index=0 if st.session_state["highlight_order"] == "" else ["", "1", "2", "3", "4", "5"].index(st.session_state["highlight_order"]))
 
         st.markdown(f"### {t['pr_copy_title']}")
         tab_en, tab_ch, tab_jp = st.tabs(["English", "Chinese (Trad)", "Japanese"])
         
         with tab_en:
-            st.session_state.title_en = st.text_input("Title (EN)", value=st.session_state.title_en)
-            st.session_state.challenge_en = st.text_area("Challenge (EN)", value=st.session_state.challenge_en)
-            st.session_state.solution_en = st.text_area("Solution (EN)", value=st.session_state.solution_en)
-            st.session_state.result_en = st.text_area("Result (EN)", value=st.session_state.result_en)
+            st.session_state["title_en"] = st.text_input("Title (EN)", value=st.session_state["title_en"])
+            st.session_state["challenge_en"] = st.text_area("Challenge (EN)", value=st.session_state["challenge_en"])
+            st.session_state["solution_en"] = st.text_area("Solution (EN)", value=st.session_state["solution_en"])
+            st.session_state["result_en"] = st.text_area("Result (EN)", value=st.session_state["result_en"])
         
         with tab_ch:
-            st.session_state.title_ch = st.text_input("Title (CH)", value=st.session_state.title_ch)
-            st.session_state.challenge_ch = st.text_area("Challenge (CH)", value=st.session_state.challenge_ch)
-            st.session_state.solution_ch = st.text_area("Solution (CH)", value=st.session_state.solution_ch)
-            st.session_state.result_ch = st.text_area("Result (CH)", value=st.session_state.result_ch)
+            st.session_state["title_ch"] = st.text_input("Title (CH)", value=st.session_state["title_ch"])
+            st.session_state["challenge_ch"] = st.text_area("Challenge (CH)", value=st.session_state["challenge_ch"])
+            st.session_state["solution_ch"] = st.text_area("Solution (CH)", value=st.session_state["solution_ch"])
+            st.session_state["result_ch"] = st.text_area("Result (CH)", value=st.session_state["result_ch"])
 
         with tab_jp:
-            st.session_state.title_jp = st.text_input("Title (JP)", value=st.session_state.title_jp)
-            st.session_state.challenge_jp = st.text_area("Challenge (JP)", value=st.session_state.challenge_jp)
-            st.session_state.solution_jp = st.text_area("Solution (JP)", value=st.session_state.solution_jp)
-            st.session_state.result_jp = st.text_area("Result (JP)", value=st.session_state.result_jp)
+            st.session_state["title_jp"] = st.text_input("Title (JP)", value=st.session_state["title_jp"])
+            st.session_state["challenge_jp"] = st.text_area("Challenge (JP)", value=st.session_state["challenge_jp"])
+            st.session_state["solution_jp"] = st.text_area("Solution (JP)", value=st.session_state["solution_jp"])
+            st.session_state["result_jp"] = st.text_area("Result (JP)", value=st.session_state["result_jp"])
 
         st.markdown(f"### {t['social_title']}")
 
-        st.session_state.linkedin_draft = st.text_area("LinkedIn Draft (Institutional Cool)", value=st.session_state.linkedin_draft, height=200)
-        st.session_state.fb_post = st.text_area("Facebook Post (Weekend Planner)", value=st.session_state.fb_post, height=200)
-        st.session_state.ig_caption = st.text_area("Instagram Caption (Lifestyle Curator)", value=st.session_state.ig_caption, height=200)
-        st.session_state.threads_post = st.text_area("Threads Post (Unfiltered)", value=st.session_state.threads_post, height=150)
-        st.session_state.newsletter_topic = st.text_input("Newsletter Topic", value=st.session_state.newsletter_topic)
+        st.session_state["linkedin_draft"] = st.text_area("LinkedIn Draft (Institutional Cool)", value=st.session_state["linkedin_draft"], height=200)
+        st.session_state["fb_post"] = st.text_area("Facebook Post (Weekend Planner)", value=st.session_state["fb_post"], height=200)
+        st.session_state["ig_caption"] = st.text_area("Instagram Caption (Lifestyle Curator)", value=st.session_state["ig_caption"], height=200)
+        st.session_state["threads_post"] = st.text_area("Threads Post (Unfiltered)", value=st.session_state["threads_post"], height=150)
+        st.session_state["newsletter_topic"] = st.text_input("Newsletter Topic", value=st.session_state["newsletter_topic"])
 
         st.markdown("---")
         if st.button(t["approve_btn"], type="primary"):
             # Prepare Payload
             payload = {
-                "event_date": st.session_state.event_date,
-                "client_name": st.session_state.client_name,
-                "project_name": st.session_state.project_name,
-                "venue": st.session_state.venue,
-                "category_who": st.session_state.category_who,
-                "category_what": st.session_state.category_what,
-                "highlight_order": st.session_state.highlight_order,
-                "raw_transcript": st.session_state.raw_transcript,
-                "youtube_link": st.session_state.youtube_link,
-                "gallery_image_urls": st.session_state.gallery_image_urls,
-                "project_drive_folder": st.session_state.project_drive_folder,
-                "best_image_url": st.session_state.best_image_url,
-                "client_logo_url": st.session_state.client_logo_url,
-                "youtube_embed_code": st.session_state.youtube_embed_code,
-                "title_en": st.session_state.title_en,
-                "challenge_en": st.session_state.challenge_en,
-                "solution_en": st.session_state.solution_en,
-                "result_en": st.session_state.result_en,
-                "title_ch": st.session_state.title_ch,
-                "challenge_ch": st.session_state.challenge_ch,
-                "solution_ch": st.session_state.solution_ch,
-                "result_ch": st.session_state.result_ch,
-                "title_jp": st.session_state.title_jp,
-                "challenge_jp": st.session_state.challenge_jp,
-                "solution_jp": st.session_state.solution_jp,
-                "result_jp": st.session_state.result_jp,
-
-                "linkedin_draft": st.session_state.linkedin_draft,
-                "fb_post": st.session_state.fb_post,
-                "ig_caption": st.session_state.ig_caption,
-                "threads_post": st.session_state.threads_post,
-                "newsletter_topic": st.session_state.newsletter_topic,
-                "slide_1_cover": st.session_state.slide_1_cover,
-                "slide_2_challenge": st.session_state.slide_2_challenge,
-                "slide_3_solution": st.session_state.slide_3_solution,
-                "slide_4_results": st.session_state.slide_4_results
+                "event_date": st.session_state["event_date"],
+                "client_name": st.session_state["client_name"],
+                "project_name": st.session_state["project_name"],
+                "venue": st.session_state["venue"],
+                "category_who": st.session_state["category_who"],
+                "category_what": st.session_state["category_what"],
+                "highlight_order": st.session_state["highlight_order"],
+                "raw_transcript": st.session_state["raw_transcript"],
+                "youtube_link": st.session_state["youtube_link"],
+                "gallery_image_urls": st.session_state["gallery_image_urls"],
+                "project_drive_folder": st.session_state["project_drive_folder"],
+                "best_image_url": st.session_state["best_image_url"],
+                "client_logo_url": st.session_state["client_logo_url"],
+                "youtube_embed_code": st.session_state["youtube_embed_code"],
+                "title_en": st.session_state["title_en"],
+                "challenge_en": st.session_state["challenge_en"],
+                "solution_en": st.session_state["solution_en"],
+                "result_en": st.session_state["result_en"],
+                "title_ch": st.session_state["title_ch"],
+                "challenge_ch": st.session_state["challenge_ch"],
+                "solution_ch": st.session_state["solution_ch"],
+                "result_ch": st.session_state["result_ch"],
+                "title_jp": st.session_state["title_jp"],
+                "challenge_jp": st.session_state["challenge_jp"],
+                "solution_jp": st.session_state["solution_jp"],
+                "result_jp": st.session_state["result_jp"],
+                "linkedin_draft": st.session_state["linkedin_draft"],
+                "fb_post": st.session_state["fb_post"],
+                "ig_caption": st.session_state["ig_caption"],
+                "threads_post": st.session_state["threads_post"],
+                "newsletter_topic": st.session_state["newsletter_topic"],
+                "slide_1_cover": st.session_state["slide_1_cover"],
+                "slide_2_challenge": st.session_state["slide_2_challenge"],
+                "slide_3_solution": st.session_state["slide_3_solution"],
+                "slide_4_results": st.session_state["slide_4_results"]
             }
             
             # Send Webhook
@@ -676,10 +685,10 @@ def main():
                 st.info("No content generated for this slide yet.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        render_slide("Cover", st.session_state.slide_1_cover, 1)
-        render_slide("Challenge", st.session_state.slide_2_challenge, 2)
-        render_slide("Solution", st.session_state.slide_3_solution, 3)
-        render_slide("Results", st.session_state.slide_4_results, 4)
+        render_slide("Cover", st.session_state["slide_1_cover"], 1)
+        render_slide("Challenge", st.session_state["slide_2_challenge"], 2)
+        render_slide("Solution", st.session_state["slide_3_solution"], 3)
+        render_slide("Results", st.session_state["slide_4_results"], 4)
 
 if __name__ == "__main__":
     main()
