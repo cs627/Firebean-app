@@ -3,6 +3,7 @@ import google.generativeai as genai
 import requests
 import io
 import base64
+import datetime
 from PIL import Image
 from rembg import remove
 
@@ -22,7 +23,13 @@ SYSTEM_INSTRUCTION = """
 語氣要帶有 Vibe、Firm 同 Chill，常用 Emoji: ✨, 🥺, 💡, 📸。
 """
 
-# --- 2. 初始化狀態 (補齊所有變量，徹底防止 KeyError / AttributeError) ---
+# --- 2. 系統日誌記錄功能 (Debug Logs) ---
+def log_event(msg, level="INFO"):
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    log_entry = f"[{timestamp}] {level}: {msg}"
+    st.session_state.debug_logs.append(log_entry)
+
+# --- 3. 初始化狀態 (補齊所有變量，徹底防止 KeyError) ---
 def init_session_state():
     fields = [
         "event_date", "client_name", "project_name", "venue", "raw_transcript",
@@ -36,13 +43,14 @@ def init_session_state():
         if field not in st.session_state:
             st.session_state[field] = ""
             
-    # 第一句由 AI 開始
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "老細✨！終於返嚟喇！今日個 Project 搞成點？有冇咩場地或者痛點要我幫手 Vibe 吓佢？🥺"}]
+        
+    if "debug_logs" not in st.session_state:
+        st.session_state.debug_logs = ["系統初始化成功，準備就緒。"]
 
-# --- 3. UI 視覺強化 (靜態 CSS 分離，徹底解決 SyntaxError) ---
+# --- 4. UI 視覺強化 (靜態 CSS 分離，徹底解決 SyntaxError) ---
 def apply_neu_theme():
-    # 計算能量槽進度
     track_fields = ["client_name", "project_name", "venue", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f].strip() != "")
     progress_percent = int((filled / len(track_fields)) * 100)
@@ -54,26 +62,21 @@ def apply_neu_theme():
     footer {visibility: hidden;}
     .stApp { background-color: #E0E5EC; color: #2D3436; }
 
-    /* Energy Bar 容器 */
     .energy-container { width: 100%; background: #E0E5EC; padding: 10px 0; position: sticky; top: 0; z-index: 999; }
     .energy-bar-bg { height: 12px; background: #E0E5EC; border-radius: 10px; box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff; overflow: hidden; margin: 0 20px; }
     .energy-bar-fill { height: 100%; background: linear-gradient(90deg, #FF4B4B, #FF8080); box-shadow: 0 0 15px #FF4B4B; transition: width 0.8s ease-in-out; }
     
-    /* Logo 強制置中 */
     [data-testid="stImage"] { display: flex !important; justify-content: center !important; width: 100% !important; }
     [data-testid="stImage"] img { margin: 0 auto !important; max-width: 180px !important; }
 
-    /* 文字與輸入框顏色 (深石墨灰) */
     input, textarea, .stChatInputContainer textarea { color: #2D3436 !important; -webkit-text-fill-color: #2D3436 !important; font-weight: 600 !important; }
     p, label, span, .stMarkdown { color: #2D3436 !important; }
     h1, h2, h3 { color: #FF4B4B !important; font-weight: 800; }
 
-    /* 手機 2x4 Gallery 網格 */
     .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
     @media (max-width: 640px) { .gallery-grid { grid-template-columns: repeat(2, 1fr) !important; } }
     .gallery-item { width: 100%; aspect-ratio: 1/1; border-radius: 12px; object-fit: cover; box-shadow: 4px 4px 8px #bec3c9, -4px -4px 8px #ffffff; }
     
-    /* 泥膠卡片 Neumorphism */
     .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 20px; margin-bottom: 20px; }
     div[data-baseweb="input"], div[data-baseweb="textarea"], .stChatInputContainer, .stFileUploader {
         background-color: #BEC3C9 !important; border-radius: 20px !important;
@@ -84,14 +87,12 @@ def apply_neu_theme():
     </style>
     """
 
-    # 2. 動態 HTML (只處理需要進度條變數嘅部分)
     html_code = f"""
     <div class="energy-container">
         <div class="energy-bar-bg"><div class="energy-bar-fill" style="width: {progress_percent}%;"></div></div>
         <div style="font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px; margin-top: 5px;">BRAIN ENERGY: {progress_percent}%</div>
     </div>
     """
-    
     st.markdown(css_code + html_code, unsafe_allow_html=True)
 
 def get_base64_image(file):
@@ -104,13 +105,13 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- API 安全連接 (使用最穩定的模型) ---
+    # --- API 安全連接 ---
     try:
         genai.configure(api_key="AIzaSyBso5TkTbPUsgkoZrqmCZDCuVQqegC-FQI")
-        # 統一使用 gemini-1.5-flash，速度快且不易出錯
         model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
     except Exception as e:
-        st.error(f"API 設定錯誤，請檢查系統日誌。")
+        log_event(f"Gemini API 設定失敗: {str(e)}", "ERROR")
+        st.error("API 設定錯誤，請查看下方日誌。")
 
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
@@ -122,48 +123,55 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Assistant")
             
-            # 顯示對話歷史
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             
             if p := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
+                log_event(f"收到用戶輸入: {p}", "INFO")
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
                         try:
-                            # 🚀 將對話歷史轉換為純文字「劇本」，避開 Gemini API start_chat 格式報錯
+                            log_event("開始組合對話劇本...", "INFO")
                             convo_text = ""
                             for msg in st.session_state.messages:
                                 role_prefix = "Firebean Brain AI: " if msg["role"] == "assistant" else "老細 (User): "
                                 convo_text += f"{role_prefix}{msg['content']}\n\n"
                             
+                            log_event("正在發送請求至 Gemini API...", "INFO")
                             response = model.generate_content(convo_text)
+                            
+                            log_event("✅ API 請求成功，收到回覆！", "SUCCESS")
                             st.write(response.text)
                             st.session_state.messages.append({"role": "assistant", "content": response.text})
                             
                         except Exception as e:
-                            st.error(f"AI 暫時未能接駁 (Error: 網絡或配額問題)")
+                            log_event(f"❌ API 連接失敗 (Error): {str(e)}", "ERROR")
+                            st.error(f"AI 暫時未能接駁，請查看下方日誌了解詳情。")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_r:
-            # Logo Studio
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🎨 Logo Studio")
             logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo")
             if logo_f and st.button("🪄 一鍵轉化白色標誌"):
                 with st.spinner("處理中..."):
-                    img = Image.open(logo_f)
-                    out = remove(img)
-                    final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
-                    st.image(final, width=120)
-                    buf = io.BytesIO(); final.save(buf, format="PNG")
-                    st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
+                    try:
+                        log_event("開始處理 Logo 去背...", "INFO")
+                        img = Image.open(logo_f)
+                        out = remove(img)
+                        final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
+                        st.image(final, width=120)
+                        buf = io.BytesIO(); final.save(buf, format="PNG")
+                        st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
+                        log_event("✅ Logo 處理成功", "SUCCESS")
+                    except Exception as e:
+                        log_event(f"❌ Logo 處理失敗: {str(e)}", "ERROR")
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # 📸 手機 2x4 Gallery
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             up_files = st.file_uploader("上傳 8 張相片", type=['jpg','png'], accept_multiple_files=True)
@@ -187,31 +195,47 @@ def main():
         st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution", st.session_state.solution)
         
-        # Webhook URL
         WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
         
         if st.button("🚀 Confirm & Sync to Master Slide"):
             with st.spinner("同步中..."):
-                img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
-                payload = {
-                    "project_name": st.session_state.project_name,
-                    "client_name": st.session_state.client_name,
-                    "venue": st.session_state.venue,
-                    "challenge": st.session_state.challenge,
-                    "solution": st.session_state.solution,
-                    "logo_base64": st.session_state.get('logo_b64', ""),
-                    "images_base64": img_b64_list
-                }
                 try:
+                    log_event("開始發送資料至 Google Apps Script...", "INFO")
+                    img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
+                    payload = {
+                        "project_name": st.session_state.project_name,
+                        "client_name": st.session_state.client_name,
+                        "venue": st.session_state.venue,
+                        "challenge": st.session_state.challenge,
+                        "solution": st.session_state.solution,
+                        "logo_base64": st.session_state.get('logo_b64', ""),
+                        "images_base64": img_b64_list
+                    }
                     res = requests.post(WEBHOOK_URL, json=payload)
                     if res.status_code == 200:
                         st.balloons()
                         st.success("✅ 成功！已追加至 Master Slide。")
+                        log_event("✅ 同步至 Master Slide 成功", "SUCCESS")
                     else:
                         st.error("傳送失敗，請檢查 Apps Script 設定。")
-                except:
+                        log_event(f"❌ 同步失敗，Status Code: {res.status_code}", "ERROR")
+                except Exception as e:
                     st.error("Webhook 連接失敗。")
+                    log_event(f"❌ Webhook 發生錯誤: {str(e)}", "ERROR")
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- 5. 顯示系統運行日誌 (Debug Console) ---
+    st.markdown("---")
+    with st.expander("🛠️ 系統運行日誌 (Debug 專區) - 點擊展開"):
+        st.markdown("這裡會顯示 AI 的工作狀態及任何報錯，方便排查問題：")
+        # 只顯示最後 15 條日誌，保持畫面乾淨
+        for log in st.session_state.debug_logs[-15:]:
+            if "ERROR" in log:
+                st.error(log)
+            elif "SUCCESS" in log:
+                st.success(log)
+            else:
+                st.info(log)
 
 if __name__ == "__main__":
     main()
