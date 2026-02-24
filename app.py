@@ -16,7 +16,7 @@ SOW_OPTIONS = [
     "Concept Development", "Social Media Management", "KOL / MI Line up", 
     "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"
 ]
-YEARS = [str(y) for y in range(2007, 2031)]
+YEARS = [str(y) for y in range(2020, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 # --- 2. 系統初始化 (確保兩邊 Tab 共享數據) ---
