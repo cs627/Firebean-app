@@ -25,7 +25,7 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！加入咗「ADD」標籤，依家應該更易上手。試吓掟相落去！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已移至中心並加大。試吓掟相落去，Slot 1 依然係 Hero！🥺"}]
 
 # --- 3. 紅霓虹泥膠進度條 (160px) ---
 def get_circle_progress_html(percent):
@@ -67,21 +67,33 @@ def apply_styles():
         }
         .hero-mode { border: 3px solid #FF0000; box-shadow: 0 0 15px #FF0000; }
         
-        /* 修改：更醒目的 ADD 標籤 */
+        /* 核心修復：+ ADD 居中且加大字體 */
         .add-label { 
-            font-size: 14px; font-weight: 800; color: #FF4B4B; 
-            pointer-events: none; z-index: 5;
-            letter-spacing: 1px;
+            font-size: 26px; /* 大大加碼 */
+            font-weight: 900; 
+            color: #FF4B4B; 
+            pointer-events: none; 
+            z-index: 5;
+            letter-spacing: 2px;
+            opacity: 0.6; /* 泥膠感，稍微透明 */
         }
         
-        /* 隱形上傳器全覆蓋 */
+        /* 隱形上傳器全覆蓋，確保點擊大字即點擊上傳 */
         .stFileUploader { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: 20 !important; opacity: 0; cursor: pointer; }
         .stFileUploader section { width: 100% !important; height: 100% !important; border: none !important; padding: 0 !important; }
         .stFileUploader label, .stFileUploader div { display: none !important; }
         
-        img { pointer-events: none; border-radius: 12px; }
+        img { pointer-events: none; border-radius: 12px; object-fit: cover; width: 100%; height: 100%; }
         </style>
     """, unsafe_allow_html=True)
+
+def colorize_logo(img, color):
+    img = img.convert("RGBA")
+    a = img.split()[-1]
+    solid = Image.new('RGB', img.size, color)
+    final = Image.composite(solid, Image.new('RGB', img.size, (0,0,0)), a)
+    final.putalpha(a)
+    return final
 
 def main():
     st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
@@ -115,12 +127,12 @@ def main():
     with l_c1:
         st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
         st.markdown('<div class="slot-box">', unsafe_allow_html=True)
-        if st.session_state.raw_logo: st.image(Image.open(st.session_state.raw_logo), use_column_width=True)
+        if st.session_state.raw_logo: st.image(Image.open(st.session_state.raw_logo))
         else: st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
         f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="l_up")
         if f_logo: st.session_state.raw_logo = f_logo; st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.raw_logo and st.button("🪄 一鍵生成雙色"):
+        if st.session_state.raw_logo and st.button("🪄 生成雙色"):
             img = remove(Image.open(st.session_state.raw_logo))
             st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
@@ -128,16 +140,17 @@ def main():
     with l_c2:
         if st.session_state.logo_white_b64:
             st.markdown('<div class="drag-text">white</div>', unsafe_allow_html=True)
-            st.markdown('<div class="slot-box" style="background:#2D3436;"><img src="data:image/png;base64,'+st.session_state.logo_white_b64+'" style="width:100%;"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="slot-box" style="background:#2D3436;"><img src="data:image/png;base64,'+st.session_state.logo_white_b64+'"></div>', unsafe_allow_html=True)
     with l_c3:
         if st.session_state.logo_black_b64:
             st.markdown('<div class="drag-text">black</div>', unsafe_allow_html=True)
-            st.markdown('<div class="slot-box"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'" style="width:100%;"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="slot-box"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 3. Tabs ---
+    # --- 3. 主要 Tabs ---
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
     with tab1:
+        # Basic Info
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
@@ -149,6 +162,7 @@ def main():
         st.session_state.venue = b4.text_input("地點", st.session_state.venue)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # Checkboxes
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
@@ -156,23 +170,23 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope_of_Word", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        col_l, col_r = st.columns([1.3, 1])
-        with col_l:
+        cl, cr = st.columns([1.3, 1])
+        with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知個 Project 邊度最難搞？"):
+            if p := st.chat_input("話我知今次個 Project 邊度最難搞？"):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
+                    res = model.generate_content(f"Context: {st.session_state.scope_of_word}\nUser: {p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_r:
+        with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             for r in range(2):
@@ -184,7 +198,7 @@ def main():
                         h_mode = "hero-mode" if idx == 0 else ""
                         st.markdown(f'<div class="slot-box {h_mode}">', unsafe_allow_html=True)
                         if st.session_state.gallery_slots[idx]:
-                            st.image(Image.open(st.session_state.gallery_slots[idx]), use_column_width=True)
+                            st.image(Image.open(st.session_state.gallery_slots[idx]))
                         else:
                             st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
                         f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"slot_{idx}")
