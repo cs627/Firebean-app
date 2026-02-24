@@ -1,6 +1,7 @@
 streamlit
 google-generativeai
 requests
-Pillow
+pillow
 rembg
-onnxruntime
+gspread
+google-auth
