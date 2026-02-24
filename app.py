@@ -19,13 +19,15 @@ def init_session_state():
         "client_name": "", "project_name": "", "venue": "", 
         "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
-        "logo_white_b64": "", "logo_black_b64": "", "messages": [], "project_photos": [None] * 8,
+        "logo_white_b64": "", "logo_black_b64": "", "messages": [], 
+        "project_photos": [], # 改為儲存多個檔案的列表
+        "hero_index": 0, # 預設第一張為 Hero
         "raw_logo": None
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Slot 視覺已徹底移除。依家係純「掣轉預覽」模式！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！已回歸經典大盒設計。請將所有相片一次過掟入去，然後喺下面揀 Hero！🥺"}]
 
 # --- 3. 進度條 HTML (160px) ---
 def get_circle_progress_html(percent):
@@ -58,28 +60,46 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        /* 徹底刪除 Slot，改為純按鈕區域 */
-        .upload-container {
-            position: relative; width: 100%; aspect-ratio: 1/1;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-        .add-btn-visual {
-            width: 80%; height: 45px; border-radius: 12px;
+        /* 大上傳盒樣式 */
+        .large-upload-box {
+            border: 3px dashed #bec3c9;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
             background: #E0E5EC;
-            box-shadow: 5px 5px 10px #bec3c9, -5px -5px 10px #ffffff;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: 800; color: #FF4B4B;
-            pointer-events: none; z-index: 5;
+            color: #888;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 20px;
         }
-        .drag-hint-text { font-size: 9px; color: #aaa; margin-bottom: 5px; pointer-events: none; }
-
-        /* 隱形成像膜全覆蓋按鈕區域 */
-        .stFileUploader { position: absolute; width: 100%; height: 100%; z-index: 10; opacity: 0; cursor: pointer; }
-        .stFileUploader section { padding: 0 !important; width: 100% !important; height: 100% !important; }
-        .stFileUploader label, .stFileUploader div { display: none !important; }
+        .large-upload-box:hover { border-color: #FF4B4B; color: #FF4B4B; }
         
-        img { border-radius: 20px; object-fit: cover; width: 100%; height: 100%; pointer-events: none; }
-        .hero-banner-preview { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); }
+        /* 縮圖預覽區 */
+        .thumbnail-container {
+            display: flex; flex-direction: column; align-items: center; margin-bottom: 10px;
+        }
+        .thumbnail-img { 
+            width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; 
+            box-shadow: 3px 3px 6px #bec3c9, -3px -3px 6px #ffffff;
+        }
+        .hero-thumbnail { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.5); }
+
+        /* 隱藏 Streamlit 原生上傳樣式，用 CSS 覆蓋 */
+        .stFileUploader > div > div { width: 100%; }
+        .stFileUploader > div > div > button { display: none; }
+        .stFileUploader label {
+            display: block; width: 100%; height: 100%; 
+            border: 3px dashed #bec3c9; border-radius: 20px; padding: 40px 0;
+            text-align: center; font-weight: bold; color: #888; cursor: pointer;
+        }
+        .stFileUploader label:hover { border-color: #FF4B4B; color: #FF4B4B; }
+        .stFileUploader label::before { content: '📤 Drag photos here / Open file'; font-size: 16px; }
+        
+        /* Logo 上傳區特定樣式 */
+        .logo-uploader > div > div > label::before { content: '🎨 Drag logo here / Open file'; }
+
+        /* Radio Button 樣式調整 */
+        .stRadio > div { flex-direction: row; align-items: center; justify-content: center; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -98,7 +118,7 @@ def main():
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
-    if st.session_state.project_photos[0]: score += 1 
+    if st.session_state.project_photos: score += 1 # 有上傳相片就計分
     if st.session_state.challenge: score += 1
     if st.session_state.solution: score += 1
     final_percent = int((score / 11) * 100)
@@ -108,20 +128,19 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Assets ---
+    # --- 2. Logo Assets (大盒 + 預覽) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Assets")
-    l_c1, l_c2, l_c3 = st.columns(3)
-    with l_c1:
-        st.markdown('<div class="upload-container">', unsafe_allow_html=True)
-        if st.session_state.raw_logo: 
-            st.image(Image.open(st.session_state.raw_logo))
-        else: 
-            st.markdown('<div class="drag-hint-text">drag and drop</div><div class="add-btn-visual">+ Add Logo</div>', unsafe_allow_html=True)
-        f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="logo_uploader")
-        if f_logo: st.session_state.raw_logo = f_logo; st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.raw_logo and st.button("🪄 一鍵生成黑白"):
+    
+    # Logo 上傳大盒
+    st.markdown('<div class="logo-uploader">', unsafe_allow_html=True)
+    f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="logo_uploader")
+    st.markdown('</div>', unsafe_allow_html=True)
+    if f_logo: st.session_state.raw_logo = f_logo
+
+    if st.session_state.raw_logo:
+        # Logo 處理按鈕
+        if st.button("🪄 Process Logo (Generate White & Black)"):
             from rembg import remove
             img = remove(Image.open(st.session_state.raw_logo))
             def colorize(img, color):
@@ -134,12 +153,21 @@ def main():
             st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize(img, (255,255,255)).tobytes()).getvalue()).decode()
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize(img, (0,0,0)).tobytes()).getvalue()).decode()
             st.rerun()
-    with l_c2:
-        if st.session_state.logo_white_b64:
-            st.markdown('<div class="upload-container" style="background:#2D3436;border-radius:20px;"><img src="data:image/png;base64,'+st.session_state.logo_white_b64+'"></div>', unsafe_allow_html=True)
-    with l_c3:
-        if st.session_state.logo_black_b64:
-            st.markdown('<div class="upload-container"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'"></div>', unsafe_allow_html=True)
+            
+        # Logo 預覽區 (原圖、白、黑)
+        st.write("---")
+        l_c1, l_c2, l_c3 = st.columns(3)
+        with l_c1:
+            st.caption("Original")
+            st.image(Image.open(st.session_state.raw_logo), use_column_width=True)
+        with l_c2:
+            if st.session_state.logo_white_b64:
+                st.caption("White (Dark BG)")
+                st.markdown(f'<div style="background:#2D3436;border-radius:12px;padding:10px;"><img src="data:image/png;base64,{st.session_state.logo_white_b64}" style="width:100%;"></div>', unsafe_allow_html=True)
+        with l_c3:
+            if st.session_state.logo_black_b64:
+                st.caption("Black (Light BG)")
+                st.markdown(f'<div style="background:#E0E5EC;border-radius:12px;padding:10px;"><img src="data:image/png;base64,{st.session_state.logo_black_b64}" style="width:100%;"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["💬 Data Collector", "📋 Review"])
@@ -164,43 +192,46 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        cl, cr = st.columns([1.3, 1])
-        with cl:
-            st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            for msg in st.session_state.messages:
-                with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("Talk to AI..."):
-                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                st.session_state.messages.append({"role": "user", "content": p})
-                with st.chat_message("user"): st.write(p)
-                with st.chat_message("assistant"):
-                    model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
-                    st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+        # AI Chatbot
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.subheader("🤖 AI Assistant")
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]): st.write(msg["content"])
+        if p := st.chat_input("Talk to AI..."):
+            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+            st.session_state.messages.append({"role": "user", "content": p})
+            with st.chat_message("user"): st.write(p)
+            with st.chat_message("assistant"):
+                model = genai.GenerativeModel("gemini-2.5-flash")
+                res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
+                st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        with cr:
-            # --- 4. 8 張相片 (徹底移除 Slot，純掣轉預覽) ---
-            st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Project Photos")
-            for r in range(2):
-                cols = st.columns(4)
-                for c in range(4):
-                    idx = r * 4 + c
-                    with cols[c]:
-                        st.markdown('<div class="upload-container">', unsafe_allow_html=True)
-                        if st.session_state.project_photos[idx]:
-                            hero_cls = "hero-banner-preview" if idx == 0 else ""
-                            st.image(Image.open(st.session_state.project_photos[idx]), output_format="PNG")
-                            # 第一張相加紅邊框
-                            if idx == 0: st.markdown('<div class="hero-banner-preview" style="position:absolute;inset:0;pointer-events:none;"></div>', unsafe_allow_html=True)
-                        else:
-                            st.markdown(f'<div class="drag-hint-text">drag and drop</div><div class="add-btn-visual">+ Add P{idx+1}</div>', unsafe_allow_html=True)
-                        
-                        f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"photo_upload_{idx}")
-                        if f: st.session_state.project_photos[idx] = f; st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+        # --- 4. Project Photos (大盒 + 縮圖 + Hero 選擇) ---
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.subheader("📸 Project Photos")
+        
+        # 多檔案上傳大盒
+        files = st.file_uploader("", type=['jpg','png','jpeg'], accept_multiple_files=True, key="project_uploader")
+        if files: st.session_state.project_photos = files
+
+        # 縮圖預覽與 Hero 選擇
+        if st.session_state.project_photos:
+            st.write("---")
+            st.write("🌟 **Select Hero Banner:**")
+            
+            # 使用 columns 排列縮圖
+            cols = st.columns(4)
+            for i, file in enumerate(st.session_state.project_photos):
+                col_idx = i % 4
+                with cols[col_idx]:
+                    # Hero 樣式
+                    hero_class = "hero-thumbnail" if i == st.session_state.hero_index else ""
+                    st.markdown(f'<img src="data:image/png;base64,{base64.b64encode(file.getvalue()).decode()}" class="thumbnail-img {hero_class}">', unsafe_allow_html=True)
+                    # Hero 選擇 Radio Button
+                    if st.radio(f"Hero {i+1}", [i], key=f"hero_radio_{i}", index=0 if i == st.session_state.hero_index else -1, label_visibility="collapsed"):
+                        st.session_state.hero_index = i
+                        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__": main()
