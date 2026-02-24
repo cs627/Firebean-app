@@ -30,6 +30,7 @@ def init_session_state():
     for field in fields:
         if field not in st.session_state:
             st.session_state[field] = ""
+    # 第一句由 AI 開始
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "老細✨！終於返嚟喇！今日個 Project 搞成點？有冇咩場地或者痛點要我幫手 Vibe 吓佢？🥺"}]
 
@@ -89,9 +90,10 @@ def main():
     # --- API 安全連接 ---
     try:
         genai.configure(api_key="AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI")
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
-    except:
-        st.error("API Key 似乎有問題，請檢查 Secret 設定。")
+        # 使用 Gemini 1.5 Pro
+        model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
+    except Exception as e:
+        st.error(f"API 設定錯誤: {str(e)}")
 
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
@@ -102,22 +104,31 @@ def main():
         with col_l:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Assistant")
+            
+            # 顯示對話歷史
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             
             if p := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
+                
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
-                        # 使用 Chat Session 保持記憶，AI 先至識追問
-                        chat = model.start_chat(history=[
-                            {"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} 
-                            for m in st.session_state.messages[:-1]
-                        ])
-                        response = chat.send_message(p)
-                        st.write(response.text)
-                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+                        try:
+                            # 🚀 終極防 404 方案：將對話歷史轉換為純文字「劇本」
+                            convo_text = ""
+                            for msg in st.session_state.messages:
+                                role_prefix = "Firebean Brain AI: " if msg["role"] == "assistant" else "老細 (User): "
+                                convo_text += f"{role_prefix}{msg['content']}\n\n"
+                            
+                            # 將整段歷史直接交給模型，避開 start_chat 格式審查
+                            response = model.generate_content(convo_text)
+                            st.write(response.text)
+                            st.session_state.messages.append({"role": "assistant", "content": response.text})
+                            
+                        except Exception as e:
+                            st.error(f"連接失敗: {str(e)}")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -157,6 +168,10 @@ def main():
         st.session_state.venue = st.text_input("Venue", st.session_state.venue)
         st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution", st.session_state.solution)
+        
+        # Webhook URL
+        WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
+        
         if st.button("🚀 Confirm & Sync to Master Slide"):
             st.balloons()
             st.success("成功同步！")
