@@ -7,9 +7,23 @@ from PIL import Image
 from rembg import remove
 
 # --- 1. 選項與範圍定義 ---
-WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
-WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
-SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
+WHO_WE_HELP_OPTIONS = [
+    "GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", 
+    "F&B & HOSPITALITY", "MALLS & VENUES"
+]
+
+WHAT_WE_DO_OPTIONS = [
+    "ROVING EXHIBITIONS", "SOCIAL & CONTENT", 
+    "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"
+]
+
+SOW_OPTIONS = [
+    "Event Planning", "Event Coordination", "Event Production",
+    "Theme Design", "Concept Development", "Social Media Management",
+    "KOL / MI Line up", "Artist Endorsement", "Media Pitching", 
+    "PR Consulting", "Souvenir Sourcing"
+]
+
 YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
@@ -25,7 +39,7 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已移至中心並加大。試吓掟相落去，Slot 1 依然係 Hero！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已移至 Slot 正中心。請開始上傳 Project 資產！🥺"}]
 
 # --- 3. 紅霓虹泥膠進度條 (160px) ---
 def get_circle_progress_html(percent):
@@ -59,31 +73,35 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
         .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; }
+        
+        /* 修正：Slot 容器 */
         .slot-box { 
             position: relative; width: 100%; aspect-ratio: 1/1; 
-            background: #E0E5EC; border-radius: 15px; 
-            box-shadow: inset 5px 5px 10px #bec3c9, inset -5px -5px 10px #ffffff;
-            display: flex; align-items: center; justify-content: center; overflow: hidden;
+            background: #E0E5EC; border-radius: 20px; 
+            box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff;
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
         }
-        .hero-mode { border: 3px solid #FF0000; box-shadow: 0 0 15px #FF0000; }
+        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 20px rgba(255,0,0,0.4); }
         
-        /* 核心修復：+ ADD 居中且加大字體 */
+        /* 核心修復：+ ADD 居中、特大字體 */
         .add-label { 
-            font-size: 26px; /* 大大加碼 */
+            position: absolute;
+            font-size: 42px; /* 特大字體 */
             font-weight: 900; 
             color: #FF4B4B; 
             pointer-events: none; 
             z-index: 5;
-            letter-spacing: 2px;
-            opacity: 0.6; /* 泥膠感，稍微透明 */
+            text-align: center;
+            opacity: 0.7;
+            letter-spacing: -1px;
         }
         
-        /* 隱形上傳器全覆蓋，確保點擊大字即點擊上傳 */
+        /* 隱形上傳器全覆蓋 */
         .stFileUploader { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: 20 !important; opacity: 0; cursor: pointer; }
         .stFileUploader section { width: 100% !important; height: 100% !important; border: none !important; padding: 0 !important; }
         .stFileUploader label, .stFileUploader div { display: none !important; }
         
-        img { pointer-events: none; border-radius: 12px; object-fit: cover; width: 100%; height: 100%; }
+        img { pointer-events: none; border-radius: 16px; object-fit: cover; width: 100%; height: 100%; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -100,19 +118,16 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- ⚖️ 計分系統 (11 點) ---
+    # --- 計分系統 ---
     score = 0
-    if st.session_state.client_name: score += 1
-    if st.session_state.project_name: score += 1
-    if st.session_state.venue: score += 1
-    if st.session_state.event_date: score += 1
+    track = ["client_name", "project_name", "venue", "event_date", "challenge", "solution"]
+    for f in track:
+        if st.session_state[f]: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
     if st.session_state.gallery_slots[0]: score += 1
-    if st.session_state.challenge: score += 1
-    if st.session_state.solution: score += 1
     final_percent = int((score / 11) * 100)
 
     # --- Header ---
@@ -120,7 +135,7 @@ def main():
     with c_h1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c_h2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Studio ---
+    # --- Logo Studio ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
     l_c1, l_c2, l_c3 = st.columns(3)
@@ -147,7 +162,7 @@ def main():
             st.markdown('<div class="slot-box"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 3. 主要 Tabs ---
+    # --- 主要工作區 ---
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
     with tab1:
         # Basic Info
@@ -162,7 +177,6 @@ def main():
         st.session_state.venue = b4.text_input("地點", st.session_state.venue)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Checkboxes
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
@@ -175,18 +189,19 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知今次個 Project 邊度最難搞？"):
+            if p := st.chat_input("話我知細節..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"Context: {st.session_state.scope_of_word}\nUser: {p}")
+                    res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
+            # Gallery Slot 佈置
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             for r in range(2):
