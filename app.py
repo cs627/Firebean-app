@@ -7,14 +7,28 @@ import base64
 from PIL import Image
 from rembg import remove
 
-# --- 1. 核心性格與指令 ---
+# --- 1. 核心性格與「追問」策略 (FIREBEAN_PROTOCOL) ---
 SYSTEM_INSTRUCTION = """
-你係 Firebean Brain，香港頂尖 PR 策略大腦。性格可愛高明。
-目標：透過對話套出 Client, Project, Venue, Challenge, Result 等資料。
-語音功能已取消，現在請專注於文字對話。語氣要帶有 Vibe、Firm、Chill 的風格。
+你係 Firebean Brain，香港頂尖 PR & Event 策略大腦。
+【性格設定】
+- 高明且可愛氹人：語氣帶有「Positive & Playful」感，常用 Emoji (✨, 🥺, 💡, 📸)。
+- 語言：廣東話口語 + English Code-switching (Vibe, Firm, Chill, Campaign)。
+
+【核心任務】
+你的目標是透過對話套出以下「5 大關鍵拼圖」。如果用戶沒提供齊全，你要主動「反問」：
+1. Client_Name (客戶是誰)
+2. Project_Name (項目名稱)
+3. Venue (場地)
+4. Challenge (痛點/困難)
+5. Result (期望 KPI)
+
+【執行規則】
+- 每次回覆「只問一個問題」，唔好似填 Form 咁。
+- 語氣要像合作夥伴，先肯定對方（Yes Set），再提出標籤型提問（Labeling）。
+- 沒收到完整資料前，不要結束對話。
 """
 
-# --- 2. 初始化所有狀態 (防止 AttributeError) ---
+# --- 2. 初始化狀態 (解決 AttributeError) ---
 def init_session_state():
     fields = [
         "event_date", "client_name", "project_name", "venue", "raw_transcript",
@@ -24,22 +38,21 @@ def init_session_state():
         if field not in st.session_state:
             st.session_state[field] = ""
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！今日搞完 Event 辛苦晒。我已經準備好幫你執靚份 Profile，你可以直接喺度同我傾，或者喺右邊上載相片同 Logo！📸"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！終於返嚟喇！今日個 Project 搞成點？有冇啲咩大計想我幫手 Vibe 吓佢？🥺"}]
 
-# --- 3. UI 視覺強化 (泥膠風格 + 手機 2x4 Gallery) ---
+# --- 3. UI 視覺強化 (Energy Bar + 手機 2x4 Gallery + 顏色修復) ---
 def apply_neu_theme():
-    # 計算進度百分比 (Energy Bar)
+    # 計算能量進度 (8 個核心欄位)
     track_fields = ["client_name", "project_name", "event_date", "venue", "category", "scope", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
-    # 修正 f-string 與 CSS 大括號衝突：所有 CSS 括號改為 {{ }}
     st.markdown(f"""
         <style>
         header {{ visibility: hidden; }}
         footer {{ visibility: hidden; }}
 
-        /* 全局背景：泥膠淺灰 */
+        /* 全局背景 */
         .stApp {{ background-color: #E0E5EC; color: #2D3436; }}
 
         /* --- Energy Bar --- */
@@ -124,16 +137,16 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- 修正後的 API 設定 (修復 404 Error) ---
-    api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" 
+    # --- 修復 404 Error: 使用標準模型的 API 設定 ---
+    api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" # 建議檢查 Key 是否有效
     genai.configure(api_key=api_key)
     
-    # 確保模型名稱不帶 models/ 前綴
-    model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
+    # 這裡使用穩定版的 gemini-1.5-flash，速度快且不易出錯
+    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
 
     WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
 
-    # Logo (已置中)
+    # Logo
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
     tab1, tab2 = st.tabs(["💬 Project Brain Hub", "⚙️ Admin & Sync"])
@@ -156,12 +169,16 @@ def main():
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
                         try:
-                            # 修改對話調用格式，直接傳遞字串以增加穩定性
-                            response = model.generate_content(p)
+                            # 建立對話 Session 保持前後文，這會讓 AI 更容易學會「反問」
+                            chat = model.start_chat(history=[
+                                {"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} 
+                                for m in st.session_state.messages[:-1]
+                            ])
+                            response = chat.send_message(p)
                             st.write(response.text)
                             st.session_state.messages.append({"role": "assistant", "content": response.text})
                         except Exception as e:
-                            st.error(f"Gemini 連接失敗: {str(e)}")
+                            st.error(f"連線失敗 (404/Timeout): 請檢查 API Key 或網路環境。")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -170,66 +187,4 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🎨 Logo Studio")
             logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo")
-            if logo_f and st.button("🪄 一鍵轉化白色標誌"):
-                img = Image.open(logo_f)
-                out = remove(img)
-                final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
-                st.image(final, width=120)
-                buf = io.BytesIO()
-                final.save(buf, format="PNG")
-                st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # 📸 2x4 手機相片網格
-            st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Project Gallery")
-            up_files = st.file_uploader("上傳 8 張現場相片", type=['jpg','png'], accept_multiple_files=True)
-            
-            grid_html = '<div class="gallery-grid">'
-            for i in range(8):
-                if up_files and i < len(up_files):
-                    b64 = get_base64_image(up_files[i])
-                    grid_html += f'<div><img src="data:image/png;base64,{b64}" class="gallery-item"></div>'
-                else:
-                    grid_html += f'<div class="slot-placeholder">Slot {i+1}</div>'
-            grid_html += '</div>'
-            st.markdown(grid_html, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab2:
-        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("⚙️ Admin Review")
-        st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
-        st.session_state.client_name = st.text_input("Client Name", st.session_state.client_name)
-        st.session_state.venue = st.text_input("Venue", st.session_state.venue)
-        st.session_state.event_date = st.text_input("Date", st.session_state.event_date)
-        st.session_state.category = st.text_input("Category", st.session_state.category)
-        st.session_state.scope = st.text_area("Scope of Work", st.session_state.scope)
-        st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Solution", st.session_state.solution)
-        
-        if st.button("🚀 Confirm & Sync to Master Slide"):
-            with st.spinner("正在同步至 Google Slide..."):
-                img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
-                payload = {
-                    "project_name": st.session_state.project_name,
-                    "client_name": st.session_state.client_name,
-                    "category": st.session_state.category,
-                    "event_date": st.session_state.event_date,
-                    "venue": st.session_state.venue,
-                    "scope": st.session_state.scope,
-                    "challenge": st.session_state.challenge,
-                    "solution": st.session_state.solution,
-                    "logo_base64": st.session_state.get('logo_b64', ""),
-                    "images_base64": img_b64_list
-                }
-                try:
-                    requests.post(WEBHOOK_URL, json=payload)
-                    st.balloons()
-                    st.success("✅ 成功！已追加至 Master Slide。")
-                except:
-                    st.error("Webhook 傳送失敗")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
+            if logo_f and st.button("🪄 一鍵轉化白色
