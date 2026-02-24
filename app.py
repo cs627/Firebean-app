@@ -120,7 +120,7 @@ def main():
         st.session_state.client_name = b1.text_input("客戶名稱", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("項目名稱", st.session_state.project_name)
         
-        [Image of a logical flowchart showing how a user selects a year from 2015 to 2030 and a month from a dropdown menu, which is then formatted into a string like (2025 DEC) before being sent to a database]
+        
         
         st.session_state.event_year = b3_y.selectbox("年份", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("月份", MONTHS, index=MONTHS.index(st.session_state.event_month))
