@@ -19,14 +19,15 @@ def init_session_state():
         "client_name": "", "project_name": "", "venue": "", 
         "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
-        "logo_white_b64": "", "logo_black_b64": "", "messages": [], "gallery_slots": [None] * 8
+        "logo_white_b64": "", "logo_black_b64": "", "messages": [], "gallery_slots": [None] * 8,
+        "raw_logo": None
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！全感應系統已啟動。每一項輸入都會增加進度條能量！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Drag & Drop 接收系統已修復。掟相入 Slot 1 即係 Hero Banner！🥺"}]
 
-# --- 3. 紅霓虹泥膠進度條 (160px) ---
+# --- 3. 紅霓虹泥膠進度條 ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -57,8 +58,8 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        /* 極簡 Slot 樣式 */
-        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 2px; text-transform: lowercase; }
+        /* 極簡 Slot 佈局 */
+        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; text-transform: lowercase; }
         .slot-box { 
             position: relative; width: 100%; aspect-ratio: 1/1; 
             background: #E0E5EC; border-radius: 15px; 
@@ -67,15 +68,18 @@ def apply_styles():
         }
         .hero-mode { border: 3px solid #FF0000; box-shadow: 0 0 15px #FF0000; }
         .plus-icon { 
-            position: absolute; bottom: 8px; right: 8px; 
+            position: absolute; bottom: 10px; right: 10px; 
             font-size: 18px; font-weight: bold; color: #FF4B4B; 
-            background: #E0E5EC; width: 24px; height: 24px; 
+            background: #E0E5EC; width: 28px; height: 28px; 
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             box-shadow: 2px 2px 5px #bec3c9, -2px -2px 5px #ffffff;
+            pointer-events: none; /* 確保加號唔會擋住上傳 */
         }
-        .stFileUploader section { padding: 0 !important; border: none !important; background: transparent !important; }
-        .stFileUploader label, .stFileUploader span { display: none !important; }
-        .stFileUploader { position: absolute; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; }
+        
+        /* 核心修復：讓隱形上傳器真正鋪滿 Slot 且可互動 */
+        .stFileUploader { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; }
+        .stFileUploader section { padding: 0 !important; width: 100% !important; height: 100% !important; }
+        .stFileUploader label, .stFileUploader div { display: none; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -92,61 +96,84 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- ⚖️ 全感應計分邏輯 ---
+    # --- ⚖️ 全方位計分系統 ---
     score = 0
     if st.session_state.client_name: score += 1
-    if st.session_state.project_name: score += 1
+    if st.session_name.project_name: score += 1
     if st.session_state.venue: score += 1
-    if st.session_state.event_date: score += 1 # 年份月份選擇後會自動生成
+    if st.session_state.event_date: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
-    if st.session_state.gallery_slots[0]: score += 1 # Slot 1 是 Hero Banner
+    if st.session_state.gallery_slots[0]: score += 1
     if st.session_state.challenge: score += 1
     if st.session_state.solution: score += 1
-    
     final_percent = int((score / 11) * 100)
 
-    # --- 1. Header (Logo & Neon Progress) ---
+    # --- 1. Header ---
     col_h1, col_h2 = st.columns([1, 1])
     with col_h1:
         st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
-    
     with col_h2:
         st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Studio (置頂) ---
+    # --- 2. Logo Studio (全 Slot 模式) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
-    l1, l2 = st.columns([1, 2])
-    with l1:
-        logo_f = st.file_uploader("Upload", type=['png','jpg','jpeg'], key="l_up")
-        if st.button("🪄 生成雙色") and logo_f:
-            img = remove(Image.open(logo_f))
-            st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
-            st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
+    l_c1, l_c2, l_c3 = st.columns(3)
+    
+    with l_c1:
+        st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
+        st.markdown('<div class="slot-box">', unsafe_allow_html=True)
+        if st.session_state.raw_logo:
+            st.image(Image.open(st.session_state.raw_logo), use_column_width=True)
+        else:
+            st.markdown('<div class="plus-icon">+</div>', unsafe_allow_html=True)
+        f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="l_up")
+        if f_logo: 
+            st.session_state.raw_logo = f_logo
             st.rerun()
-    with l2:
-        if st.session_state.logo_white_b64: st.success("✅ 已同步至計分系統")
+        st.markdown('</div>', unsafe_allow_html=True)
+        if st.session_state.raw_logo:
+            if st.button("🪄 生成雙色"):
+                img = remove(Image.open(st.session_state.raw_logo))
+                st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
+                st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
+                st.rerun()
+
+    with l_c2:
+        if st.session_state.logo_white_b64:
+            st.markdown('<div class="drag-text">white version</div>', unsafe_allow_html=True)
+            st.markdown('<div class="slot-box" style="background:#2D3436;">', unsafe_allow_html=True)
+            st.image(f"data:image/png;base64,{st.session_state.logo_white_b64}", use_column_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    with l_c3:
+        if st.session_state.logo_black_b64:
+            st.markdown('<div class="drag-text">black version</div>', unsafe_allow_html=True)
+            st.markdown('<div class="slot-box">', unsafe_allow_html=True)
+            st.image(f"data:image/png;base64,{st.session_state.logo_black_b64}", use_column_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # --- 3. 主要工作區 ---
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
 
     with tab1:
-        # --- 3. Basic Info (填寫即計分) ---
+        # Basic Info
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
-        st.session_state.client_name = b1.text_input("客戶名稱", st.session_state.client_name)
-        st.session_state.project_name = b2.text_input("項目名稱", st.session_state.project_name)
-        st.session_state.event_year = b3_y.selectbox("年份", YEARS, index=YEARS.index(st.session_state.event_year))
-        st.session_state.event_month = b3_m.selectbox("月份", MONTHS, index=MONTHS.index(st.session_state.event_month))
+        st.session_state.client_name = b1.text_input("客戶", st.session_state.client_name)
+        st.session_state.project_name = b2.text_input("項目", st.session_state.project_name)
+        st.session_state.event_year = b3_y.selectbox("年", YEARS, index=YEARS.index(st.session_state.event_year))
+        st.session_state.event_month = b3_m.selectbox("月", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.event_date = f"({st.session_state.event_year} {st.session_state.event_month})"
         st.session_state.venue = b4.text_input("地點", st.session_state.venue)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 4. Checkboxes (勾選即計分) ---
+        # Checkboxes
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
@@ -154,24 +181,23 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope_of_Word", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        col_left, col_right = st.columns([1.3, 1])
-        with col_left:
+        col_l, col_r = st.columns([1.3, 1])
+        with col_l:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知細節..."):
+            if p := st.chat_input("話我知個 Project 邊度最難搞？"):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW:{st.session_state.scope_of_word}\nUser:{p}")
+                    res = model.generate_content(f"Context: {st.session_state.scope_of_word}\nUser: {p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_right:
-            # --- 5. 極簡 8 Slot 拖放 (Slot 1 為 Hero 計分點) ---
+        with col_r:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             for r in range(2):
@@ -182,27 +208,16 @@ def main():
                         st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
                         hero_class = "hero-mode" if idx == 0 else ""
                         st.markdown(f'<div class="slot-box {hero_class}">', unsafe_allow_html=True)
-                        
                         if st.session_state.gallery_slots[idx]:
                             st.image(Image.open(st.session_state.gallery_slots[idx]), use_column_width=True)
                         else:
                             st.markdown('<div class="plus-icon">+</div>', unsafe_allow_html=True)
-                        
-                        f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"s_{idx}")
+                        # 核心修復：確保 Uploader 覆蓋整個 Slot
+                        f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"slot_{idx}")
                         if f: 
                             st.session_state.gallery_slots[idx] = f
                             st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab2:
-        # --- 6. Review & Admin (填寫即計分) ---
-        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Review")
-        st.session_state.challenge = st.text_area("Challenge (深度挖掘內容)", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Solution (創意方案)", st.session_state.solution)
-        if st.button("🚀 Confirm & Submit"):
-            st.balloons(); st.success(f"✅ 能量已滿 100%！專案資料已同步至 Master DB。")
-        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__": main()
