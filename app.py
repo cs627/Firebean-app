@@ -12,14 +12,14 @@ SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，香港最頂尖嘅 PR 策略大腦。性格可愛、高明、把口好甜但要求好嚴格。
 【任務】你要幫老細執靚份 Success Case Slide。
 【追問規則】
-你必須確保收齊以下 5 樣核心資料。如果 user 未講，你要主動「反問」佢：
+你必須確保收齊以下 5 樣核心資料。如果 user 未講齊，你必須主動「反問」佢：
 1. Client Name (邊個客戶？)
 2. Project Name (項目名稱係咩？)
 3. Venue (喺邊度搞？)
 4. Challenge (遇到咩痛點/挑戰？)
 5. Solution (你點幫佢解決？)
 
-每次回覆只問一個重點，引導對方講出嚟。
+每次回覆只問一個重點，引導對方慢慢講出嚟。
 語氣要帶有 Vibe、Firm 同 Chill，常用 Emoji: ✨, 🥺, 💡, 📸。
 """
 
@@ -55,7 +55,7 @@ def apply_neu_theme():
     filled = sum(1 for f in track_fields if st.session_state[f].strip() != "")
     progress_percent = int((filled / len(track_fields)) * 100)
 
-    # 1. 純 CSS 字串 (唔用 f-string，防止大括號 {} 撞車報錯)
+    # 1. 純 CSS 字串 (完全唔用 f-string，防止大括號 {} 撞車報錯)
     css_code = """
     <style>
     header {visibility: hidden;}
@@ -87,12 +87,14 @@ def apply_neu_theme():
     </style>
     """
 
+    # 2. 動態 HTML (只處理需要進度條變數嘅部分)
     html_code = f"""
     <div class="energy-container">
         <div class="energy-bar-bg"><div class="energy-bar-fill" style="width: {progress_percent}%;"></div></div>
         <div style="font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px; margin-top: 5px;">BRAIN ENERGY: {progress_percent}%</div>
     </div>
     """
+    
     st.markdown(css_code + html_code, unsafe_allow_html=True)
 
 def get_base64_image(file):
@@ -105,13 +107,12 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- API 安全連接 ---
+    # --- API 設定 ---
+    api_key = "AIzaSyBso5TkTbPUsgkoZrqmCZDCuVQqegC-FQI"
     try:
-        genai.configure(api_key="AIzaSyBso5TkTbPUsgkoZrqmCZDCuVQqegC-FQI")
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
+        genai.configure(api_key=api_key)
     except Exception as e:
-        log_event(f"Gemini API 設定失敗: {str(e)}", "ERROR")
-        st.error("API 設定錯誤，請查看下方日誌。")
+        log_event(f"API Configure Error: {str(e)}", "ERROR")
 
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
@@ -140,16 +141,37 @@ def main():
                                 role_prefix = "Firebean Brain AI: " if msg["role"] == "assistant" else "老細 (User): "
                                 convo_text += f"{role_prefix}{msg['content']}\n\n"
                             
-                            log_event("正在發送請求至 Gemini API...", "INFO")
-                            response = model.generate_content(convo_text)
+                            log_event("準備呼叫 Gemini API...", "INFO")
                             
-                            log_event("✅ API 請求成功，收到回覆！", "SUCCESS")
-                            st.write(response.text)
-                            st.session_state.messages.append({"role": "assistant", "content": response.text})
+                            # 🚀 多重模型自動切換 (優先使用 Gemini 3 Flash)
+                            fallback_models = [
+                                "gemini-3-flash",      # 根據截圖最新名稱
+                                "gemini-3.0-flash",    # 備用名稱
+                                "gemini-2.5-flash",    # 降級保底
+                                "gemini-1.5-pro"       # 最終保底
+                            ]
                             
+                            response = None
+                            for model_name in fallback_models:
+                                try:
+                                    log_event(f"嘗試連接模型: {model_name}...", "INFO")
+                                    temp_model = genai.GenerativeModel(model_name, system_instruction=SYSTEM_INSTRUCTION)
+                                    response = temp_model.generate_content(convo_text)
+                                    log_event(f"✅ 成功使用模型: {model_name}", "SUCCESS")
+                                    break # 成功就跳出迴圈
+                                except Exception as e:
+                                    log_event(f"⚠️ 模型 {model_name} 失敗: {str(e)}", "WARNING")
+                                    continue # 失敗就試下一個
+                            
+                            if response:
+                                st.write(response.text)
+                                st.session_state.messages.append({"role": "assistant", "content": response.text})
+                            else:
+                                raise Exception("所有 Gemini 模型均無法連接，請檢查 API 權限或帳號狀態。")
+                                
                         except Exception as e:
-                            log_event(f"❌ API 連接失敗 (Error): {str(e)}", "ERROR")
-                            st.error(f"AI 暫時未能接駁，請查看下方日誌了解詳情。")
+                            log_event(f"❌ 最終對話生成失敗: {str(e)}", "ERROR")
+                            st.error(f"AI 暫時未能接駁，請查看下方「系統運行日誌」。")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -160,14 +182,13 @@ def main():
             if logo_f and st.button("🪄 一鍵轉化白色標誌"):
                 with st.spinner("處理中..."):
                     try:
-                        log_event("開始處理 Logo 去背...", "INFO")
                         img = Image.open(logo_f)
                         out = remove(img)
                         final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
                         st.image(final, width=120)
                         buf = io.BytesIO(); final.save(buf, format="PNG")
                         st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
-                        log_event("✅ Logo 處理成功", "SUCCESS")
+                        log_event("✅ Logo 去背成功", "SUCCESS")
                     except Exception as e:
                         log_event(f"❌ Logo 處理失敗: {str(e)}", "ERROR")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -200,7 +221,7 @@ def main():
         if st.button("🚀 Confirm & Sync to Master Slide"):
             with st.spinner("同步中..."):
                 try:
-                    log_event("開始發送資料至 Google Apps Script...", "INFO")
+                    log_event("開始發送資料至 Webhook...", "INFO")
                     img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
                     payload = {
                         "project_name": st.session_state.project_name,
@@ -218,20 +239,20 @@ def main():
                         log_event("✅ 同步至 Master Slide 成功", "SUCCESS")
                     else:
                         st.error("傳送失敗，請檢查 Apps Script 設定。")
-                        log_event(f"❌ 同步失敗，Status Code: {res.status_code}", "ERROR")
+                        log_event(f"❌ 同步失敗，HTTP Status: {res.status_code}", "ERROR")
                 except Exception as e:
                     st.error("Webhook 連接失敗。")
                     log_event(f"❌ Webhook 發生錯誤: {str(e)}", "ERROR")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 顯示系統運行日誌 (Debug Console) ---
+    # --- 5. 系統運行日誌 (Debug Console) ---
     st.markdown("---")
-    with st.expander("🛠️ 系統運行日誌 (Debug 專區) - 點擊展開"):
-        st.markdown("這裡會顯示 AI 的工作狀態及任何報錯，方便排查問題：")
-        # 只顯示最後 15 條日誌，保持畫面乾淨
+    with st.expander("🛠️ 系統運行日誌 (Debug 專區) - 點擊展開排查問題"):
         for log in st.session_state.debug_logs[-15:]:
             if "ERROR" in log:
                 st.error(log)
+            elif "WARNING" in log:
+                st.warning(log)
             elif "SUCCESS" in log:
                 st.success(log)
             else:
