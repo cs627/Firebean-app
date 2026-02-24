@@ -6,7 +6,7 @@ import base64
 from PIL import Image
 from rembg import remove
 
-# --- 1. 選項定義 ---
+# --- 1. 選項與限制定義 ---
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
@@ -24,7 +24,7 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！介面已簡化。Slot 1 預設為 Hero Banner，請開始！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！全感應系統已啟動。每一項輸入都會增加進度條能量！🥺"}]
 
 # --- 3. 紅霓虹泥膠進度條 (160px) ---
 def get_circle_progress_html(percent):
@@ -73,7 +73,6 @@ def apply_styles():
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             box-shadow: 2px 2px 5px #bec3c9, -2px -2px 5px #ffffff;
         }
-        /* 隱藏 Streamlit 預設文字 */
         .stFileUploader section { padding: 0 !important; border: none !important; background: transparent !important; }
         .stFileUploader label, .stFileUploader span { display: none !important; }
         .stFileUploader { position: absolute; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; }
@@ -93,18 +92,31 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- 1. Header ---
+    # --- ⚖️ 全感應計分邏輯 ---
+    score = 0
+    if st.session_state.client_name: score += 1
+    if st.session_state.project_name: score += 1
+    if st.session_state.venue: score += 1
+    if st.session_state.event_date: score += 1 # 年份月份選擇後會自動生成
+    if st.session_state.who_we_help: score += 1
+    if st.session_state.what_we_do: score += 1
+    if st.session_state.scope_of_word: score += 1
+    if st.session_state.logo_white_b64: score += 1
+    if st.session_state.gallery_slots[0]: score += 1 # Slot 1 是 Hero Banner
+    if st.session_state.challenge: score += 1
+    if st.session_state.solution: score += 1
+    
+    final_percent = int((score / 11) * 100)
+
+    # --- 1. Header (Logo & Neon Progress) ---
     col_h1, col_h2 = st.columns([1, 1])
     with col_h1:
         st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     
-    track = ["client_name", "project_name", "venue", "challenge", "solution"]
-    filled = sum(1 for f in track if st.session_state[f])
-    percent = int(((filled + (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0) + (1 if any(st.session_state.gallery_slots) else 0)) / 9) * 100)
     with col_h2:
-        st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
+        st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Studio ---
+    # --- 2. Logo Studio (置頂) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
     l1, l2 = st.columns([1, 2])
@@ -116,13 +128,13 @@ def main():
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
             st.rerun()
     with l2:
-        if st.session_state.logo_white_b64: st.write("✅ 已備妥")
+        if st.session_state.logo_white_b64: st.success("✅ 已同步至計分系統")
     st.markdown('</div>', unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
 
     with tab1:
-        # --- 3. Basic Info (2015-2030) ---
+        # --- 3. Basic Info (填寫即計分) ---
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
@@ -134,7 +146,7 @@ def main():
         st.session_state.venue = b4.text_input("地點", st.session_state.venue)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- 4. Checkboxes ---
+        # --- 4. Checkboxes (勾選即計分) ---
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
@@ -147,7 +159,7 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("Input details..."):
+            if p := st.chat_input("話我知細節..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
@@ -159,7 +171,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_right:
-            # --- 5. 極簡 8 Slot 拖放區 ---
+            # --- 5. 極簡 8 Slot 拖放 (Slot 1 為 Hero 計分點) ---
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             for r in range(2):
@@ -168,7 +180,6 @@ def main():
                     idx = r * 4 + c
                     with cols[c]:
                         st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
-                        # Slot Container
                         hero_class = "hero-mode" if idx == 0 else ""
                         st.markdown(f'<div class="slot-box {hero_class}">', unsafe_allow_html=True)
                         
@@ -177,23 +188,21 @@ def main():
                         else:
                             st.markdown('<div class="plus-icon">+</div>', unsafe_allow_html=True)
                         
-                        # Hidden File Uploader overlay
                         f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"s_{idx}")
                         if f: 
                             st.session_state.gallery_slots[idx] = f
                             st.rerun()
-                        
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
+        # --- 6. Review & Admin (填寫即計分) ---
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 Review")
-        st.write(f"**Target Date:** {st.session_state.event_date}")
-        st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Solution", st.session_state.solution)
-        if st.button("🚀 Submit"):
-            st.balloons(); st.success("✅ Synchronized!")
+        st.session_state.challenge = st.text_area("Challenge (深度挖掘內容)", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution (創意方案)", st.session_state.solution)
+        if st.button("🚀 Confirm & Submit"):
+            st.balloons(); st.success(f"✅ 能量已滿 100%！專案資料已同步至 Master DB。")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__": main()
