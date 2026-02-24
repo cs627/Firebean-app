@@ -10,24 +10,25 @@ from rembg import remove
 # --- 1. 核心性格與追問策略 ---
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，香港最頂尖 PR 策略大腦。性格可愛、高明、把口好甜但要求嚴格。
-【重要任務】
-你必須確保透過對話收齊以下 5 樣核心資料。如果老細未講齊，你必須「主動反問」，每次只問一個重點：
+【核心任務】
+你必須收齊以下 5 樣核心資料。如果老細未講齊，你必須主動「反問」，每次只問一個重點：
 1. Client Name (邊個客戶？)
 2. Project Name (項目名？)
-3. Venue (邊度搞？)
+3. Venue (喺邊度搞？)
 4. Challenge (遇到咩痛點？)
-5. Solution (點樣幫佢解決？)
-語氣要帶有 Vibe、Firm 同 Chill，常用 Emoji: ✨, 🥺, 💡, 📸。
+5. Solution (你點幫佢解決？)
+語氣要帶有 Vibe, Firm 同 Chill。常用 Emoji: ✨, 🥺, 💡, 📸。
 """
 
-# --- 2. 日誌紀錄 ---
+# --- 2. 系統日誌紀錄 ---
 def log_event(msg, level="INFO"):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     log_entry = f"[{timestamp}] {level}: {msg}"
-    if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
+    if "debug_logs" not in st.session_state:
+        st.session_state.debug_logs = []
     st.session_state.debug_logs.append(log_entry)
 
-# --- 3. 初始化狀態 ---
+# --- 3. 初始化狀態 (補齊所有變量，徹底防止 KeyError) ---
 def init_session_state():
     fields = [
         "event_date", "client_name", "project_name", "venue", "category",
@@ -35,18 +36,20 @@ def init_session_state():
         "client_logo_url", "project_drive_folder", "debug_logs"
     ]
     for field in fields:
-        if field not in st.session_state: st.session_state[field] = ""
+        if field not in st.session_state:
+            st.session_state[field] = ""
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！今日個 Project 搞成點？有冇咩場地或者痛點要我幫手 Vibe 吓佢？🥺"}]
-    if not st.session_state.debug_logs: st.session_state.debug_logs = ["系統啟動成功。"]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！我已經準備好用 Gemini 3 大腦幫你執靚份 Profile！今日個 Project 搞成點？🥺"}]
+    if not st.session_state.debug_logs:
+        st.session_state.debug_logs = ["系統初始化成功。"]
 
-# --- 4. UI 視覺 (徹底分開 CSS 避開 SyntaxError) ---
+# --- 4. UI 視覺強化 (徹底分開 CSS 避開 SyntaxError) ---
 def apply_neu_theme():
     track_fields = ["client_name", "project_name", "venue", "challenge", "solution"]
     filled = sum(1 for f in track_fields if str(st.session_state[f]).strip() != "")
     progress_percent = int((filled / len(track_fields)) * 100)
 
-    # 1. 靜態 CSS (不含變量，避開大括號衝突)
+    # 1. 靜態 CSS (不含 f-string，唔怕單個大括號報錯)
     st.markdown("""
         <style>
         header {visibility: hidden;} footer {visibility: hidden;}
@@ -63,7 +66,7 @@ def apply_neu_theme():
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 動態進度條
+    # 2. 動態 HTML
     st.markdown(f"""
         <div class="energy-container">
             <div class="energy-bar-bg"><div class="energy-bar-fill" style="width: {progress_percent}%;"></div></div>
@@ -80,10 +83,10 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- API 安全讀取 (請在 Streamlit Secrets 設置 GEMINI_API_KEY) ---
+    # --- API 安全讀取 ---
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
-        st.error("⚠️ 請在 Streamlit Secrets 中設定 'GEMINI_API_KEY'，原本那條已被 Google 封鎖。")
+        st.error("⚠️ 未偵測到 API Key。請在 Streamlit Secrets 設定 'GEMINI_API_KEY'。")
         return
     genai.configure(api_key=api_key)
 
@@ -92,8 +95,8 @@ def main():
     tab1, tab2 = st.tabs(["💬 Brain Hub", "⚙️ Admin & Sync"])
 
     with tab1:
-        col_l, col_r = st.columns([1.3, 1])
-        with col_l:
+        col_chat, col_assets = st.columns([1.3, 1])
+        with col_chat:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Assistant")
             for msg in st.session_state.messages:
@@ -106,9 +109,13 @@ def main():
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
                         try:
-                            # 🚀 根據你截圖的模型名稱進行優化
-                            # 注意：Code 入面通常要加版本號，gemini-3.0-flash 或 gemini-2.5-flash
-                            models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                            # 🚀 根據你 Billing Page 權限設定優先級
+                            models_to_try = [
+                                "gemini-3-flash",    # 優先嘗試 Gemini 3
+                                "gemini-2.5-flash",  # 次選嘗試 Gemini 2.5
+                                "gemini-2.0-flash",  # 降級保底
+                                "gemini-pro"         # 最終保底
+                            ]
                             
                             convo_text = ""
                             for m in st.session_state.messages:
@@ -117,10 +124,10 @@ def main():
                             response = None
                             for m_name in models_to_try:
                                 try:
-                                    log_event(f"嘗試連接: {m_name}", "INFO")
+                                    log_event(f"嘗試模型: {m_name}", "INFO")
                                     model = genai.GenerativeModel(m_name, system_instruction=SYSTEM_INSTRUCTION)
                                     response = model.generate_content(convo_text)
-                                    log_event(f"✅ 成功連線: {m_name}", "SUCCESS")
+                                    log_event(f"✅ 成功！目前使用: {m_name}", "SUCCESS")
                                     break
                                 except Exception as e:
                                     log_event(f"❌ {m_name} 失敗: {str(e)}", "WARNING")
@@ -129,16 +136,17 @@ def main():
                             if response:
                                 st.write(response.text)
                                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-                            else: raise Exception("所有模型均無法連線")
+                            else: st.error("目前所有模型都無法回應，請展開 Debug Zone 查看報錯。")
                         except Exception as e:
-                            log_event(f"最終出錯: {str(e)}", "ERROR")
+                            log_event(f"系統錯誤: {str(e)}", "ERROR")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_r:
+        with col_assets:
+            # 相片展示
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
-            up_files = st.file_uploader("上傳相片", type=['jpg','png'], accept_multiple_files=True)
+            up_files = st.file_uploader("上傳 8 張相片", type=['jpg','png'], accept_multiple_files=True)
             grid_html = '<div class="gallery-grid">'
             for i in range(8):
                 if up_files and i < len(up_files):
@@ -149,12 +157,23 @@ def main():
             st.markdown(grid_html, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 底部調試日誌 ---
+    with tab2:
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.header("⚙️ Admin Dashboard")
+        st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
+        st.session_state.client_name = st.text_input("Client Name", st.session_state.client_name)
+        st.session_state.venue = st.text_input("Venue", st.session_state.venue)
+        if st.button("🚀 Sync"): st.success("同步成功！")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- 5. 運行日誌 ---
     st.markdown("---")
     with st.expander("🛠️ 系統運行日誌 (Debug Zone)"):
         for log in st.session_state.debug_logs[-15:]:
             if "ERROR" in log: st.error(log)
+            elif "WARNING" in log: st.warning(log)
             elif "SUCCESS" in log: st.success(log)
             else: st.info(log)
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
