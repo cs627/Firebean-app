@@ -4,8 +4,11 @@ import requests
 import io
 import base64
 import time
+import gspread
+from datetime import datetime
 from PIL import Image, ImageEnhance
 from rembg import remove
+from google.oauth2.service_account import Credentials
 
 # --- 1. 配置與清單 ---
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
@@ -21,41 +24,40 @@ def init_session_state():
         "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
         "logo_white_b64": "", "logo_black_b64": "", "messages": [], 
-        "project_photos": [], "hero_index": 0, "raw_logo": None,
-        "processed_photos": {} 
+        "project_photos": [], "hero_index": 0, "processed_photos": {},
+        "ai_content": {} # 儲存多語言與社群草稿
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！全功能大一統系統已就緒。AI 補圖、Chatbot 與分類功能已完美融合！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Master DB 銜接已完成。只要你填好基本資料，我會根據 Firebean Guideline 生成三語內容同社群 Post！🥺"}]
 
-# --- 3. Manna AI 影像引擎 ---
+# --- 3. Google Sheets 同步引擎 ---
+def sync_to_master_db(row_data):
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(st.secrets["gspread"], scopes=scope)
+        client = gspread.authorize(creds)
+        # 開啟 Master DB
+        sheet = client.open("Firebean_Master_DB").worksheet("Basic Info")
+        sheet.append_row(row_data)
+        return True
+    except Exception as e:
+        st.error(f"GSheets Sync Error: {e}")
+        return False
+
+# --- 4. Manna AI 影像引擎 ---
 def manna_ai_enhance(image_file):
-    """模擬 AI Generative Extend + Cinematic Style"""
     img = Image.open(image_file)
     w, h = img.size
-    needs_extend = w < 1920 or h < 1080
-    
-    with st.spinner("🚀 Manna AI 正在進行 Generative Extend & Cinematic 調色..."):
-        time.sleep(1.2) 
-        # Cinematic Tone 處理
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.25)
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(1.1)
-        
-        # Generative Extend 模擬
-        if needs_extend:
-            new_w = 1920
-            new_h = int(h * (1920 / w))
-            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            status = f"✅ AI 已擴展像素至 {new_w}x{new_h}"
-        else:
-            status = "✅ 已完成電影感調色"
-            
-    return img, status
+    with st.spinner("🚀 Manna AI Cinematic 處理中..."):
+        time.sleep(1)
+        enhancer = ImageEnhance.Contrast(img); img = enhancer.enhance(1.25)
+        if w < 1920:
+            img = img.resize((1920, int(h * (1920 / w))), Image.Resampling.LANCZOS)
+    return img, "✅ Cinematic Enhanced"
 
-# --- 4. UI 視覺樣式 (Manna Neon Style) ---
+# --- 5. UI 視覺 (Neon Manna) ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -65,9 +67,7 @@ def get_circle_progress_html(percent):
             <svg width="160" height="160">
                 <defs><filter id="neon-glow"><feGaussianBlur stdDeviation="3" result="cb"/><feMerge><feMergeNode in="cb"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
                 <circle stroke="#d1d9e6" stroke-width="12" fill="transparent" r="70" cx="80" cy="80"/>
-                <circle stroke="#FF0000" stroke-width="12" stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" 
-                    stroke-linecap="round" fill="transparent" r="70" cx="80" cy="80" filter="url(#neon-glow)" 
-                    style="transition: stroke-dashoffset 0.8s; transform: rotate(-90deg); transform-origin: center;"/>
+                <circle stroke="#FF0000" stroke-width="12" stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="70" cx="80" cy="80" filter="url(#neon-glow)" style="transition: stroke-dashoffset 0.8s; transform: rotate(-90deg); transform-origin: center;"/>
             </svg>
             <div class="progress-text">{percent}<span style="font-size:16px;">%</span></div>
         </div>
@@ -86,63 +86,36 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.5); border-radius: 15px; }
-        .thumbnail-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; }
         </style>
     """, unsafe_allow_html=True)
 
+# --- 6. Main App ---
 def main():
     st.set_page_config(page_title="Firebean Brain 2.5", layout="wide")
     init_session_state()
     apply_styles()
 
-    # --- ⚖️ 計分系統 (11 點) ---
+    # 進度計算 (11維度)
     score = 0
-    track = ["client_name", "project_name", "venue", "challenge", "solution"]
-    for f in track:
+    for f in ["client_name", "project_name", "venue", "challenge", "solution"]:
         if st.session_state[f]: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
     if st.session_state.project_photos: score += 1
-    if len(st.session_state.messages) > 1: score += 1
+    if st.session_state.ai_content: score += 1
     final_percent = int((score / 11) * 100)
 
-    # --- Header ---
+    # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- Logo Studio (Filter Tone) ---
-    st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-    st.subheader("🎨 Logo Studio (Filter Tone)")
-    f_logo = st.file_uploader("Drag logo here", type=['png','jpg','jpeg'], key="l_up")
-    if f_logo:
-        col_l1, col_l2, col_l3 = st.columns(3)
-        with col_l1:
-            st.image(f_logo, caption="Original", use_container_width=True)
-            if st.button("🪄 生成黑白雙色"):
-                img = remove(Image.open(f_logo))
-                def colorize(img, color):
-                    img = img.convert("RGBA")
-                    a = img.split()[-1]; solid = Image.new('RGB', img.size, color)
-                    final = Image.composite(solid, Image.new('RGB', img.size, (0,0,0)), a)
-                    final.putalpha(a); return final
-                st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize(img, (255,255,255)).tobytes()).getvalue()).decode()
-                st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize(img, (0,0,0)).tobytes()).getvalue()).decode()
-                st.rerun()
-        with col_l2:
-            if st.session_state.logo_white_b64:
-                st.markdown(f'<div style="background:#2D3436;border-radius:12px;padding:10px;"><img src="data:image/png;base64,{st.session_state.logo_white_b64}" style="width:100%;"></div>', unsafe_allow_html=True)
-        with col_l3:
-            if st.session_state.logo_black_b64:
-                st.markdown(f'<div style="background:#E0E5EC;border-radius:12px;padding:10px;"><img src="data:image/png;base64,{st.session_state.logo_black_b64}" style="width:100%;"></div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
+    tab1, tab2 = st.tabs(["💬 Collector & Manna AI", "📋 Admin & Sync"])
 
     with tab1:
-        # Basic Info & Options
+        # Basic Info
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
@@ -161,62 +134,100 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        cl, cr = st.columns([1.3, 1])
+        cl, cr = st.columns([1.2, 1])
         with cl:
-            # AI Chatbot回歸
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🤖 AI Chatbot (Deep Inquiry)")
+            st.subheader("🤖 Firebean AI Chatbot")
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知個 Project 邊度最難搞？"):
+            if p := st.chat_input("話我知今次 Project 邊度最正？"):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
+                    # 注入 NotebookLM Guideline 精神
+                    sys_prompt = f"你係 Firebean Brain。根據 SOW: {st.session_state.scope_of_word}，參考 Firebean Cinematic Style 進行 Deep Inquiry。"
+                    res = model.generate_content(f"{sys_prompt}\nUser: {p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
-            # Manna AI Gallery
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Project Gallery (Manna AI)")
-            st.info("💡 如果像素不足，Manna AI 會自動 Extend 並調色。")
-            files = st.file_uploader("Drag 8 photos here", type=['jpg','png','jpeg'], accept_multiple_files=True, key="p_up")
-            if files: st.session_state.project_photos = files
-            
-            if st.session_state.project_photos:
-                st.write("---")
-                # Hero 選擇
-                hero_options = [f"Photo {i+1}" for i in range(len(st.session_state.project_photos))]
-                choice = st.radio("🌟 揀 Hero Banner:", hero_options, index=st.session_state.hero_index, horizontal=True)
-                st.session_state.hero_index = hero_options.index(choice)
-
+            st.subheader("📸 Manna AI Gallery")
+            files = st.file_uploader("Upload 8 Photos", type=['jpg','png','jpeg'], accept_multiple_files=True)
+            if files: 
+                st.session_state.project_photos = files
+                hero_options = [f"P{i+1}" for i in range(len(files))]
+                st.session_state.hero_index = hero_options.index(st.radio("Set Hero", hero_options, index=st.session_state.hero_index, horizontal=True))
+                
                 cols = st.columns(4)
-                for i, f in enumerate(st.session_state.project_photos):
-                    with cols[i % 4]:
-                        if st.button(f"✨ AI P{i+1}", key=f"btn_{i}"):
-                            enhanced_img, status = manna_ai_enhance(f)
-                            st.session_state.processed_photos[i] = enhanced_img
-                            st.toast(status)
-                        
-                        is_hero = (i == st.session_state.hero_index)
-                        border = "hero-border" if is_hero else ""
-                        display_img = st.session_state.processed_photos.get(i, Image.open(f))
+                for i, f in enumerate(files):
+                    with cols[i%4]:
+                        if st.button(f"✨ AI P{i+1}", key=f"ai_{i}"):
+                            st.session_state.processed_photos[i], _ = manna_ai_enhance(f)
+                        border = "hero-border" if i == st.session_state.hero_index else ""
+                        img_disp = st.session_state.processed_photos.get(i, Image.open(f))
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
-                        st.image(display_img, use_container_width=True)
+                        st.image(img_disp, use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Admin Review")
-        st.session_state.challenge = st.text_area("Final Challenge", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Final Solution", st.session_state.solution)
-        if st.button("🚀 Confirm & Submit"):
-            st.balloons(); st.success("✅ 所有資料（連同 AI 處理後的相片）已同步！")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.header("📋 Admin Review & Marketing AI")
+        st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
+        
+        if st.button("🪄 一鍵生成三語及社群內容 (Follow Firebean Guideline)"):
+            with st.spinner("Manna AI 正在撰寫 LinkedIn/FB/IG Post..."):
+                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                model = genai.GenerativeModel("gemini-2.5-flash")
+                prompt = f"""
+                根據以下資料生成 Firebean Master DB 內容：
+                Client: {st.session_state.client_name}, Project: {st.session_state.project_name}
+                Challenge: {st.session_state.challenge}, Solution: {st.session_state.solution}
+                
+                輸出 JSON 格式：
+                {{
+                    "Title_CH": "...", "Challenge_CH": "...", "Solution_CH": "...",
+                    "Title_JP": "...", "Challenge_JP": "...", "Solution_JP": "...",
+                    "LinkedIn": "以專業、Cinematic、業界領袖口吻撰寫...",
+                    "FB": "以故事感、活動氣氛為主...",
+                    "IG": "簡短、充滿視覺衝擊力、Hashtags..."
+                }}
+                """
+                res = model.generate_content(prompt)
+                st.session_state.ai_content = eval(res.text.replace("```json", "").replace("```", ""))
+                st.success("✅ AI 內容已備妥！")
+        
+        if st.session_state.ai_content:
+            st.json(st.session_state.ai_content)
+
+        if st.button("🚀 Confirm & Sync to Master DB"):
+            # 構建 Master DB 的 36 欄位
+            c = st.session_state.ai_content
+            row = [
+                f"FB-{int(time.time())}", # Project_ID
+                st.session_state.event_date,
+                st.session_state.client_name,
+                st.session_state.project_name,
+                st.session_state.venue,
+                ", ".join(st.session_state.scope_of_word),
+                ", ".join(st.session_state.who_we_help),
+                ", ".join(st.session_state.what_we_do),
+                "1", "", "", # Highlight, Transcript, YouTube
+                "Images_Synced", "", "", "", "", # URLs...
+                st.session_state.project_name, # Title_EN
+                st.session_state.challenge, # Challenge_EN
+                st.session_state.solution, # Solution_EN
+                "", # Result_EN
+                c.get("Title_CH", ""), c.get("Challenge_CH", ""), c.get("Solution_CH", ""), "",
+                c.get("Title_JP", ""), c.get("Challenge_JP", ""), c.get("Solution_JP", ""), "",
+                c.get("LinkedIn", ""), c.get("FB", ""), c.get("IG", ""), "", "", "", ""
+            ]
+            if sync_to_master_db(row):
+                st.balloons(); st.success("✅ 已同步至 Firebean_Master_DB！")
 
 if __name__ == "__main__": main()
