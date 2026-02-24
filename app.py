@@ -7,11 +7,13 @@ import json
 from PIL import Image
 from rembg import remove
 
-# --- 1. 選項定義 ---
+# --- 1. 選項與範圍定義 ---
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
-YEARS = [str(y) for y in range(2007, 2031)]
+
+# 年份範圍：2015 - 2030
+YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 # --- 2. 系統初始化 ---
@@ -20,13 +22,13 @@ def init_session_state():
         "client_name": "", "project_name": "", "venue": "", 
         "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
-        "logo_white_b64": "", "logo_black_b64": "", "messages": [], "hero_slot": 1,
-        "gallery_slots": [None] * 8 # 儲存 8 格的檔案對象
+        "logo_white_b64": "", "logo_black_b64": "", "messages": [],
+        "gallery_slots": [None] * 8
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！8 Slot 獨立拖放系統已啟動。請直接將相片掟入對應位置！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Hero Banner 預設為 Slot 1。請輸入資料及上傳相片，我會即時同步！🥺"}]
 
 # --- 3. 紅霓虹泥膠進度條 (160px) ---
 def get_circle_progress_html(percent):
@@ -59,13 +61,12 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        /* 隱藏 Uploader 的標籤和多餘文字，縮小體積 */
-        .stFileUploader section { padding: 0 !important; min-height: 100px !important; }
+        /* 8 Slots 獨立樣式 */
+        .slot-container { border-radius: 20px; padding: 10px; background: #E0E5EC; box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff; text-align: center; position: relative; min-height: 150px; }
+        .hero-border { border: 4px solid #FF0000 !important; box-shadow: 0 0 20px #FF0000 !important; }
+        .hero-label { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #FF0000; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; z-index: 10; }
+        .stFileUploader section { padding: 0 !important; }
         .stFileUploader label { display: none; }
-        
-        .slot-container { border-radius: 20px; padding: 10px; background: #E0E5EC; box-shadow: inset 4px 4px 8px #bec3c9, inset -4px -4px 8px #ffffff; text-align: center; position: relative; }
-        .hero-border { border: 4px solid #FF0000 !important; box-shadow: 0 0 15px #FF0000 !important; }
-        .preview-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 15px; margin-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -82,43 +83,45 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- 1. Header (Logo & Progress) ---
+    # --- 1. Header (Logo & Neon Progress) ---
     col_h1, col_h2 = st.columns([1, 1])
     with col_h1:
         st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     
-    # 進度計算 (9 大指標)
-    track_fields = ["client_name", "project_name", "venue", "challenge", "solution"]
-    filled_count = sum(1 for f in track_fields if st.session_state[f])
-    has_photo = 1 if any(st.session_state.gallery_slots) else 0
-    percent = int(((filled_count + (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0) + has_photo) / 9) * 100)
+    # 進度計算 (9指標)
+    track = ["client_name", "project_name", "venue", "challenge", "solution"]
+    filled = sum(1 for f in track if st.session_state[f])
+    percent = int(((filled + (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0) + (1 if any(st.session_state.gallery_slots) else 0)) / 9) * 100)
     with col_h2:
         st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
     # --- 2. Logo Studio (置頂) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
-    l_col1, l_col2 = st.columns([1, 2])
-    with l_col1:
-        logo_f = st.file_uploader("Upload Logo", type=['png','jpg','jpeg'], key="logo_up")
+    l1, l2 = st.columns([1, 2])
+    with l1:
+        logo_f = st.file_uploader("Upload Logo", type=['png','jpg','jpeg'], key="l_up")
         if st.button("🪄 一鍵生成雙色") and logo_f:
             img = remove(Image.open(logo_f))
             st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
             st.rerun()
-    with l_col2:
-        if st.session_state.logo_white_b64: st.success("✅ 雙色標誌已備妥")
+    with l2:
+        if st.session_state.logo_white_b64: st.success("✅ 雙色 Logo 已同步")
     st.markdown('</div>', unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["💬 Data Collector", "📋 Admin Dashboard"])
 
     with tab1:
-        # --- 3. Basic Info (即時同步) ---
+        # --- 3. Basic Info (年份 2015-2030) ---
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
         st.session_state.client_name = b1.text_input("客戶名稱", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("項目名稱", st.session_state.project_name)
+        
+        [Image of a logical flowchart showing how a user selects a year from 2015 to 2030 and a month from a dropdown menu, which is then formatted into a string like (2025 DEC) before being sent to a database]
+        
         st.session_state.event_year = b3_y.selectbox("年份", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("月份", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.event_date = f"({st.session_state.event_year} {st.session_state.event_month})"
@@ -134,7 +137,6 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
         col_left, col_right = st.columns([1.3, 1])
-        
         with col_left:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 AI Deep Inquiry")
@@ -146,52 +148,42 @@ def main():
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW:{st.session_state.scope_of_word}\nUser:{p}")
+                    res = model.generate_content(f"SOW:{st.session_state.scope_of_word}, Client:{st.session_state.client_name}\nUser:{p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_right:
-            # --- 5. 核心更新：8 Slot 獨立拖放區 ---
+            # --- 5. 8 Slot 獨立拖放 (Slot 1 為 Hero) ---
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Project Gallery (Drag & Drop to Slots)")
-            
-            # 建立 2x4 的網格
+            st.subheader("📸 Project Gallery (Slot 1 = Hero Banner)")
             for row in range(2):
                 cols = st.columns(4)
-                for col_idx in range(4):
-                    slot_num = row * 4 + col_idx
-                    with cols[col_idx]:
-                        is_hero = (slot_num + 1) == st.session_state.hero_slot
-                        border_class = "hero-border" if is_hero else ""
+                for c_idx in range(4):
+                    slot_idx = row * 4 + c_idx
+                    with cols[c_idx]:
+                        # Slot 1 預設 Hero 效果
+                        is_hero = (slot_idx == 0)
+                        hero_class = "hero-border" if is_hero else ""
+                        st.markdown(f'<div class="slot-container {hero_class}">', unsafe_allow_html=True)
+                        if is_hero: st.markdown('<div class="hero-label">HERO</div>', unsafe_allow_html=True)
                         
-                        st.markdown(f'<div class="slot-container {border_class}">', unsafe_allow_html=True)
+                        if st.session_state.gallery_slots[slot_idx]:
+                            st.image(Image.open(st.session_state.gallery_slots[slot_idx]), use_column_width=True)
                         
-                        # 顯示縮圖（如果有相片）
-                        if st.session_state.gallery_slots[slot_num]:
-                            img_data = Image.open(st.session_state.gallery_slots[slot_num])
-                            st.image(img_data, use_column_width=True)
-                        
-                        # 獨立的拖放接收器
-                        uploaded_file = st.file_uploader(f"Slot {slot_num+1}", type=['jpg','png','jpeg'], key=f"slot_{slot_num}")
-                        if uploaded_file:
-                            st.session_state.gallery_slots[slot_num] = uploaded_file
-                        
-                        st.markdown(f'Slot {slot_num+1}</div>', unsafe_allow_html=True)
-            
-            # Hero 選擇
-            st.session_state.hero_slot = st.radio("🌟 設為 Hero Banner:", range(1, 9), index=st.session_state.hero_slot-1, horizontal=True)
+                        f = st.file_uploader(f"S{slot_idx+1}", type=['jpg','png','jpeg'], key=f"s_{slot_idx}")
+                        if f: st.session_state.gallery_slots[slot_idx] = f
+                        st.markdown(f'Slot {slot_idx+1}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Admin Review (Synchronized)")
-        st.write(f"**Client:** {st.session_state.client_name} | **Project:** {st.session_state.project_name}")
-        st.write(f"**Date:** {st.session_state.event_date} | **Venue:** {st.session_state.venue}")
+        st.header("📋 Admin Review (Real-time Sync)")
+        st.write(f"**Client:** {st.session_state.client_name} | **Date:** {st.session_state.event_date}")
         st.session_state.challenge = st.text_area("Final Challenge", st.session_state.challenge)
         st.session_state.solution = st.text_area("Final Innovation", st.session_state.solution)
         if st.button("🚀 Confirm & Submit"):
-            st.balloons(); st.success("✅ 資料同步成功！")
+            st.balloons(); st.success("✅ 資料同步成功！Hero Banner 已鎖定於 Slot 1。")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__": main()
