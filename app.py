@@ -10,11 +10,17 @@ from rembg import remove
 # --- 1. 核心性格與「主動追問」策略 ---
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，香港頂尖 PR 策略大腦。性格可愛、高明且專業。
-目標：透過對話套出 Client_Name, Project_Name, Venue, Challenge, 同 Result。
-【重要規則】
-1. 如果資料未齊，你必須主動「反問」對方，每次只問一個重點。
-2. 語氣要帶有 Vibe, Firm, 同 Chill。
-3. 常用 Emoji: ✨, 🥺, 💡, 📸。
+你的終極目標：透過對話套出 Client_Name (客戶名), Project_Name (項目名), Venue (場地), Challenge (痛點), 同 Result (預期目標)。
+
+【執行規則：必須追問】
+1. 每次回覆前，請檢查上述五項資料是否已經齊全。
+2. 如果資料未齊，你必須表現得非常好奇並「主動反問」對方，引導佢講埋其餘部分。
+3. 每次回覆只問「一個」重點，唔好似填 Form 咁。
+4. 語氣要帶有 Vibe, Firm, 同 Chill，常用 Emoji: ✨, 🥺, 💡, 📸。
+
+【範例】
+User: 我今日做完一個政制局嘅活動。
+AI: 嘩！老細✨，政制局嘅 Project 聽落好 Firm 喎！🥺 今次呢個活動係喺邊度舉辦架 (Venue)？💡
 """
 
 # --- 2. 初始化所有狀態 ---
@@ -31,8 +37,8 @@ def init_session_state():
 
 # --- 3. UI 視覺強化 (Energy Bar + 手機 2x4 Gallery + 置中 Logo) ---
 def apply_neu_theme():
-    # 計算能量進度 (基於 8 個關鍵欄位)
-    track_fields = ["client_name", "project_name", "event_date", "venue", "category", "scope", "challenge", "solution"]
+    # 計算能量進度 (基於關鍵欄位)
+    track_fields = ["client_name", "project_name", "venue", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
@@ -84,6 +90,7 @@ def apply_neu_theme():
         </div>
     """, unsafe_allow_html=True)
 
+# 圖片轉 Base64 輔助
 def get_base64_image(file):
     try:
         return base64.b64encode(file.getvalue()).decode()
@@ -94,10 +101,9 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- API 修復：使用最穩定的模型呼叫 ---
+    # --- API 修復：使用最穩定的模型 ---
     api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" 
     genai.configure(api_key=api_key)
-    # 不加 models/ 前綴以防止 404 報錯
     model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
 
     WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
@@ -121,7 +127,7 @@ def main():
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
                         try:
-                            # 建立對話 Session 讓 AI 能夠根據上下文反問
+                            # 建立對話 Session 讓 AI 會根據上下文追問
                             chat = model.start_chat(history=[
                                 {"role": "user" if m["role"]=="user" else "model", "parts": [m["content"]]} 
                                 for m in st.session_state.messages[:-1]
@@ -130,7 +136,7 @@ def main():
                             st.write(response.text)
                             st.session_state.messages.append({"role": "assistant", "content": response.text})
                         except Exception as e:
-                            st.error(f"Gemini API 暫時未能連線，請稍後再試。")
+                            st.error(f"API 連線暫時不穩，請確認網路環境。")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -138,7 +144,8 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🎨 Logo Studio")
             logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo")
-            # --- 第 190 行 SyntaxError 修復處 ---
+            
+            # --- 第 190 行修正：確保引號閉合 ---
             if logo_f and st.button("🪄 一鍵轉化白色標誌"):
                 with st.spinner("處理中..."):
                     img = Image.open(logo_f)
@@ -150,9 +157,11 @@ def main():
                     st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
             st.markdown('</div>', unsafe_allow_html=True)
 
+            # --- 📸 2x4 手機相片網格 ---
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             up_files = st.file_uploader("上傳 8 張現場相片", type=['jpg','png'], accept_multiple_files=True)
+            
             grid_html = '<div class="gallery-grid">'
             for i in range(8):
                 if up_files and i < len(up_files):
@@ -173,7 +182,7 @@ def main():
         st.session_state.scope = st.text_area("Scope", st.session_state.scope)
         if st.button("🚀 Confirm & Sync to Master Slide"):
             st.balloons()
-            st.success("成功同步！")
+            st.success("成功同步至 Google Slide！")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
