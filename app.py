@@ -9,13 +9,13 @@ import re
 from PIL import Image
 from rembg import remove
 
-# --- 1. SOW 選項 ---
+# --- 1. SOW 選項 (已更新 KOL / MI Line up) ---
 SOW_OPTIONS = [
     "Overall planning and coordination",
     "Event Production / Theme Development",
     "Concept development",
     "Social Media Management",
-    "KOL 網紅",
+    "KOL / MI Line up",
     "Media Pitching",
     "Interactive Game preparation",
     "Theme design"
@@ -31,9 +31,9 @@ def init_session_state():
     for field, default in fields.items():
         if field not in st.session_state: st.session_state[field] = default
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Red Neon 模式已啟動。請先勾選 Scope_of_Word，我再幫你執報告！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！Red Neon 模式已鎖定。請先勾選 Scope_of_Word（包含 KOL / MI Line up），我再幫你執報告！🥺"}]
 
-# --- 3. 紅霓虹泥膠圓形進度條 (直徑對標 Logo) ---
+# --- 3. 紅霓虹泥膠圓形進度條 ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -101,7 +101,7 @@ def log_event(msg, level="INFO"):
     st.session_state.debug_logs.append(f"[{timestamp}] {level}: {msg}")
 
 def main():
-    st.set_page_config(page_title="Firebean Brain Neon", layout="wide")
+    st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
     init_session_state()
 
     # --- 1. Header (Logo & Progress 平排) ---
@@ -129,12 +129,11 @@ def main():
                 st.session_state.logo_white_b64 = base64.b64encode(buf_w.getvalue()).decode()
                 st.session_state.logo_black_b64 = base64.b64encode(buf_b.getvalue()).decode()
                 st.rerun()
-
     with l_col2:
         if st.session_state.logo_white_b64:
             pre1, pre2 = st.columns(2)
-            pre1.image(f"data:image/png;base64,{st.session_state.logo_white_b64}", caption="白色版 (深底用)", use_column_width=True)
-            pre2.image(f"data:image/png;base64,{st.session_state.logo_black_b64}", caption="黑色版 (淺底用)", use_column_width=True)
+            pre1.image(f"data:image/png;base64,{st.session_state.logo_white_b64}", caption="白色版", use_column_width=True)
+            pre2.image(f"data:image/png;base64,{st.session_state.logo_black_b64}", caption="黑色版", use_column_width=True)
         else:
             st.info("💡 上傳標誌後會在此生成黑色與白色去背版本。")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -162,26 +161,18 @@ def main():
                     st.rerun()
 
             if p := st.chat_input("輸入挑戰與解決方案..."):
-                # 優先試 Gemini 3 Flash
-                models_to_try = ["gemini-3-flash", "gemini-2.5-flash"]
-                response = None
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
-                
                 with st.chat_message("assistant"):
-                    for m_name in models_to_try:
+                    with st.spinner("思考中..."):
+                        # 優先呼叫 Gemini 3 Flash
+                        model = genai.GenerativeModel("gemini-3-flash")
                         try:
-                            log_event(f"嘗試模型: {m_name}")
-                            model = genai.GenerativeModel(m_name)
                             response = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
-                            log_event(f"成功使用: {m_name}", "SUCCESS")
-                            break
-                        except Exception as e:
-                            log_event(f"模型 {m_name} 失敗: {str(e)}", "WARNING")
-                    
-                    if response:
+                        except:
+                            model = genai.GenerativeModel("gemini-2.5-flash")
+                            response = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
                         st.write(response.text)
                         st.session_state.messages.append({"role": "assistant", "content": response.text})
                 st.rerun()
@@ -221,7 +212,7 @@ def main():
                     "logo_black": st.session_state.logo_black_b64
                 }
                 requests.post(WEBHOOK_URL, json=payload)
-                st.balloons(); st.success("✅ 資料已同步！")
+                st.balloons(); st.success("✅ 資料已同步，SOW 已記錄為： " + payload["scope_of_word"])
             except Exception as e: st.error(f"Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
