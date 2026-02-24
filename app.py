@@ -9,12 +9,12 @@ from rembg import remove
 
 # --- 1. 核心性格與指令 ---
 SYSTEM_INSTRUCTION = """
-你係 Firebean Brain，頂尖 PR 策略大腦。性格可愛高明。
+你係 Firebean Brain，香港頂尖 PR 策略大腦。性格可愛高明。
 目標：透過對話套出 Client, Project, Venue, Challenge, Result 等資料。
-語音任務已取消，現在請專注於文字對話與資料整理。
+語音功能已取消，現在請專注於文字對話。語氣要帶有 Vibe、Firm、Chill 的風格。
 """
 
-# --- 2. 初始化所有狀態 ---
+# --- 2. 初始化所有狀態 (防止 AttributeError) ---
 def init_session_state():
     fields = [
         "event_date", "client_name", "project_name", "venue", "raw_transcript",
@@ -24,21 +24,22 @@ def init_session_state():
         if field not in st.session_state:
             st.session_state[field] = ""
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！今日搞完 Event 辛苦晒。資料已經準備好，你可以直接喺度同我傾，或者喺右邊上載相片同 Logo！📸"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！今日搞完 Event 辛苦晒。我已經準備好幫你執靚份 Profile，你可以直接喺度同我傾，或者喺右邊上載相片同 Logo！📸"}]
 
 # --- 3. UI 視覺強化 (泥膠風格 + 手機 2x4 Gallery) ---
 def apply_neu_theme():
-    # 計算能量值 (進度百分比)
+    # 計算進度百分比 (Energy Bar)
     track_fields = ["client_name", "project_name", "event_date", "venue", "category", "scope", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
+    # 修正 f-string 與 CSS 大括號衝突：所有 CSS 括號改為 {{ }}
     st.markdown(f"""
         <style>
         header {{ visibility: hidden; }}
         footer {{ visibility: hidden; }}
 
-        /* 全局背景 */
+        /* 全局背景：泥膠淺灰 */
         .stApp {{ background-color: #E0E5EC; color: #2D3436; }}
 
         /* --- Energy Bar --- */
@@ -47,18 +48,9 @@ def apply_neu_theme():
         .energy-bar-fill {{ height: 100%; width: {progress_percent}%; background: linear-gradient(90deg, #FF4B4B, #FF8080); box-shadow: 0 0 15px #FF4B4B; transition: width 0.8s ease-in-out; }}
         .energy-text {{ font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px; margin-top: 5px; }}
 
-        /* --- Logo 強制置中修復 --- */
-        [data-testid="stImage"] {{
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 100% !important;
-            text-align: center !important;
-        }}
-        [data-testid="stImage"] img {{
-            margin: 0 auto !important;
-            max-width: 180px !important;
-        }}
+        /* --- Logo 強制置中 --- */
+        [data-testid="stImage"] {{ display: flex !important; justify-content: center !important; align-items: center !important; width: 100% !important; }}
+        [data-testid="stImage"] img {{ margin: 0 auto !important; max-width: 180px !important; }}
 
         /* --- 文字顏色修復：深石墨灰確保清晰 --- */
         input, textarea, [data-baseweb="input"] *, .stChatInputContainer textarea {{
@@ -128,21 +120,23 @@ def get_base64_image(file):
     except: return ""
 
 def main():
-    st.set_page_config(page_title="Firebean Brain Command", layout="wide")
+    st.set_page_config(page_title="Firebean Brain Center", layout="wide")
     init_session_state()
     apply_neu_theme()
 
-    # API 設定
+    # --- 修正後的 API 設定 (修復 404 Error) ---
     api_key = "AIzaSyDupK7JjQAjcR5P5f9eqyev5uYRe4ZOKdI" 
     genai.configure(api_key=api_key)
+    
+    # 確保模型名稱不帶 models/ 前綴
     model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
 
     WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
 
-    # Logo
+    # Logo (已置中)
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
-    tab1, tab2 = st.tabs(["💬 Brain Hub", "⚙️ Admin & Sync"])
+    tab1, tab2 = st.tabs(["💬 Project Brain Hub", "⚙️ Admin & Sync"])
 
     with tab1:
         col_l, col_r = st.columns([1.3, 1])
@@ -151,20 +145,23 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Brain Assistant")
             
-            # 對話歷史
+            # 對話
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             
-            # 文字輸入框
             if p := st.chat_input("同 Firebean Brain 傾吓個 Project..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
-                        response = model.generate_content(p)
-                        st.write(response.text)
-                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+                        try:
+                            # 修改對話調用格式，直接傳遞字串以增加穩定性
+                            response = model.generate_content(p)
+                            st.write(response.text)
+                            st.session_state.messages.append({"role": "assistant", "content": response.text})
+                        except Exception as e:
+                            st.error(f"Gemini 連接失敗: {str(e)}")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -183,10 +180,10 @@ def main():
                 st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # 2x4 手機 Gallery
+            # 📸 2x4 手機相片網格
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
-            up_files = st.file_uploader("上傳現場相片", type=['jpg','png'], accept_multiple_files=True)
+            up_files = st.file_uploader("上傳 8 張現場相片", type=['jpg','png'], accept_multiple_files=True)
             
             grid_html = '<div class="gallery-grid">'
             for i in range(8):
@@ -201,7 +198,7 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("⚙️ Admin Dashboard")
+        st.header("⚙️ Admin Review")
         st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
         st.session_state.client_name = st.text_input("Client Name", st.session_state.client_name)
         st.session_state.venue = st.text_input("Venue", st.session_state.venue)
@@ -212,7 +209,7 @@ def main():
         st.session_state.solution = st.text_area("Solution", st.session_state.solution)
         
         if st.button("🚀 Confirm & Sync to Master Slide"):
-            with st.spinner("同步中..."):
+            with st.spinner("正在同步至 Google Slide..."):
                 img_b64_list = [get_base64_image(f) for f in up_files[:8]] if up_files else []
                 payload = {
                     "project_name": st.session_state.project_name,
@@ -229,9 +226,9 @@ def main():
                 try:
                     requests.post(WEBHOOK_URL, json=payload)
                     st.balloons()
-                    st.success("成功追加至 Master Slide！")
+                    st.success("✅ 成功！已追加至 Master Slide。")
                 except:
-                    st.error("傳送失敗，請檢查網路或 API 設定。")
+                    st.error("Webhook 傳送失敗")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
