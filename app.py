@@ -6,24 +6,10 @@ import base64
 from PIL import Image
 from rembg import remove
 
-# --- 1. 選項定義 ---
-WHO_WE_HELP_OPTIONS = [
-    "GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", 
-    "F&B & HOSPITALITY", "MALLS & VENUES"
-]
-
-WHAT_WE_DO_OPTIONS = [
-    "ROVING EXHIBITIONS", "SOCIAL & CONTENT", 
-    "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"
-]
-
-SOW_OPTIONS = [
-    "Event Planning", "Event Coordination", "Event Production",
-    "Theme Design", "Concept Development", "Social Media Management",
-    "KOL / MI Line up", "Artist Endorsement", "Media Pitching", 
-    "PR Consulting", "Souvenir Sourcing"
-]
-
+# --- 1. 選項與範圍定義 ---
+WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
+WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
+SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
@@ -39,9 +25,9 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！置中修正已完成。Slot 1 預設為 Hero Banner！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！掣轉預覽功能已就緒。掟相入去 Slot 1 即係 Hero Banner！🥺"}]
 
-# --- 3. 紅霓虹泥膠進度條 (160px) ---
+# --- 3. 紅霓虹泥膠進度條 ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -72,36 +58,36 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; }
-        
-        /* 100% 幾何置中修復 */
+        /* 極簡 Slot 佈局 */
         .slot-box { 
             position: relative; width: 100%; aspect-ratio: 1/1; 
             background: #E0E5EC; border-radius: 20px; 
             box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff;
-            overflow: hidden; 
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+        .hero-mode { border: 3px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.3); }
+        
+        /* 視覺按鈕樣式 */
+        .add-button-ui {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: #E0E5EC;
+            box-shadow: 4px 4px 8px #bec3c9, -4px -4px 8px #ffffff;
             display: flex; align-items: center; justify-content: center;
-        }
-        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.3); }
-        
-        .add-label { 
-            font-size: 32px; 
-            font-weight: 900; 
-            color: #FF4B4B; 
-            pointer-events: none; 
-            z-index: 5;
-            text-align: center;
-            opacity: 0.8;
-            margin: 0; padding: 0;
-            line-height: 1;
+            font-size: 28px; font-weight: bold; color: #FF4B4B;
+            pointer-events: none; z-index: 5;
         }
         
-        /* 隱形上傳器全覆蓋，確保 Drag & Drop */
+        .drag-hint {
+            position: absolute; top: 10px; font-size: 9px; color: #aaa;
+            text-transform: lowercase; pointer-events: none;
+        }
+
+        /* 隱形上傳器全覆蓋 */
         .stFileUploader { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: 20 !important; opacity: 0; cursor: pointer; }
         .stFileUploader section { width: 100% !important; height: 100% !important; border: none !important; padding: 0 !important; }
         .stFileUploader label, .stFileUploader div { display: none !important; }
         
-        img { pointer-events: none; border-radius: 16px; object-fit: cover; width: 100%; height: 100%; }
+        img { pointer-events: none; border-radius: 18px; object-fit: cover; width: 100%; height: 100%; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -114,54 +100,58 @@ def colorize_logo(img, color):
     return final
 
 def main():
-    st.set_page_config(page_title="Firebean Brain 2.5", layout="wide")
+    st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
     init_session_state()
     apply_styles()
 
-    # --- 計分系統 (11 點) ---
+    # --- ⚖️ 計分系統 (11 點感應) ---
     score = 0
-    track = ["client_name", "project_name", "venue", "event_date", "challenge", "solution"]
-    for f in track:
-        if st.session_state[f]: score += 1
+    if st.session_state.client_name: score += 1
+    if st.session_state.project_name: score += 1
+    if st.session_state.venue: score += 1
+    if st.session_state.event_date: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
-    if st.session_state.gallery_slots[0]: score += 1
+    if st.session_state.gallery_slots[0]: score += 1 # Slot 1 Hero
+    if st.session_state.challenge: score += 1
+    if st.session_state.solution: score += 1
     final_percent = int((score / 11) * 100)
 
     # --- 1. Header ---
-    c_h1, c_h2 = st.columns([1, 1])
-    with c_h1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
-    with c_h2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
+    col_h1, col_h2 = st.columns([1, 1])
+    with col_h1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
+    with col_h2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Studio ---
+    # --- 2. Logo Studio (掣轉預覽) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
-    l1, l2, l3 = st.columns(3)
-    with l1:
-        st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
+    l_c1, l_c2, l_c3 = st.columns(3)
+    with l_c1:
         st.markdown('<div class="slot-box">', unsafe_allow_html=True)
-        if st.session_state.raw_logo: st.image(Image.open(st.session_state.raw_logo))
-        else: st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
-        f_l = st.file_uploader("", type=['png','jpg','jpeg'], key="l_up")
-        if f_l: st.session_state.raw_logo = f_l; st.rerun()
+        if st.session_state.raw_logo:
+            st.image(Image.open(st.session_state.raw_logo))
+        else:
+            st.markdown('<div class="drag-hint">drag and drop</div><div class="add-button-ui">+</div>', unsafe_allow_html=True)
+        f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="logo_slot")
+        if f_logo: st.session_state.raw_logo = f_logo; st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.raw_logo and st.button("🪄 生成雙色"):
+        if st.session_state.raw_logo and st.button("🪄 一鍵生成雙色"):
             img = remove(Image.open(st.session_state.raw_logo))
             st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
             st.rerun()
-    with l2:
+    
+    with l_c2:
         if st.session_state.logo_white_b64:
-            st.markdown('<div class="drag-text">white</div>', unsafe_allow_html=True)
             st.markdown('<div class="slot-box" style="background:#2D3436;"><img src="data:image/png;base64,'+st.session_state.logo_white_b64+'"></div>', unsafe_allow_html=True)
-    with l3:
+    with l_c3:
         if st.session_state.logo_black_b64:
-            st.markdown('<div class="drag-text">black</div>', unsafe_allow_html=True)
             st.markdown('<div class="slot-box"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # --- 3. Tabs ---
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
     with tab1:
         # Basic Info
@@ -176,6 +166,7 @@ def main():
         st.session_state.venue = b4.text_input("地點", st.session_state.venue)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # Checkboxes
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
@@ -188,7 +179,7 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知細節..."):
+            if p := st.chat_input("Talk to AI..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
@@ -200,7 +191,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
-            # Gallery Slot 佈置
+            # --- 4. 8 Slot 掣轉預覽 ---
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
             for r in range(2):
@@ -208,15 +199,19 @@ def main():
                 for c in range(4):
                     idx = r * 4 + c
                     with cols[c]:
-                        st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
                         h_mode = "hero-mode" if idx == 0 else ""
                         st.markdown(f'<div class="slot-box {h_mode}">', unsafe_allow_html=True)
+                        
                         if st.session_state.gallery_slots[idx]:
                             st.image(Image.open(st.session_state.gallery_slots[idx]))
                         else:
-                            st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
+                            st.markdown('<div class="drag-hint">drag and drop</div><div class="add-button-ui">+</div>', unsafe_allow_html=True)
+                        
+                        # 隱形成像膜
                         f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"s_{idx}")
-                        if f: st.session_state.gallery_slots[idx] = f; st.rerun()
+                        if f: 
+                            st.session_state.gallery_slots[idx] = f
+                            st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
