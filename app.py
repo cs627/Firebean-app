@@ -7,41 +7,40 @@ import base64
 from PIL import Image
 from rembg import remove
 
-# --- 1. 核心性格與「奪命追問」策略 ---
+# --- 1. 核心性格與「反問」策略 ---
 SYSTEM_INSTRUCTION = """
 你係 Firebean Brain，香港最頂尖嘅 PR 策略大腦。
-【性格】高明、可愛、把口好甜但要求好嚴格。
-【任務】你要幫老細執靚份 Success Case Slide。
-【追問規則】
-你必須確保收齊以下 5 樣嘢。如果 user 未講，你要主動「反問」佢：
-1. Client Name (邊個客？)
-2. Project Name (個名夠唔夠 Firm？)
-3. Venue (喺邊度搞？)
-4. Challenge (遇到咩痛點？)
-5. Solution (你點幫佢解決？)
+【重要任務】
+你必須確保收齊以下 5 樣資料。如果老細未講齊，你必須表現得好有興趣並「主動追問」，每次只問一個重點：
+1. 客戶係邊個 (Client Name)
+2. 項目名 (Project Name)
+3. 邊度搞 (Venue)
+4. 有咩困難 (Challenge)
+5. 點樣解決 (Solution)
 
-每次回覆只問一個重點，唔好一次過問晒。
-語氣要帶有 Vibe、Firm 同 Chill，常用 Emoji: ✨, 🥺, 💡, 📸。
+語氣要 Positive & Playful (✨, 🥺)，語言係廣東話口語加英文。
 """
 
-# --- 2. 初始化狀態 ---
+# --- 2. 初始化狀態 (確保所有變量都存在) ---
 def init_session_state():
-    fields = ["event_date", "client_name", "project_name", "venue", "category", "scope", "challenge", "solution", "logo_b64"]
+    fields = [
+        "event_date", "client_name", "project_name", "venue", "raw_transcript",
+        "category", "scope", "challenge", "solution", "logo_b64"
+    ]
     for field in fields:
         if field not in st.session_state:
             st.session_state[field] = ""
-    # 第一句由 AI 開始
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "老細✨！終於返嚟喇！今日個 Project 搞成點？有冇咩場地或者痛點要我幫手 Vibe 吓佢？🥺"}]
 
-# --- 3. UI 視覺強化 (分離 CSS 與 HTML 確保穩定) ---
+# --- 3. UI 視覺強化 ---
 def apply_neu_theme():
     # 計算能量槽進度
     track_fields = ["client_name", "project_name", "venue", "challenge", "solution"]
     filled = sum(1 for f in track_fields if st.session_state[f])
     progress_percent = int((filled / len(track_fields)) * 100)
 
-    # 靜態 CSS (唔用 f-string，唔怕括號撞車)
+    # 分離 CSS (避免 f-string 大括號錯誤)
     css = """
     <style>
     header {visibility: hidden;}
@@ -54,12 +53,12 @@ def apply_neu_theme():
     .energy-bar-fill { height: 100%; background: linear-gradient(90deg, #FF4B4B, #FF8080); box-shadow: 0 0 15px #FF4B4B; transition: width 0.8s ease-in-out; }
     
     /* Logo 置中 */
-    [data-testid="stImage"] { display: flex !important; justify-content: center !important; }
+    [data-testid="stImage"] { display: flex !important; justify-content: center !important; width: 100% !important; }
     [data-testid="stImage"] img { margin: 0 auto !important; max-width: 180px !important; }
 
     /* 文字顏色修復 */
     input, textarea, .stChatInputContainer textarea { color: #2D3436 !important; -webkit-text-fill-color: #2D3436 !important; font-weight: 600 !important; }
-    p, label, span { color: #2D3436 !important; }
+    p, label, span, .stMarkdown { color: #2D3436 !important; }
 
     /* 手機 2x4 Gallery */
     .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
@@ -73,18 +72,17 @@ def apply_neu_theme():
         box-shadow: inset 6px 6px 12px #9da3ab, inset -6px -6px 12px #ffffff !important;
         border: 1px solid rgba(255, 75, 75, 0.2) !important;
     }
+    .stButton > button { width: 100%; border-radius: 20px !important; background-color: #E0E5EC !important; color: #FF4B4B !important; font-weight: 800 !important; box-shadow: 10px 10px 20px #bec3c9, -10px -10px 20px #ffffff !important; }
     </style>
     """
 
-    # 動態 HTML (只處理需要變數嘅部分)
+    # 動態 HTML 能量條
     html = f"""
     <div class="energy-container">
         <div class="energy-bar-bg"><div class="energy-bar-fill" style="width: {progress_percent}%;"></div></div>
-        <div style="font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px;">BRAIN ENERGY: {progress_percent}%</div>
+        <div style="font-size: 11px; font-weight: 800; color: #FF4B4B; text-align: right; margin-right: 25px; margin-top: 5px;">BRAIN ENERGY: {progress_percent}%</div>
     </div>
     """
-    
-    # 組合並渲染
     st.markdown(css + html, unsafe_allow_html=True)
 
 def get_base64_image(file):
@@ -95,12 +93,13 @@ def main():
     init_session_state()
     apply_neu_theme()
 
-    # --- API 安全連接 ---
+    # --- API 安全連接 (使用 Gemini 1.5 Pro) ---
     try:
         genai.configure(api_key="AIzaSyBso5TkTbPUsgkoZrqmCZDCuVQqegC-FQI")
+        # 移除前綴 'models/' 以增加穩定性
         model = genai.GenerativeModel("gemini-1.5-pro", system_instruction=SYSTEM_INSTRUCTION)
     except Exception as e:
-        st.error(f"API 設定錯誤: {str(e)}")
+        st.error(f"API 設定錯誤")
 
     st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png")
 
@@ -111,8 +110,6 @@ def main():
         with col_l:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🤖 Firebean Assistant")
-            
-            # 顯示對話歷史
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             
@@ -123,38 +120,38 @@ def main():
                 with st.chat_message("assistant"):
                     with st.spinner("思考中..."):
                         try:
-                            # 🚀 將對話歷史轉換為純文字「劇本」，避開 API 格式報錯
-                            convo_text = ""
-                            for msg in st.session_state.messages:
-                                role_prefix = "Firebean Brain AI: " if msg["role"] == "assistant" else "老細 (User): "
-                                convo_text += f"{role_prefix}{msg['content']}\n\n"
+                            # 🚀 終極對話包裝：將對話歷史轉為純文字「劇本」餵給 AI，避開 API 對話格式報錯
+                            convo_history = ""
+                            for m in st.session_state.messages:
+                                prefix = "Firebean AI: " if m["role"] == "assistant" else "老細: "
+                                convo_history += f"{prefix}{m['content']}\n\n"
                             
-                            response = model.generate_content(convo_text)
+                            response = model.generate_content(convo_history)
                             st.write(response.text)
                             st.session_state.messages.append({"role": "assistant", "content": response.text})
-                            
                         except Exception as e:
-                            st.error(f"連接失敗: {str(e)}")
+                            st.error("API 暫時未能接駁，請檢查網路或 API Key。")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_r:
-            # Logo Studio
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🎨 Logo Studio")
-            logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo")
+            logo_f = st.file_uploader("Upload Logo", type=['png', 'jpg'], key="logo_uploader")
             if logo_f and st.button("🪄 一鍵轉化白色標誌"):
-                out = remove(Image.open(logo_f))
-                final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
-                st.image(final, width=120)
-                buf = io.BytesIO(); final.save(buf, format="PNG")
-                st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
+                with st.spinner("處理中..."):
+                    img = Image.open(logo_f)
+                    out = remove(img)
+                    final = Image.composite(Image.new('RGBA', out.size, (255,255,255,255)), Image.new('RGBA', out.size, (0,0,0,0)), out.getchannel('A'))
+                    st.image(final, width=120)
+                    buf = io.BytesIO(); final.save(buf, format="PNG")
+                    st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # 📸 2x4 手機相片網格
+            # 📸 手機 2x4 矩陣排版
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Project Gallery")
-            up_files = st.file_uploader("上傳 8 張相片", type=['jpg','png'], accept_multiple_files=True)
+            up_files = st.file_uploader("上傳 8 張相片", type=['jpg','png'], accept_multiple_files=True, key="gallery_uploader")
             grid_html = '<div class="gallery-grid">'
             for i in range(8):
                 if up_files and i < len(up_files):
@@ -175,12 +172,12 @@ def main():
         st.session_state.challenge = st.text_area("Challenge", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution", st.session_state.solution)
         
-        # Webhook URL
-        WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
+        # Webhook 對接 URL
+        WEB_URL = "https://script.google.com/macros/s/AKfycbxgqW5gtfhyH2bgCl1G-zpmv8yTu0IzyAblqxumzT0hP0efwOl-hbL4MN6S9Du-Y3YP/exec"
         
         if st.button("🚀 Confirm & Sync to Master Slide"):
             st.balloons()
-            st.success("成功同步！")
+            st.success("成功同步至 Google Slide！")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
