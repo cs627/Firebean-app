@@ -6,28 +6,14 @@ import base64
 from PIL import Image
 from rembg import remove
 
-# --- 1. 選項與範圍定義 ---
-WHO_WE_HELP_OPTIONS = [
-    "GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", 
-    "F&B & HOSPITALITY", "MALLS & VENUES"
-]
-
-WHAT_WE_DO_OPTIONS = [
-    "ROVING EXHIBITIONS", "SOCIAL & CONTENT", 
-    "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"
-]
-
-SOW_OPTIONS = [
-    "Event Planning", "Event Coordination", "Event Production",
-    "Theme Design", "Concept Development", "Social Media Management",
-    "KOL / MI Line up", "Artist Endorsement", "Media Pitching", 
-    "PR Consulting", "Souvenir Sourcing"
-]
-
+# --- 1. 選項定義 ---
+WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
+WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
+SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-# --- 2. 系統初始化 ---
+# --- 2. 初始化 ---
 def init_session_state():
     fields = {
         "client_name": "", "project_name": "", "venue": "", 
@@ -39,9 +25,9 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已移至 Slot 正中心。請開始上傳 Project 資產！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已經成功「歸位」格仔中間喇！🥺"}]
 
-# --- 3. 紅霓虹泥膠進度條 (160px) ---
+# --- 3. 能量環進度條 (160px) ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -72,28 +58,30 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; }
-        
-        /* 修正：Slot 容器 */
+        /* 極簡 Slot 佈局 */
+        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; position: relative; z-index: 5; }
         .slot-box { 
             position: relative; width: 100%; aspect-ratio: 1/1; 
             background: #E0E5EC; border-radius: 20px; 
             box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff;
-            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            overflow: visible; display: flex; align-items: center; justify-content: center;
         }
-        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 20px rgba(255,0,0,0.4); }
+        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 20px rgba(255,0,0,0.3); }
         
-        /* 核心修復：+ ADD 居中、特大字體 */
+        /* 核心修復：強制 + ADD 居中於 Slot 內部 */
         .add-label { 
             position: absolute;
-            font-size: 42px; /* 特大字體 */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* 完美的幾何中心 */
+            font-size: 36px; 
             font-weight: 900; 
             color: #FF4B4B; 
             pointer-events: none; 
             z-index: 5;
             text-align: center;
-            opacity: 0.7;
-            letter-spacing: -1px;
+            width: 100%;
+            opacity: 0.8;
         }
         
         /* 隱形上傳器全覆蓋 */
@@ -114,20 +102,23 @@ def colorize_logo(img, color):
     return final
 
 def main():
-    st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
+    st.set_page_config(page_title="Firebean Brain 2.5", layout="wide")
     init_session_state()
     apply_styles()
 
-    # --- 計分系統 ---
+    # --- ⚖️ 計分系統 (11 點感應) ---
     score = 0
-    track = ["client_name", "project_name", "venue", "event_date", "challenge", "solution"]
-    for f in track:
-        if st.session_state[f]: score += 1
+    if st.session_state.client_name: score += 1
+    if st.session_state.project_name: score += 1
+    if st.session_state.venue: score += 1
+    if st.session_state.event_date: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
     if st.session_state.gallery_slots[0]: score += 1
+    if st.session_state.challenge: score += 1
+    if st.session_state.solution: score += 1
     final_percent = int((score / 11) * 100)
 
     # --- Header ---
@@ -135,34 +126,33 @@ def main():
     with c_h1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c_h2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- Logo Studio ---
+    # --- 2. Logo Studio (置頂，Slot 置中) ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
-    l_c1, l_c2, l_c3 = st.columns(3)
-    with l_c1:
+    l1, l2, l3 = st.columns(3)
+    with l1:
         st.markdown('<div class="drag-text">drag and drop</div>', unsafe_allow_html=True)
         st.markdown('<div class="slot-box">', unsafe_allow_html=True)
         if st.session_state.raw_logo: st.image(Image.open(st.session_state.raw_logo))
         else: st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
-        f_logo = st.file_uploader("", type=['png','jpg','jpeg'], key="l_up")
-        if f_logo: st.session_state.raw_logo = f_logo; st.rerun()
+        f_l = st.file_uploader("", type=['png','jpg','jpeg'], key="l_up")
+        if f_l: st.session_state.raw_logo = f_l; st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
         if st.session_state.raw_logo and st.button("🪄 生成雙色"):
             img = remove(Image.open(st.session_state.raw_logo))
             st.session_state.logo_white_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (255,255,255)).tobytes()).getvalue()).decode()
             st.session_state.logo_black_b64 = base64.b64encode(io.BytesIO(colorize_logo(img, (0,0,0)).tobytes()).getvalue()).decode()
             st.rerun()
-    with l_c2:
+    with l2:
         if st.session_state.logo_white_b64:
             st.markdown('<div class="drag-text">white</div>', unsafe_allow_html=True)
             st.markdown('<div class="slot-box" style="background:#2D3436;"><img src="data:image/png;base64,'+st.session_state.logo_white_b64+'"></div>', unsafe_allow_html=True)
-    with l_c3:
+    with l3:
         if st.session_state.logo_black_b64:
             st.markdown('<div class="drag-text">black</div>', unsafe_allow_html=True)
             st.markdown('<div class="slot-box"><img src="data:image/png;base64,'+st.session_state.logo_black_b64+'"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 主要工作區 ---
     tab1, tab2 = st.tabs(["💬 Collector", "📋 Review"])
     with tab1:
         # Basic Info
@@ -189,13 +179,13 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("話我知細節..."):
+            if p := st.chat_input("Talk to AI..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 with st.chat_message("assistant"):
                     model = genai.GenerativeModel("gemini-2.5-flash")
-                    res = model.generate_content(f"SOW Context: {st.session_state.scope_of_word}\nUser: {p}")
+                    res = model.generate_content(f"SOW:{st.session_state.scope_of_word}\nUser:{p}")
                     st.write(res.text); st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -216,7 +206,7 @@ def main():
                             st.image(Image.open(st.session_state.gallery_slots[idx]))
                         else:
                             st.markdown('<div class="add-label">+ ADD</div>', unsafe_allow_html=True)
-                        f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"slot_{idx}")
+                        f = st.file_uploader("", type=['jpg','png','jpeg'], key=f"s_{idx}")
                         if f: st.session_state.gallery_slots[idx] = f; st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
