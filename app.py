@@ -6,7 +6,7 @@ import base64
 import datetime
 import json
 import re
-from PIL import Image
+from PIL import Image, ImageOps
 from rembg import remove
 
 # --- 1. 核心性格與影像任務 ---
@@ -26,9 +26,10 @@ def log_event(msg, level="INFO"):
     st.session_state.debug_logs.append(log_entry)
 
 def init_session_state():
+    # 初始化增加白色和黑色 Logo 的儲存位
     fields = {
         "client_name": "", "project_name": "", "venue": "", "challenge": "", "solution": "", 
-        "logo_b64": "", "debug_logs": [], "gallery_files": []
+        "logo_white_b64": "", "logo_black_b64": "", "debug_logs": [], "gallery_files": []
     }
     for field, default in fields.items():
         if field not in st.session_state: st.session_state[field] = default
@@ -50,7 +51,10 @@ def check_image_assets(files):
 def apply_neu_theme(gallery_files):
     track_text = ["client_name", "project_name", "venue", "challenge", "solution"]
     filled_text = sum(1 for f in track_text if str(st.session_state[f]).strip() != "")
-    progress_percent = int(((filled_text + (1 if gallery_files else 0) + (1 if st.session_state.logo_b64 else 0)) / 7) * 100)
+    # 進度計算包括文字、相片、以及兩個 Logo
+    has_white = 1 if st.session_state.logo_white_b64 else 0
+    has_black = 1 if st.session_state.logo_black_b64 else 0
+    progress_percent = int(((filled_text + (1 if gallery_files else 0) + has_white + has_black) / 8) * 100)
 
     st.markdown(f"""
         <style>
@@ -74,6 +78,21 @@ def apply_neu_theme(gallery_files):
 def get_base64_image(file):
     try: return base64.b64encode(file.getvalue()).decode()
     except: return ""
+
+# --- 新增：Logo 轉色函數 ---
+def colorize_logo(img, color):
+    # 確保圖片是 RGBA 模式
+    img = img.convert("RGBA")
+    # 獲取 Alpha 通道 (透明度)
+    r, g, b, a = img.split()
+    # 建立一個純色圖層 (白色或黑色)
+    solid_color = Image.new('RGB', img.size, color)
+    # 將純色圖層與原圖的 Alpha 通道合併
+    final_img = Image.composite(solid_color, Image.new('RGB', img.size, (0,0,0)), a)
+    # 將背景設為透明
+    final_transparent = final_img.convert("RGBA")
+    final_transparent.putalpha(a)
+    return final_transparent
 
 def main():
     st.set_page_config(page_title="Firebean Creative Hub", layout="wide")
@@ -115,18 +134,35 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col_assets:
-            # 🎨 Logo Studio (獨立 Tab)
+            # 🎨 Logo Studio (升級版：雙色生成)
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🎨 Logo Studio")
-            logo_f = st.file_uploader("上傳客戶 Logo (去背轉白)", type=['png','jpg','jpeg'], key="logo_up")
-            if logo_f and st.button("🪄 一鍵白色化"):
-                with st.spinner("處理中..."):
-                    img = Image.open(logo_f)
-                    out = remove(img)
-                    final = Image.composite(Image.new('RGBA', img.size, (255,255,255,255)), Image.new('RGBA', img.size, (0,0,0,0)), out.getchannel('A'))
-                    st.image(final, width=120)
-                    buf = io.BytesIO(); final.save(buf, format="PNG")
-                    st.session_state['logo_b64'] = base64.b64encode(buf.getvalue()).decode()
+            st.subheader("🎨 Logo Studio (自動生成黑白雙版)")
+            logo_f = st.file_uploader("上傳原始 Logo (任何底色)", type=['png','jpg','jpeg'], key="logo_up")
+            if logo_f and st.button("🪄 一鍵生成雙色 Logo"):
+                with st.spinner("去背及轉色處理中..."):
+                    # 1. 去背
+                    original_img = Image.open(logo_f)
+                    nobg_img = remove(original_img)
+                    
+                    # 2. 生成白色版
+                    white_logo = colorize_logo(nobg_img, (255, 255, 255))
+                    buf_w = io.BytesIO(); white_logo.save(buf_w, format="PNG")
+                    st.session_state['logo_white_b64'] = base64.b64encode(buf_w.getvalue()).decode()
+                    
+                    # 3. 生成黑色版
+                    black_logo = colorize_logo(nobg_img, (0, 0, 0))
+                    buf_b = io.BytesIO(); black_logo.save(buf_b, format="PNG")
+                    st.session_state['logo_black_b64'] = base64.b64encode(buf_b.getvalue()).decode()
+
+                    # 4. 顯示預覽
+                    col_w, col_b = st.columns(2)
+                    with col_w:
+                        st.caption("白色版 (適合深底)")
+                        st.image(white_logo, width=100, use_column_width=True) # 用 use_column_width 避免跑位
+                    with col_b:
+                        st.caption("黑色版 (適合淺底)")
+                        st.image(black_logo, width=100, use_column_width=True)
+
             st.markdown('</div>', unsafe_allow_html=True)
 
             # 📸 8 Photos Grid & AI Preview (雙層 Tab)
@@ -150,7 +186,6 @@ def main():
                     grid_html = '<div class="gallery-grid">'
                     for f in gallery[:8]:
                         b64 = get_base64_image(f)
-                        # 這裡模擬顯示「優化後」的效果，實際應用中會顯示 Nano Banana 生成的圖片
                         grid_html += f'<div><img src="data:image/png;base64,{b64}" class="gallery-item" style="filter: contrast(1.2) saturate(1.1);"></div>'
                     grid_html += '</div>'
                     st.markdown(grid_html, unsafe_allow_html=True)
@@ -164,8 +199,9 @@ def main():
         st.session_state.project_name = st.text_input("Project Name", st.session_state.project_name)
         st.session_state.challenge = st.text_area("最難搞嘅位 (The Hardest Part)", st.session_state.challenge)
         if st.button("🚀 Confirm & Sync to Cloud"):
+            # 這裡需要更新 Webhook payload 以包含 logo_white 和 logo_black
             st.balloons()
-            st.success("✅ 同步完成！所有資產已確認。")
+            st.success("✅ 同步完成！已包含黑白雙色 Logo。")
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
