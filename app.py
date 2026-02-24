@@ -7,13 +7,27 @@ from PIL import Image
 from rembg import remove
 
 # --- 1. 選項定義 ---
-WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
-WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
-SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
+WHO_WE_HELP_OPTIONS = [
+    "GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", 
+    "F&B & HOSPITALITY", "MALLS & VENUES"
+]
+
+WHAT_WE_DO_OPTIONS = [
+    "ROVING EXHIBITIONS", "SOCIAL & CONTENT", 
+    "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"
+]
+
+SOW_OPTIONS = [
+    "Event Planning", "Event Coordination", "Event Production",
+    "Theme Design", "Concept Development", "Social Media Management",
+    "KOL / MI Line up", "Artist Endorsement", "Media Pitching", 
+    "PR Consulting", "Souvenir Sourcing"
+]
+
 YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-# --- 2. 初始化 ---
+# --- 2. 系統初始化 ---
 def init_session_state():
     fields = {
         "client_name": "", "project_name": "", "venue": "", 
@@ -25,9 +39,9 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
     if not st.session_state.messages:
-        st.session_state.messages = [{"role": "assistant", "content": "老細✨！「+ ADD」已經成功「歸位」格仔中間喇！🥺"}]
+        st.session_state.messages = [{"role": "assistant", "content": "老細✨！置中修正已完成。Slot 1 預設為 Hero Banner！🥺"}]
 
-# --- 3. 能量環進度條 (160px) ---
+# --- 3. 紅霓虹泥膠進度條 (160px) ---
 def get_circle_progress_html(percent):
     circumference = 439.8
     offset = circumference * (1 - percent/100)
@@ -58,33 +72,31 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
         
-        /* 極簡 Slot 佈局 */
-        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; position: relative; z-index: 5; }
+        .drag-text { font-size: 10px; color: #888; text-align: center; margin-bottom: 4px; pointer-events: none; }
+        
+        /* 100% 幾何置中修復 */
         .slot-box { 
             position: relative; width: 100%; aspect-ratio: 1/1; 
             background: #E0E5EC; border-radius: 20px; 
             box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff;
-            overflow: visible; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; 
+            display: flex; align-items: center; justify-content: center;
         }
-        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 20px rgba(255,0,0,0.3); }
+        .hero-mode { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.3); }
         
-        /* 核心修復：強制 + ADD 居中於 Slot 內部 */
         .add-label { 
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%); /* 完美的幾何中心 */
-            font-size: 36px; 
+            font-size: 32px; 
             font-weight: 900; 
             color: #FF4B4B; 
             pointer-events: none; 
             z-index: 5;
             text-align: center;
-            width: 100%;
             opacity: 0.8;
+            margin: 0; padding: 0;
+            line-height: 1;
         }
         
-        /* 隱形上傳器全覆蓋 */
+        /* 隱形上傳器全覆蓋，確保 Drag & Drop */
         .stFileUploader { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: 20 !important; opacity: 0; cursor: pointer; }
         .stFileUploader section { width: 100% !important; height: 100% !important; border: none !important; padding: 0 !important; }
         .stFileUploader label, .stFileUploader div { display: none !important; }
@@ -106,27 +118,24 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- ⚖️ 計分系統 (11 點感應) ---
+    # --- 計分系統 (11 點) ---
     score = 0
-    if st.session_state.client_name: score += 1
-    if st.session_state.project_name: score += 1
-    if st.session_state.venue: score += 1
-    if st.session_state.event_date: score += 1
+    track = ["client_name", "project_name", "venue", "event_date", "challenge", "solution"]
+    for f in track:
+        if st.session_state[f]: score += 1
     if st.session_state.who_we_help: score += 1
     if st.session_state.what_we_do: score += 1
     if st.session_state.scope_of_word: score += 1
     if st.session_state.logo_white_b64: score += 1
     if st.session_state.gallery_slots[0]: score += 1
-    if st.session_state.challenge: score += 1
-    if st.session_state.solution: score += 1
     final_percent = int((score / 11) * 100)
 
-    # --- Header ---
+    # --- 1. Header ---
     c_h1, c_h2 = st.columns([1, 1])
     with c_h1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c_h2: st.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-    # --- 2. Logo Studio (置頂，Slot 置中) ---
+    # --- 2. Logo Studio ---
     st.markdown('<div class="neu-card">', unsafe_allow_html=True)
     st.subheader("🎨 Logo Studio")
     l1, l2, l3 = st.columns(3)
@@ -179,7 +188,7 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
-            if p := st.chat_input("Talk to AI..."):
+            if p := st.chat_input("話我知細節..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
