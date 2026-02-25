@@ -1,9 +1,7 @@
 streamlit
 google-generativeai
 requests
-pillow
+Pillow
 rembg
-gspread
-google-auth
 onnxruntime
 opencv-python-headless
