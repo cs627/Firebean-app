@@ -25,13 +25,14 @@ LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang. Website: T
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心功能函數 ---
+# --- 2. 核心功能：影像處理與 Logo 標準化 ---
 
 def apply_styles():
     """定義 Neumorphism 風格 CSS"""
     st.markdown("""
         <style>
-        header {visibility: hidden;} footer {visibility: hidden;}
+        header {visibility: hidden;} 
+        footer {visibility: hidden;}
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
@@ -46,18 +47,24 @@ def get_circle_progress_html(percent):
     return f"""
     <div style="display: flex; justify-content: flex-end; align-items: center;">
         <div style="position: relative; width: 130px; height: 130px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="130" height="130"><circle stroke="#d1d9e6" stroke-width="10" fill="transparent" r="55" cx="65" cy="65"/><circle stroke="#FF0000" stroke-width="10" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="55" cx="65" cy="65" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <svg width="130" height="130">
+                <circle stroke="#d1d9e6" stroke-width="10" fill="transparent" r="55" cx="65" cy="65"/>
+                <circle stroke="#FF0000" stroke-width="10" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" 
+                    stroke-linecap="round" fill="transparent" r="55" cx="65" cy="65" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/>
+            </svg>
             <div style="position: absolute; font-size: 26px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
     </div>
     """
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """手動上傳 Logo 的標準化處理"""
+    """將同事上傳的 PNG 自動裁切內容並置中放入 800x400 透明畫布"""
     try:
-        img = Image.open(logo_file).convert("RGBA")
+        # 修正旋轉問題
+        img = ImageOps.exif_transpose(Image.open(logo_file)).convert("RGBA")
         bbox = img.getbbox()
-        if bbox: img = img.crop(bbox)
+        if bbox: 
+            img = img.crop(bbox)
         inner_w, inner_h = target_size[0] - (padding * 2), target_size[1] - (padding * 2)
         img.thumbnail((inner_w, inner_h), Image.Resampling.LANCZOS)
         canvas = Image.new("RGBA", target_size, (0, 0, 0, 0))
@@ -71,48 +78,53 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         return ""
 
 def manna_ai_enhance(image_file):
-    """Manna AI Generative Expander: 使用 Gemini 進行虛擬影像擴展"""
-    api_key = st.secrets.get("GEMINI_API_KEY", "")
-    if not api_key:
-        st.error("找不到 GEMINI_API_KEY，請在 Streamlit Secrets 中設置。")
-        return Image.open(image_file)
-
+    """Manna AI Generative Expander: 使用 Gemini 2.5 進行虛擬影像擴展 (Outpainting)"""
+    api_key = "" # 執行環境自動提供
     with st.spinner("🚀 Manna AI 正在進行虛擬影像擴展 (Outpainting)..."):
-        img = Image.open(image_file).convert("RGB")
-        buffered = io.BytesIO()
-        img.save(buffered, format="JPEG")
-        base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-        
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key={api_key}"
-        
-        prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend the background naturally on both sides. High-end editorial style."
-        
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": prompt},
-                    {"inlineData": {"mimeType": "image/jpeg", "data": base64_image}}
-                ]
-            }],
-            "generationConfig": {
-                "responseModalities": ["IMAGE"]
+        try:
+            # 關鍵修正：解決直相旋轉問題
+            raw_img = Image.open(image_file)
+            img = ImageOps.exif_transpose(raw_img).convert("RGB")
+            
+            # 準備圖片數據
+            buffered = io.BytesIO()
+            img.save(buffered, format="JPEG")
+            base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key={api_key}"
+            
+            # 優化 Outpainting Prompt
+            prompt = "Generatively outpaint this image into a cinematic 16:9 landscape banner. Extend the background context, lighting, and textures naturally to the left and right sides. High-end editorial photography style."
+            
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": prompt},
+                        {"inlineData": {"mimeType": "image/jpeg", "data": base64_image}}
+                    ]
+                }],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"]
+                }
             }
-        }
-        
-        for i in range(5):
-            try:
+            
+            # 指數退避重試
+            for i in range(5):
                 response = requests.post(url, json=payload, timeout=60)
                 if response.status_code == 200:
                     result = response.json()
-                    generated_base64 = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('inlineData', {}).get('data')
-                    if generated_base64:
-                        img_data = base64.b64decode(generated_base64)
-                        return Image.open(io.BytesIO(img_data))
+                    parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                    for part in parts:
+                        if 'inlineData' in part:
+                            img_data = base64.b64decode(part['inlineData']['data'])
+                            return Image.open(io.BytesIO(img_data))
                 time.sleep(2**i)
-            except:
-                time.sleep(2**i)
+            
+            st.error(f"AI 擴展失敗 (Status: {response.status_code})。暫時返回原始影像。")
+        except Exception as e:
+            st.warning(f"AI 擴展過程出現問題: {str(e)}")
         
-        st.warning("AI 擴展超時，暫時使用原始影像。")
+        # 如果失敗，返回已修正旋轉的原圖
         return img
 
 def sync_data(url, payload):
@@ -139,12 +151,12 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算
-    score = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
-    score += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
-    score += (1 if st.session_state.logo_white and st.session_state.logo_black else 0) 
-    score += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
-    percent = int((score / 11) * 100)
+    # --- 11 維度 Progress % ---
+    filled = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
+    filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
+    filled += (1 if st.session_state.logo_white and st.session_state.logo_black else 0) 
+    filled += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
+    percent = int((filled / 11) * 100)
 
     # Header
     c1, c2 = st.columns([1, 1])
@@ -166,9 +178,16 @@ def main():
             up_white = st.file_uploader("Upload White Logo (PNG)", type=['png'], key="logo_w")
             if up_white and st.button("📏 Standardize White Logo"):
                 st.session_state.logo_white = standardize_logo(up_white)
+        
+        if st.session_state.logo_black or st.session_state.logo_white:
+            v1, v2 = st.columns(2)
+            if st.session_state.logo_black:
+                v1.image(f"data:image/png;base64,{st.session_state.logo_black}", caption="Standardized Black (800x400)", width=200)
+            if st.session_state.logo_white:
+                v2.image(f"data:image/png;base64,{st.session_state.logo_white}", caption="Standardized White (800x400)", width=200)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 基礎資訊
+        # 基礎資訊區
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Project Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
@@ -185,6 +204,7 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope of work", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # Chatbot
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -192,7 +212,7 @@ def main():
             for msg in st.session_state.messages:
                 with st.chat_message(msg["role"]): st.write(msg["content"])
             if p := st.chat_input("詢問項目細節..."):
-                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                genai.configure(api_key="")
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 model = genai.GenerativeModel("gemini-2.5-flash-preview-09-2025")
@@ -212,20 +232,26 @@ def main():
                 cols = st.columns(4)
                 for i, f in enumerate(files):
                     with cols[i%4]:
+                        # 檢查旋轉後的預覽
                         is_processed = i in st.session_state.processed_photos
                         if is_processed:
                             st.markdown('<div class="ai-status-tag">✨ AI GENERATIVE READY</div>', unsafe_allow_html=True)
+                        
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        img_disp = st.session_state.processed_photos.get(i, Image.open(f))
+                        
+                        # 顯示時確保正確方向
+                        if is_processed:
+                            img_disp = st.session_state.processed_photos[i]
+                        else:
+                            # 即使未 AI 處理，預覽也要正確旋轉
+                            img_disp = ImageOps.exif_transpose(Image.open(f))
+                        
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
                         st.image(img_disp, use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
-                        if is_processed:
-                            if st.button(f"👁️ View P{i+1}", key=f"view_{i}"):
-                                st.image(st.session_state.processed_photos[i], caption=f"AI Virtual Expansion Preview", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -236,7 +262,7 @@ def main():
         
         if st.button("🪄 一鍵生成五路營銷文案 (Follow DNA)"):
             with st.spinner("AI 正在提煉策略與三語文案..."):
-                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                genai.configure(api_key="")
                 model = genai.GenerativeModel("gemini-2.5-flash-preview-09-2025")
                 prompt = f"{FIREBEAN_SYSTEM_PROMPT}\nProject: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nSolution: {st.session_state.solution}\nGenerate JSON with: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
                 res = model.generate_content(prompt)
@@ -251,8 +277,15 @@ def main():
         if st.button("🚀 Confirm & Sync to Master Ecosystem"):
             b64_imgs = []
             for i in range(len(st.session_state.project_photos)):
-                img = st.session_state.processed_photos.get(i, Image.open(st.session_state.project_photos[i]))
-                buf = io.BytesIO(); img.save(buf, format="JPEG", quality=85); b64_imgs.append(base64.b64encode(buf.getvalue()).decode())
+                # 同步時確保使用處理過的（或正確方向的）相片
+                if i in st.session_state.processed_photos:
+                    img = st.session_state.processed_photos[i]
+                else:
+                    img = ImageOps.exif_transpose(Image.open(st.session_state.project_photos[i]))
+                
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=85)
+                b64_imgs.append(base64.b64encode(buf.getvalue()).decode())
             
             payload = {
                 "client_name": st.session_state.client_name, "project_name": st.session_state.project_name, "event_date": st.session_state.event_date,
