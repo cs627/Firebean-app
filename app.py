@@ -9,13 +9,11 @@ import requests
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
-# --- 1. 核心配置與 API Key 池 ---
-# 鎖定同步連結：Master DB A-T 欄
+# --- 1. 核心配置 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bf3CsEYZJCEVzgzS_pSwg8y0B69iHLDywgZyz45ctsZTShe1YxRiTTKGjiMc1HFe/exec"
-
-# 🔑 從 Streamlit Secrets 讀取 API Key 池 (防止 403 報錯)
 API_KEYS_POOL = st.secrets.get("API_KEYS", [])
 
+# 選項定義
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = [
@@ -30,11 +28,10 @@ FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
 LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website: Trilingual (EN, TC, JP).
-Motto: 'Turn Policy into Play'. 
-Strictly NO Simplified Chinese. All Challenge/Solution sections must be 50-100 words.
+Motto: 'Turn Policy into Play'. Strictly NO Simplified Chinese. Sections: 50-100 words.
 """
 
-# --- 2. 核心 SDK 引擎與影像處理 ---
+# --- 2. 核心功能引擎 ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -45,20 +42,16 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
     if not API_KEYS_POOL:
         log_debug("🚨 API Keys Missing!", "error")
         return None
-    model_name = "gemini-2.0-flash" 
     sys_instruction = dynamic_sys_prompt if dynamic_sys_prompt else FIREBEAN_SYSTEM_PROMPT
-
     for idx, key in enumerate(API_KEYS_POOL):
         try:
             log_debug(f"Attempting API with Key #{idx+1}...", "info")
             genai.configure(api_key=key)
-            generation_config = genai.types.GenerationConfig(
-                response_mime_type="application/json" if is_json else "text/plain"
-            )
-            model = genai.GenerativeModel(model_name=model_name, system_instruction=sys_instruction)
+            model = genai.GenerativeModel(model_name="gemini-2.0-flash", system_instruction=sys_instruction)
+            config = genai.types.GenerationConfig(response_mime_type="application/json" if is_json else "text/plain")
             contents = [prompt]
             if image_file: contents.append(image_file)
-            response = model.generate_content(contents, generation_config=generation_config)
+            response = model.generate_content(contents, generation_config=config)
             if response and response.text:
                 log_debug(f"Success with Key #{idx+1}!", "success")
                 return response.text
@@ -67,22 +60,15 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
             continue
     return None
 
-def test_api_connection():
-    res = call_gemini_sdk("Ping test. Respond with: 'Firebean 2.0 Online.'")
-    if res: st.toast("✅ SDK 連線成功！")
-    else: st.toast("❌ 金鑰連線失敗", icon="🔥")
-
-def standardize_logo(logo_file, target_size=(800, 400), padding=40):
+def standardize_logo(logo_file):
     try:
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         bbox = img.getbbox()
         if bbox: img = img.crop(bbox)
-        inner_w, inner_h = target_size[0] - (padding * 2), target_size[1] - (padding * 2)
-        img.thumbnail((inner_w, inner_h), Image.Resampling.LANCZOS)
-        canvas = Image.new("RGBA", target_size, (0, 0, 0, 0))
-        offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
-        canvas.paste(img, offset, img)
+        canvas = Image.new("RGBA", (800, 400), (0, 0, 0, 0))
+        img.thumbnail((720, 320), Image.Resampling.LANCZOS)
+        canvas.paste(img, ((800 - img.width) // 2, (400 - img.height) // 2))
         buf = io.BytesIO(); canvas.save(buf, format="PNG")
         log_debug(f"Logo '{logo_file.name}' normalized.", "success")
         return base64.b64encode(buf.getvalue()).decode()
@@ -90,17 +76,17 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         log_debug(f"Logo Fix Error: {str(e)}", "error"); return ""
 
 def manna_ai_enhance(image_file):
-    log_debug(f"Manna AI Vision Handshake: {image_file.name}")
+    log_debug(f"Vision Processing: {image_file.name}")
     with st.spinner("🚀 Manna AI 正在校正轉向並同步視角..."):
         try:
             raw_img = Image.open(image_file)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
             img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
-            call_gemini_sdk("Analyze this institutional photo.", image_file=img)
+            call_gemini_sdk("Analyze institutional photo.", image_file=img)
             return img_enhanced
         except Exception: return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
-# --- 3. UI 視覺與同步邏輯 ---
+# --- 3. UI 視覺樣式與同步 ---
 
 def apply_styles():
     st.markdown("""
@@ -109,7 +95,8 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
-        .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
+        .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
+        .debug-success { color: #00FF00; } .debug-error { color: #FF5555; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -120,9 +107,9 @@ def get_circle_progress_html(percent):
 
 def init_session_state():
     fields = {
-        "client_name": "", "project_name": "", "venue": "", "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
+        "client_name": "", "project_name": "", "venue": "", "event_year": "2026", "event_month": "FEB",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
-        "youtube_link": "", "messages": [{"role": "assistant", "content": "Firebean Brain Online. 我係 PR Director。"}],
+        "youtube_link": "", "messages": [{"role": "assistant", "content": "Director Online. 請分享下 Challenge 係咩？"}],
         "project_photos": [], "hero_index": 0, "processed_photos": {}, "ai_content": {}, "logo_white": "", "logo_black": "", "debug_logs": []
     }
     for k, v in fields.items():
@@ -136,9 +123,9 @@ def sync_to_master_db(ai_results):
             "project_name": st.session_state.project_name,
             "event_date": f"{st.session_state.event_year} {st.session_state.event_month}",
             "venue": st.session_state.venue,
-            "category_who": ", ".join(st.session_state.who_we_help),
-            "category_what": ", ".join(st.session_state.what_we_do),
-            "scope_of_work": ", ".join(st.session_state.scope_of_word),
+            "category_who": ", ".join(st.session_state.who_we_help), # F 欄
+            "category_what": ", ".join(st.session_state.what_we_do), # G 欄
+            "scope_of_work": ", ".join(st.session_state.scope_of_word), # H 欄
             "youtube_link": st.session_state.youtube_link,
             "challenge": ai_results.get("6_website", {}).get("tc", {}).get("content", ""),
             "solution": ai_results.get("6_website", {}).get("tc", {}).get("content", ""),
@@ -167,7 +154,7 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["💬 Data Collector & Chatbot", "📋 Content Generation & DB Sync"])
+    tab1, tab2 = st.tabs(["💬 Data Collector", "📋 Generation & Sync"])
 
     with tab1:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -182,7 +169,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Core Information")
+        st.subheader("📝 Core Information & Classifications")
         b1, b2, b3_y, b3_m, b4, b5 = st.columns([1, 1, 0.5, 0.4, 1, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
@@ -191,17 +178,19 @@ def main():
         st.session_state.venue = b4.text_input("Venue", st.session_state.venue)
         st.session_state.youtube_link = b5.text_input("YouTube Link", st.session_state.youtube_link)
         
-        c1, c2 = st.columns(2)
-        st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
-        st.session_state.what_we_do = c2.multiselect("🚀 What we do", WHAT_WE_DO_OPTIONS, default=st.session_state.what_we_do)
+        # --- 全 Checkbox 介面 ---
+        st.write("---")
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            st.write("👥 **Who we help (F 欄)**")
+            st.session_state.who_we_help = [opt for opt in WHO_WE_HELP_OPTIONS if st.checkbox(opt, value=(opt in st.session_state.who_we_help), key=f"who_{opt}")]
+        with cc2:
+            st.write("🚀 **What we do (G 欄)**")
+            st.session_state.what_we_do = [opt for opt in WHAT_WE_DO_OPTIONS if st.checkbox(opt, value=(opt in st.session_state.what_we_do), key=f"what_{opt}")]
         
-        st.write("🛠️ **Scope of Work (SOW)** - [剔選適用工作範圍]")
-        s_cols = st.columns(3)
-        selected_sow = []
-        for i, opt in enumerate(SOW_OPTIONS):
-            if s_cols[i%3].checkbox(opt, value=(opt in st.session_state.scope_of_word), key=f"sow_{i}"):
-                selected_sow.append(opt)
-        st.session_state.scope_of_word = selected_sow
+        st.write("🛠️ **SOW (H 欄)**")
+        sc1, sc2, sc3 = st.columns(3)
+        st.session_state.scope_of_word = [opt for i, opt in enumerate(SOW_OPTIONS) if (sc1 if i%3==0 else sc2 if i%3==1 else sc3).checkbox(opt, value=(opt in st.session_state.scope_of_word), key=f"sow_{opt}")]
         st.markdown('</div>', unsafe_allow_html=True)
 
         cl, cr = st.columns([1.2, 1])
@@ -209,22 +198,21 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             for m in st.session_state.messages:
                 with st.chat_message(m["role"]): st.write(m["content"])
-            if p := st.chat_input("向 PR Director 匯報..."):
+            if p := st.chat_input("匯報細節..."):
                 st.session_state.messages.append({"role": "user", "content": p})
-                res = call_gemini_sdk(f"Progress: {percent}%. History: {st.session_state.messages[-3:]}. Input: {p}")
+                res = call_gemini_sdk(f"Progress: {percent}%. Input: {p}")
                 if "{" in res and "}" in res:
                     st.session_state.ai_content = json.loads(res[res.find("{"):res.rfind("}")+1])
-                    st.session_state.messages.append({"role": "assistant", "content": "✅ 資料已圓滿，文案已生成！"})
+                    st.session_state.messages.append({"role": "assistant", "content": "✅ 資料圓滿，文案已生成！"})
                 else: st.session_state.messages.append({"role": "assistant", "content": res})
                 st.rerun()
             if st.button("⏹️ 強制結束訪談並生成"):
-                res_json = call_gemini_sdk(f"Generate JSON for: {st.session_state.project_name}", is_json=True)
+                res_json = call_gemini_sdk("FORCE GENERATE JSON NOW.", is_json=True)
                 if res_json: st.session_state.ai_content = json.loads(res_json); st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery")
             files = st.file_uploader("Upload Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
@@ -243,24 +231,22 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.session_state.challenge = st.text_area("Boring Challenge (EN)", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Creative Solution (EN)", st.session_state.solution)
-        if st.button("🪄 一鍵生成專屬文案 (數據注入)"):
-            gen_prompt = f"BASED ONLY ON: Client {st.session_state.client_name}, Project {st.session_state.project_name}. Challenge: {st.session_state.challenge}. Solution: {st.session_state.solution}. Generate JSON Socials/Web."
-            res_json = call_gemini_sdk(gen_prompt, is_json=True)
-            if res_json: st.session_state.ai_content = json.loads(res_json); st.success("✅ 生成完畢！")
+        st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
+        if st.button("🪄 一鍵生成文案 (數據注入)"):
+            with st.spinner("🧠 正在生成專屬文案..."):
+                gen_prompt = f"BASED ONLY ON: Client {st.session_state.client_name}, Project {st.session_state.project_name}. Challenge: {st.session_state.challenge}. Solution: {st.session_state.solution}. Generate JSON Socials/Web."
+                res_json = call_gemini_sdk(gen_prompt, is_json=True)
+                if res_json: st.session_state.ai_content = json.loads(res_json); st.success("✅ 生成完畢！")
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync to Master Ecosystem"):
-                if sync_to_master_db(st.session_state.ai_content): st.balloons(); st.success("✅ A-T 欄數據已同步！")
+            if st.button("🚀 Confirm & Sync to Master DB"):
+                if sync_to_master_db(st.session_state.ai_content): st.balloons(); st.success("✅ 數據已同步！")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
     with st.expander("🛠️ Debug Terminal", expanded=False):
-        if st.button("🔍 Test API Connection"): test_api_connection()
-        if st.session_state.debug_logs:
-            for l in reversed(st.session_state.debug_logs):
-                st.markdown(f"<div class='debug-terminal debug-{l['type']}'>[{l['time']}] {l['msg']}</div>", unsafe_allow_html=True)
+        for l in reversed(st.session_state.debug_logs):
+            st.markdown(f"<div class='debug-terminal debug-{l['type']}'>[{l['time']}] {l['msg']}</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
