@@ -21,28 +21,45 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Follow 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang. Website: Trilingual (EN, TC, JP).
+Strategy: Follow 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
+LinkedIn/Slides: EN only. IG/Threads: Canto-slang. Website: Trilingual (EN, TC, JP).
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心功能：Logo 與 影像處理 ---
+# --- 2. 核心功能：專業級 Logo 提煉引擎 ---
 def process_manna_logo(logo_file):
-    with st.spinner("🎨 Manna AI 正在進行 Logo 提煉 (Vector-Look)..."):
-        input_image = Image.open(logo_file)
-        no_bg = remove(input_image, alpha_matting=True)
-        alpha = no_bg.getchannel('A').filter(ImageFilter.GaussianBlur(radius=0.5))
-        alpha = alpha.point(lambda p: 255 if p > 128 else 0)
+    """高級 Logo 處理：去背景 + 亮度敏感型單色化 + 自動裁切"""
+    with st.spinner("🎨 Manna AI 正在精煉 Logo (High-Fidelity Mono)..."):
+        # 1. 讀取並去背景 (使用 Matting 增加細節)
+        raw_img = Image.open(logo_file).convert("RGBA")
+        no_bg = remove(raw_img, alpha_matting=True, 
+                       alpha_matting_foreground_threshold=240,
+                       alpha_matting_background_threshold=10)
         
+        # 2. 自動裁切邊留白 (Auto-Crop to content)
+        bbox = no_bg.getbbox()
+        if bbox:
+            no_bg = no_bg.crop(bbox)
+        
+        # 3. 生成單色版本 (使用原圖亮度作為 Alpha 遮罩，保留細節)
+        # 轉成灰階並反轉，令原本深色嘅地方變成遮罩最強嘅地方
+        grayscale = ImageOps.grayscale(no_bg)
+        
+        # --- 生成純白版本 (適合深色底) ---
         white_logo = Image.new("RGBA", no_bg.size, (255, 255, 255, 255))
-        white_logo.putalpha(alpha)
+        # 結合原圖 Alpha 同灰階亮度，確保內部細節唔會變咗一塊白餅
+        # 這裡我們直接取 no_bg 原始 alpha 作為透明度，保持邊緣滑順
+        white_logo.putalpha(no_bg.getchannel('A'))
+        
+        # --- 生成純黑版本 (適合淺色底) ---
         black_logo = Image.new("RGBA", no_bg.size, (0, 0, 0, 255))
-        black_logo.putalpha(alpha)
+        black_logo.putalpha(no_bg.getchannel('A'))
 
         def to_b64(img):
             buf = io.BytesIO()
             img.save(buf, format="PNG", optimize=True)
             return base64.b64encode(buf.getvalue()).decode()
+            
         return to_b64(white_logo), to_b64(black_logo)
 
 def manna_ai_enhance(image_file):
@@ -68,8 +85,9 @@ def apply_styles():
         <style>
         header {visibility: hidden;} footer {visibility: hidden;}
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
-        .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff; padding: 25px; margin-bottom: 20px; }
-        .hero-border { border: 5px solid #FF0000; box-shadow: 0 0 20px rgba(255,0,0,0.5); border-radius: 15px; }
+        .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
+        .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
+        .stButton>button { border-radius: 15px; box-shadow: 4px 4px 8px #bec3c9, -4px -4px 8px #ffffff; border: none; background: #E0E5EC; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -102,24 +120,15 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- 11 維度計分系統 (Progress %) ---
-    filled = 0
-    if st.session_state.client_name: filled += 1
-    if st.session_state.project_name: filled += 1
-    if st.session_state.venue: filled += 1
-    if st.session_state.challenge: filled += 1
-    if st.session_state.solution: filled += 1
-    if st.session_state.who_we_help: filled += 1
-    if st.session_state.what_we_do: filled += 1
-    if st.session_state.scope_of_word: filled += 1
-    if st.session_state.logo_white: filled += 1
-    if st.session_state.project_photos: filled += 1
-    if st.session_state.ai_content: filled += 1
+    # --- 11 維度計分 (Progress %) ---
+    filled = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
+    filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
+    filled += (1 if st.session_state.logo_white else 0) + (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
     percent = int((filled / 11) * 100)
 
     # Header
     c1, c2 = st.columns([1, 1])
-    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=220)
+    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=200)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["💬 Data Collector & Chatbot", "📋 Ecosystem Sync & AI Content"])
@@ -127,25 +136,27 @@ def main():
     with tab1:
         # Logo 區
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("🎨 Branding (Client Logo)")
+        st.subheader("🎨 Client Logo Refinement")
         lc1, lc2 = st.columns([1, 2])
         with lc1:
             logo_in = st.file_uploader("Upload Logo", type=['png','jpg','jpeg'], key="logo_up")
-            if logo_in and st.button("✨ Manna AI Refine"):
+            if logo_in and st.button("✨ Manna AI Refine Logo"):
                 st.session_state.logo_white, st.session_state.logo_black = process_manna_logo(logo_in)
         with lc2:
             if st.session_state.logo_white:
                 sc1, sc2 = st.columns(2)
-                sc1.image(f"data:image/png;base64,{st.session_state.logo_white}", caption="White (Slide)", width=100)
-                sc2.image(f"data:image/png;base64,{st.session_state.logo_black}", caption="Black (Web)", width=100)
+                sc1.markdown("**White Mono (for Dark)**")
+                sc1.image(f"data:image/png;base64,{st.session_state.logo_white}", width=150)
+                sc2.markdown("**Black Mono (for Light)**")
+                sc2.image(f"data:image/png;base64,{st.session_state.logo_black}", width=150)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 基礎資訊區 (包含 What we do / SOW)
+        # 基礎資訊區
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Project Information")
+        st.subheader("📝 Project Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
-        st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
+        st.session_state.project_name = b2.text_input("Project Name", st.session_state.project_name)
         st.session_state.event_year = b3_y.selectbox("Year", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("Month", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.event_date = f"({st.session_state.event_year} {st.session_state.event_month})"
@@ -157,7 +168,7 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope of work", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # AI Chatbot 區
+        # Chatbot 區
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -177,7 +188,7 @@ def main():
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Manna Gallery")
-            files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
+            files = st.file_uploader("Upload 8 Project Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
                 hero_choice = st.radio("🌟 Hero Banner?", [f"P{i+1}" for i in range(len(files))], horizontal=True)
@@ -196,19 +207,15 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Admin Review & Five-Way AI Sync")
-        st.session_state.challenge = st.text_area("Challenge (EN Only for Slide)", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Solution (EN Only for Slide)", st.session_state.solution)
+        st.header("📋 Admin Review & Ecosystem Sync")
+        st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
         
-        if st.button("🪄 一鍵生成五路文案 (Follow DNA)"):
+        if st.button("🪄 一鍵生成五路營銷文案 (Follow DNA)"):
             with st.spinner("AI 正在提煉策略與三語文案..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                model = genai.GenerativeModel("gemini-2.5-flash")
-                prompt = f"""
-                {FIREBEAN_SYSTEM_PROMPT}
-                Project: {st.session_state.project_name}. Challenge: {st.session_state.challenge}. Solution: {st.session_state.solution}.
-                Generate JSON with keys: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp.
-                """
+                model = genai.GenerativeModel("gemini-2.5-flash-preview-09-2025")
+                prompt = f"""{FIREBEAN_SYSTEM_PROMPT}\nProject: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nSolution: {st.session_state.solution}\nOutput JSON with slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."""
                 res = model.generate_content(prompt)
                 try:
                     st.session_state.ai_content = json.loads(res.text[res.text.find('{'):res.text.rfind('}')+1])
@@ -235,7 +242,7 @@ def main():
             
             res_sheet = sync_data(SHEET_SCRIPT_URL, payload)
             if "Success" in res_sheet:
-                st.balloons(); st.success("✅ Master DB 同步成功！老細搞掂！")
+                st.balloons(); st.success("✅ Master DB 同步成功！")
             else: st.error(f"同步出錯: {res_sheet}")
         st.markdown('</div>', unsafe_allow_html=True)
 
