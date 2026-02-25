@@ -1,17 +1,17 @@
 import streamlit as st
-import requests
+import google.generativeai as genai
 import io
 import base64
 import time
 import json
 import traceback
+import requests
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
 # --- 1. 核心配置與 3 路 API Key 池 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 
-# 老細提供的 3 粒金鑰，系統會自動輪詢直至成功
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
     "AIzaSyCVuoSuWV3tfGCu2tjikCkMOVRWCBFne20",
@@ -31,98 +31,75 @@ LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心調試與 API 輪詢對接引擎 ---
+# --- 2. 核心調試與官方 SDK 智能輪詢引擎 ---
 
 def log_debug(msg, type="info"):
-    """永久調試終端：即時記錄所有 API 握手過程"""
+    """永久調試終端：即時記錄所有 SDK 握手過程"""
     if "debug_logs" not in st.session_state:
         st.session_state.debug_logs = []
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-def call_gemini_rest(prompt, image_b64=None):
+def call_gemini_sdk(prompt, image_file=None, is_json=False):
     """
-    智能輪詢調用引擎：
-    1. 修正 system_instruction 的 Payload 格式。
-    2. 如果一粒 Key 報錯（如 429, 400），自動跳轉至下一粒。
+    使用 Google 官方 SDK 調用 Gemini 2.5 Flash。
+    徹底解決 REST API 的 400 (systemInstruction) 與 404 (版本) 錯誤。
     """
-    # 組合 Keys
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
     
-    # 規格化 Payload
-    model_name = "gemini-1.5-flash" # 使用全球通用最穩定模型
+    # 聽老細話，統一使用最新 2.5 Flash 標準模型
+    model_name = "gemini-2.5-flash"
     
-    # 注意：REST API 要求欄位名為 system_instruction (底線)
-    payload = {
-        "contents": [{
-            "role": "user",
-            "parts": [{"text": prompt}]
-        }],
-        "system_instruction": {
-            "parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]
-        },
-        "generationConfig": {
-            "temperature": 1,
-            "maxOutputTokens": 2048
-        }
-    }
-    
-    if image_b64:
-        payload["contents"][0]["parts"].append({
-            "inlineData": {
-                "mimeType": "image/jpeg",
-                "data": image_b64
-            }
-        })
-
-    # 開始輪詢嘗試
     for idx, key in enumerate(all_keys):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
         try:
-            log_debug(f"Attempting Key #{idx+1} ({key[:8]}...)", "info")
-            response = requests.post(
-                url, 
-                headers={"Content-Type": "application/json"},
-                json=payload, 
-                timeout=60
+            log_debug(f"Attempting API with Key #{idx+1} ({key[:8]}...)", "info")
+            genai.configure(api_key=key)
+            
+            # 設定生成格式 (強制 JSON 輸出)
+            generation_config = genai.types.GenerationConfig(
+                response_mime_type="application/json" if is_json else "text/plain"
             )
             
-            if response.status_code == 200:
-                log_debug(f"Success with Key #{idx+1}!", "success")
-                return response.json()
-            else:
-                err_detail = response.json().get('error', {}).get('message', 'Unknown Error')
-                log_debug(f"Key #{idx+1} Failed ({response.status_code}): {err_detail[:100]}", "warning")
-                continue # 嘗試下一粒
+            # 初始化模型並注入 System Prompt
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=FIREBEAN_SYSTEM_PROMPT
+            )
+            
+            # 準備輸入內容 (支援多模態：文字 + 圖片)
+            contents = [prompt]
+            if image_file:
+                contents.append(image_file)
+                
+            response = model.generate_content(contents, generation_config=generation_config)
+            
+            if response and response.text:
+                log_debug(f"Success with Key #{idx+1} (Model: {model_name})!", "success")
+                return response.text
+                
         except Exception as e:
-            log_debug(f"Key #{idx+1} Request Exception: {str(e)}", "error")
+            log_debug(f"Key #{idx+1} Error: {str(e)}", "warning")
             continue
             
-    log_debug("Critical Error: All 3 API keys failed or exhausted.", "error")
+    log_debug("Critical Error: All API keys failed. Check Quota or limits.", "error")
     return None
 
 def test_api_connection():
     """連線壓力測試按鈕"""
-    log_debug("🚀 Starting Multi-Key Handshake Test...", "info")
-    res = call_gemini_rest("Ping test. Please respond with: 'Ready to Turn Policy into Play.'")
+    log_debug("🚀 Starting SDK Connection Test (Gemini 2.5)...", "info")
+    res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online.'")
     if res:
-        try:
-            feedback = res['candidates'][0]['content']['parts'][0]['text']
-            log_debug(f"Handshake Result: {feedback}", "success")
-            st.toast("✅ 連線對接成功！系統運作正常。")
-        except:
-            log_debug("API responded but JSON parsing failed.", "error")
+        log_debug(f"Handshake Result: {res}", "success")
+        st.toast("✅ SDK 連線成功！Gemini 2.5 運作中。")
     else:
-        st.toast("❌ 所有金鑰連線失敗，請檢查網路或 API 限制", icon="🔥")
+        st.toast("❌ 所有金鑰連線失敗，請檢查 Debug 欄", icon="🔥")
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
     """手動 Logo 標準化：修正直相變橫相並校正比例"""
     try:
-        # 修正 EXIF 轉向
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
-        
         bbox = img.getbbox()
         if bbox: img = img.crop(bbox)
         
@@ -145,19 +122,21 @@ def manna_ai_enhance(image_file):
     log_debug(f"Processing AI Vision for: {image_file.name}")
     with st.spinner("🚀 Manna AI 正在校正轉向並同步視角..."):
         try:
-            # 解決直相變打橫問題
+            # 1. 解決直相變打橫問題 (保證影像比例正確)
             raw_img = Image.open(image_file)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
             
-            buf = io.BytesIO(); img.save(buf, format="JPEG", quality=90)
-            b64_img = base64.b64encode(buf.getvalue()).decode('utf-8')
+            # 2. 加入 Cinematic 視覺強化 (保證產出品質)
+            img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
             
-            # 發送影像到 API 進行理解
-            res = call_gemini_rest("Analyze this institutional project photo.", image_b64=b64_img)
+            # 3. 呼叫 Gemini 2.5 Flash SDK 進行影像理解
+            prompt = "Analyze this institutional project photo. Acknowledge visual aesthetics."
+            res = call_gemini_sdk(prompt, image_file=img)
+            
             if res:
                 log_debug("AI Vision Handshake Complete.", "success")
             
-            return img # 返回正確轉向後的圖片
+            return img_enhanced
         except Exception:
             log_debug(f"Enhance Error: {traceback.format_exc()}", "error")
             return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
@@ -172,7 +151,6 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
         .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
-        /* 永久除錯終端樣式 */
         .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
         .debug-success { color: #00FF00; font-weight: bold; }
         .debug-error { color: #FF5555; font-weight: bold; }
@@ -259,10 +237,11 @@ def main():
             if p := st.chat_input("深挖細節..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
-                res = call_gemini_rest(f"Inquiry context: {st.session_state.scope_of_word}. User says: {p}")
-                if res:
-                    ans = res['candidates'][0]['content']['parts'][0]['text']
-                    st.session_state.messages.append({"role": "assistant", "content": ans})
+                
+                # 調用 SDK 處理 Chatbot 回應
+                res_text = call_gemini_sdk(f"Inquiry context: {st.session_state.scope_of_word}. User says: {p}")
+                if res_text:
+                    st.session_state.messages.append({"role": "assistant", "content": res_text})
                     st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -282,7 +261,7 @@ def main():
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        # 關鍵：強制修正轉向後的顯示
+                        # 顯示方向校正後的圖，確保直相唔會變橫
                         img_disp = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
@@ -296,21 +275,23 @@ def main():
         st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
         if st.button("🪄 生成五路文案 (Follow DNA)"):
-            res = call_gemini_rest(f"Generate trilingual marketing content for: {st.session_state.project_name}. JSON Output.")
-            if res:
+            prompt = f"Project: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nGenerate JSON Output with: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
+            # SDK 開啟 JSON 模式
+            res_json = call_gemini_sdk(prompt, is_json=True)
+            if res_json:
                 try:
-                    text = res['candidates'][0]['content']['parts'][0]['text']
-                    st.session_state.ai_content = json.loads(text[text.find('{'):text.rfind('}')+1])
+                    st.session_state.ai_content = json.loads(res_json)
                     st.success("✅ 文案已生成！")
-                except: log_debug("JSON Parsing Error.", "error")
+                except: 
+                    log_debug("JSON Parsing Error.", "error")
         if st.session_state.ai_content: st.json(st.session_state.ai_content)
         if st.button("🚀 Confirm & Sync to Master Ecosystem"):
             st.balloons(); st.success("✅ 資料庫同步成功！")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 永久除錯終端 (Firebean Debug Terminal) ---
+    # --- 5. 永久除錯終端 ---
     st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal (Persistent)", expanded=True):
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=True):
         col_t, _ = st.columns([1, 4])
         with col_t:
             if st.button("🔍 Test Handshake"): test_api_connection()
