@@ -39,7 +39,6 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=None):
-    """支援動態 System Prompt 注入，完美支援 JSON 強制輸出與多模態"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
     model_name = "gemini-2.5-flash"
@@ -68,7 +67,6 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
             
             if response and response.text:
                 log_debug(f"Success with Key #{idx+1}!", "success")
-                # 清理 Markdown JSON 標籤
                 cleaned_text = response.text.strip()
                 if cleaned_text.startswith("```json"):
                     cleaned_text = cleaned_text[7:]
@@ -116,11 +114,40 @@ def manna_ai_enhance(image_file):
             raw_img = Image.open(image_file)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
             img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
-            # 通知 AI 處理視覺 (為了讓 API 動起來)
             call_gemini_sdk("Analyze this institutional project photo.", image_file=img)
             return img_enhanced
         except Exception:
             return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
+
+def generate_mc_questions():
+    prompt = f"""
+    You are an AI PR Strategist. The user has inputted the following for a new project:
+    - Client Category: {st.session_state.who_we_help}
+    - What We Do: {st.session_state.what_we_do}
+    - Scope of Work: {st.session_state.scope_of_word}
+    
+    Please systematically generate exactly 20 multiple-choice questions (A/B/C/D) to extract the "soul" of this project.
+    Logic (6-7-7 Matrix):
+    - [6 Questions] about Client Category (digging into business goals and audience pain points).
+    - [7 Questions] about What We Do (asking about experience design and positioning).
+    - [7 Questions] about Scope of Work (asking about strategic preferences and execution style).
+    
+    Output strictly as a JSON array of objects. Example format:
+    [
+        {{"id": 1, "category": "Client Category", "question": "Question text...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."]}}
+    ]
+    Do not wrap in Markdown. Output JSON only.
+    """
+    res = call_gemini_sdk(prompt, is_json=True)
+    if res:
+        try:
+            questions = json.loads(res)
+            st.session_state.mc_questions = questions
+            return True
+        except:
+            log_debug("Failed to parse MC JSON.", "error")
+            return False
+    return False
 
 # --- 3. UI 樣式與狀態管理 ---
 
@@ -130,30 +157,22 @@ def apply_styles():
         header {visibility: hidden;} footer {visibility: hidden;}
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         
-        /* 👇 解決 Dark Mode 下白字配淺灰底看不清的問題：強制所有標題、文字及標籤為深灰色 */
-        h1, h2, h3, h4, h5, h6, p, label, div[data-testid="stMarkdownContainer"] > p { 
-            color: #2D3436 !important; 
-        }
+        /* 強制深色文字與白底輸入框，避免 Dark Mode 影響閱讀 */
+        h1, h2, h3, h4, h5, h6, p, label, div[data-testid="stMarkdownContainer"] > p { color: #2D3436 !important; }
+        input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; -webkit-text-fill-color: #2D3436 !important; }
         
-        /* 👇 修正各類輸入框 (文字框、下拉選單等)，確保白底黑字，避免黑底黑字混淆 */
-        input, textarea, div[data-baseweb="select"] > div { 
-            background-color: #FFFFFF !important; 
-            color: #2D3436 !important; 
-            -webkit-text-fill-color: #2D3436 !important; 
-        }
-        
+        /* 隱藏 Checkbox/Radio 預設背景帶來的不協調 */
+        div[data-testid="stCheckbox"] label span { color: #2D3436 !important; }
+        div[data-testid="stRadio"] label span { color: #2D3436 !important; }
+
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
-        
-        /* 強制保留特殊標籤顏色 */
         .ai-status-tag { background: #FF3333; color: white !important; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
         
-        /* 永久除錯終端 (強制保留黑底、螢光字) */
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
         .debug-terminal p, .debug-terminal span, .debug-terminal div { color: inherit !important; background: transparent !important;}
         .debug-success { color: #00FF00 !important; font-weight: bold; }
         .debug-error { color: #FF5555 !important; font-weight: bold; }
-        .debug-warning { color: #FFFF55 !important; }
         
         .blocker-alert { background-color: #ffe6e6 !important; border-left: 5px solid #FF0000; padding: 15px; border-radius: 5px; margin-bottom: 15px; color: #2D3436 !important;}
         .mc-question { font-weight: 600; color: #d32f2f !important; margin-top: 15px; }
@@ -175,47 +194,14 @@ def get_circle_progress_html(percent):
 def init_session_state():
     fields = {
         "client_name": "", "project_name": "", "venue": "", "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
-        "who_we_help": [], "what_we_do": [], "scope_of_word": [],
+        "who_we_help": [WHO_WE_HELP_OPTIONS[0]], "what_we_do": [], "scope_of_word": [],
         "youtube_link": "",
         "project_photos": [], "hero_index": 0, "processed_photos": {},
         "ai_content": {}, "logo_white": "", "logo_black": "", "debug_logs": [],
-        "mc_questions": [], # 儲存 AI 生成的 20 條問題
-        "open_question_ans": "" # 儲存最後的 Open Question 答案
+        "mc_questions": [], "open_question_ans": ""
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
-
-def generate_mc_questions():
-    """根據 6-7-7 Matrix 邏輯生成 20 條選擇題"""
-    prompt = f"""
-    You are an AI PR Strategist. The user has inputted the following for a new project:
-    - Client Category: {st.session_state.who_we_help}
-    - What We Do: {st.session_state.what_we_do}
-    - Scope of Work: {st.session_state.scope_of_word}
-    
-    Please systematically generate exactly 20 multiple-choice questions (A/B/C/D) to extract the "soul" of this project.
-    Logic (6-7-7 Matrix):
-    - [6 Questions] about Client Category (digging into business goals and audience pain points).
-    - [7 Questions] about What We Do (asking about experience design and positioning).
-    - [7 Questions] about Scope of Work (asking about strategic preferences and execution style).
-    
-    Output strictly as a JSON array of objects. Example format:
-    [
-        {{"id": 1, "category": "Client Category", "question": "Question text...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."]}},
-        ...
-    ]
-    Do not wrap in Markdown. Output JSON only.
-    """
-    res = call_gemini_sdk(prompt, is_json=True)
-    if res:
-        try:
-            questions = json.loads(res)
-            st.session_state.mc_questions = questions
-            return True
-        except:
-            log_debug("Failed to parse MC JSON.", "error")
-            return False
-    return False
 
 # --- 4. Main App 邏輯 ---
 
@@ -224,15 +210,14 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算 (YouTube 為 Optional，不計入 100% 滿分基準)
-    score_items = ["client_name", "project_name", "venue", "open_question_ans"] # 移除 youtube_link
+    # Progress 計算 (滿分為 10 項，YouTube 完全不計入計算，可選填)
+    score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
-    filled += (1 if st.session_state.logo_white and st.session_state.logo_black else 0)
+    filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
     filled += (1 if len(st.session_state.mc_questions) == 20 else 0)
     
-    # 總分基準改為 10 個核心項目，確保沒填 YouTube 也能 100%
     percent = int((filled / 10) * 100)
     if percent > 100: percent = 100
 
@@ -263,12 +248,37 @@ def main():
         st.session_state.event_year = b3_y.selectbox("Year", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("Month", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.venue = b4.text_input("Venue", st.session_state.venue)
-        st.session_state.youtube_link = b5.text_input("YouTube Link", st.session_state.youtube_link)
-        
+        st.session_state.youtube_link = b5.text_input("YouTube Link (Optional)", st.session_state.youtube_link)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # 這裡將之前的 Dropdown (Multiselect) 轉換為 Radio (單選) 和 Checkbox (多選)
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.subheader("🗂️ Project Classification")
         c1, c2, c3 = st.columns(3)
-        st.session_state.who_we_help = c1.multiselect("👥 Category (Client)", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
-        st.session_state.what_we_do = c2.multiselect("🚀 What we do", WHAT_WE_DO_OPTIONS, default=st.session_state.what_we_do)
-        st.session_state.scope_of_word = c3.multiselect("🛠️ Scope of Work", SOW_OPTIONS, default=st.session_state.scope_of_word)
+        
+        with c1:
+            st.markdown("**👥 Category (Client)** *(單選)*")
+            # 確保有預設值避免報錯
+            cat_idx = WHO_WE_HELP_OPTIONS.index(st.session_state.who_we_help[0]) if st.session_state.who_we_help and st.session_state.who_we_help[0] in WHO_WE_HELP_OPTIONS else 0
+            selected_cat = st.radio("Category", WHO_WE_HELP_OPTIONS, index=cat_idx, label_visibility="collapsed")
+            st.session_state.who_we_help = [selected_cat]
+            
+        with c2:
+            st.markdown("**🚀 What we do** *(多選)*")
+            new_what_we_do = []
+            for opt in WHAT_WE_DO_OPTIONS:
+                if st.checkbox(opt, value=(opt in st.session_state.what_we_do), key=f"what_{opt}"):
+                    new_what_we_do.append(opt)
+            st.session_state.what_we_do = new_what_we_do
+            
+        with c3:
+            st.markdown("**🛠️ Scope of Work** *(多選)*")
+            new_sow = []
+            for opt in SOW_OPTIONS:
+                if st.checkbox(opt, value=(opt in st.session_state.scope_of_word), key=f"sow_{opt}"):
+                    new_sow.append(opt)
+            st.session_state.scope_of_word = new_sow
+            
         st.markdown('</div>', unsafe_allow_html=True)
 
         cl, cr = st.columns([1.2, 1])
@@ -278,7 +288,7 @@ def main():
             
             if st.button("🪄 生成 20 條專案靈魂測驗題"):
                 if not st.session_state.who_we_help or not st.session_state.what_we_do or not st.session_state.scope_of_word:
-                    st.error("請先選擇 Category, What we do, 以及 Scope of Work！")
+                    st.error("請先勾選 Category, What we do, 以及 Scope of Work！")
                 else:
                     with st.spinner("AI 正在根據你的設定生成 20 條針對性題目..."):
                         success = generate_mc_questions()
@@ -302,7 +312,7 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery (4-8 Photos)")
+            st.subheader("📸 Gallery (Require 4+ Photos)")
             files = st.file_uploader("Upload up to 8 Photos (最少 4 張)", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
@@ -327,30 +337,28 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 6 Platforms Generation & DB Sync")
         
-        # 強制防呆條件檢查
+        # 強制防呆條件檢查 (Logo OR 條件、照片數量 >= 4)
         has_logo = bool(st.session_state.logo_white or st.session_state.logo_black)
         has_enough_photos = len(st.session_state.project_photos) >= 4
         has_completed_mc = len(st.session_state.mc_questions) == 20
         has_open_question = bool(st.session_state.open_question_ans.strip())
         
-        st.markdown("<p style='color: #666; font-size: 12px;'>⚠️ 必須完成 20 題 MC、Open Question、上傳 Logo 及 至少 4 張相片，才可執行生成。</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #666; font-size: 12px;'>⚠️ 必須完成 20 題 MC、Open Question、上傳至少一個 Logo (黑或白) 及 至少 4 張相片，才可執行生成。</p>", unsafe_allow_html=True)
         
         if st.button("🪄 根據 20MC 答案一鍵生成 6 大平台文案"):
             if not has_logo:
-                st.markdown("<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先上傳 Client Logo (Black or White)。</div>", unsafe_allow_html=True)
+                st.markdown("<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先回到 'Data Collector' 上傳 Client Logo (黑白皆可)。</div>", unsafe_allow_html=True)
             elif not has_enough_photos:
                 st.markdown(f"<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先上傳至少 4 張活動相片 (目前 {len(st.session_state.project_photos)} 張)。</div>", unsafe_allow_html=True)
             elif not has_completed_mc or not has_open_question:
-                st.markdown("<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先完成 20 條專案靈魂測驗題及 Open Question。</div>", unsafe_allow_html=True)
+                st.markdown("<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先生成並完成 20 條專案靈魂測驗題及 Open Question。</div>", unsafe_allow_html=True)
             else:
-                # 收集所有 MC 的答案
                 collected_answers = []
                 for q in st.session_state.mc_questions:
                     ans = st.session_state.get(f"mc_ans_{q['id']}", "未作答")
                     collected_answers.append(f"Q: {q['question']} | A: {ans}")
                 answers_str = "\n".join(collected_answers)
 
-                # 構建針對 PDF 指南的終極生成 Prompt
                 generation_prompt = f"""
                 As an AI PR Strategist, analyze the following project data and user MC answers to extract the 'Challenge' and 'Solution', then generate content for 6 platforms based on Firebean's PDF Style Guides.
                 
@@ -401,12 +409,11 @@ def main():
                     }}
                 }}
                 """
-                with st.spinner("🧠 正在根據 20 題答案及 4 份 PDF 指引，萃取並生成六大平台多語系文案..."):
+                with st.spinner("🧠 正在根據 20 題答案及 PDF 指引，萃取並生成六大平台多語系文案..."):
                     res_json = call_gemini_sdk(generation_prompt, is_json=True)
                     if res_json:
                         try:
                             st.session_state.ai_content = json.loads(res_json)
-                            # 將萃取出來的 Challenge/Solution 自動回填到狀態中 (方便日後傳給 Google Sheet)
                             st.session_state.challenge = st.session_state.ai_content.get("challenge_summary", "")
                             st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
                             st.success("✅ 六大平台文案已完美生成！完全符合 Firebean DNA。")
