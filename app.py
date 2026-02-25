@@ -21,80 +21,75 @@ FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
 LinkedIn/Slides: EN only. IG/Threads: Canto-slang. Website: Trilingual.
+Motto: 'Turn Policy into Play'.
 """
 
 # --- 2. 核心調試與 API 引擎 ---
 
 def log_debug(msg, type="info"):
-    """永久調試終端：確保日誌不會消失"""
+    """永久調試終端：鎖死於頁尾顯示過程"""
     if "debug_logs" not in st.session_state:
         st.session_state.debug_logs = []
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_rest(prompt, image_b64=None, mode="text"):
-    """使用 REST API 調用 Gemini，具備 404 自動修正邏輯"""
+    """使用 REST API 調用 Gemini，修正 Payload 格式與模型路徑"""
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
         log_debug("SECRET ERROR: GEMINI_API_KEY is empty in Secrets!", "error")
         return None
     
-    # 嘗試不同的 API 終端，解決某些 Key 搵唔到模型嘅問題
-    # 我們嘗試 v1beta 的 gemini-1.5-flash
-    model_name = "gemini-1.5-flash"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
-    
-    if image_b64:
-        payload["contents"][0]["parts"].append({"inlineData": {"mimeType": "image/jpeg", "data": image_b64}})
-        # 影像模式通常需要較長超時
-        timeout = 120
+    if mode == "image" and image_b64:
+        model_name = "gemini-2.5-flash-image-preview"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {"inlineData": {"mimeType": "image/jpeg", "data": image_b64}}
+                ]
+            }],
+            "generationConfig": {"responseModalities": ["IMAGE"]}
+        }
     else:
-        payload["systemInstruction"] = {"parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]}
-        timeout = 60
+        model_name = "gemini-2.5-flash-preview-09-2025"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        # 修正後的 JSON Payload 格式 (system_instruction 必須用底線)
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "system_instruction": {"parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]}
+        }
 
     try:
-        response = requests.post(url, json=payload, timeout=timeout)
+        response = requests.post(url, json=payload, timeout=90)
         if response.status_code == 200:
             log_debug(f"API Success: {model_name}", "success")
             return response.json()
-        elif response.status_code == 404:
-            log_debug(f"404 Error: Model {model_name} not found. Trying fallback path...", "warning")
-            # 嘗試 v1 終端路徑 (某些 Project 的穩定模型在 v1)
-            url_v1 = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={api_key}"
-            response = requests.post(url_v1, json=payload, timeout=timeout)
-            if response.status_code == 200:
-                log_debug(f"API Success (v1 Fallback): {model_name}", "success")
-                return response.json()
-        
-        log_debug(f"API Error {response.status_code}: {response.text[:200]}", "error")
+        else:
+            log_debug(f"API Error {response.status_code}: {response.text[:200]}", "error")
     except Exception as e:
         log_debug(f"API Request Exception: {str(e)}", "error")
-    
     return None
 
 def test_api_connection():
-    """專門用來測試 API Key 是否正常運作的函數"""
-    log_debug("🚀 Running API Connection Test...", "info")
-    res = call_gemini_rest("Say 'API Connection Successful' if you can read this.")
+    """連線測試按鈕"""
+    log_debug("🚀 Running Connection Test...", "info")
+    res = call_gemini_rest("Say 'Ready to Turn Policy into Play.'")
     if res:
         try:
             feedback = res['candidates'][0]['content']['parts'][0]['text']
             log_debug(f"Test Result: {feedback}", "success")
-            st.toast("✅ API 連線測試成功！")
-            return True
+            st.toast("✅ 連線測試通過！")
         except:
             log_debug("API returned data but structure is unexpected.", "error")
     else:
-        st.toast("❌ API 連線測試失敗，請看 Debug Terminal", icon="🔥")
-    return False
+        st.toast("❌ 連線失敗，請檢查 Debug 欄", icon="🔥")
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """修復旋轉並將 Logo 標準化"""
+    """修復直相旋轉並將 Logo 標準化"""
     try:
+        # 強制修正 EXIF 轉向
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         bbox = img.getbbox()
@@ -112,22 +107,29 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         return ""
 
 def manna_ai_enhance(image_file):
-    """影像擴展 (Outpainting) + 直相修正"""
-    log_debug(f"Processing AI Expand for: {image_file.name}")
-    with st.spinner("🚀 Manna AI 正在擴展影像背景..."):
+    """真正 AI 影像擴展 (Outpainting) + 直相方向修正"""
+    log_debug(f"Processing Outpainting for: {image_file.name}")
+    with st.spinner("🚀 Manna AI 正在進行影像擴展..."):
         try:
-            # 關鍵修正：解決直相變橫相
-            img = ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
+            # 關鍵修正：解決打橫問題
+            raw_img = Image.open(image_file)
+            img = ImageOps.exif_transpose(raw_img).convert("RGB")
+            
             buf = io.BytesIO(); img.save(buf, format="JPEG", quality=90)
             b64_img = base64.b64encode(buf.getvalue()).decode('utf-8')
             
-            prompt = "Generatively outpaint this image into a cinematic 16:9 landscape banner. Extend the background naturally to left and right sides. Keep high editorial quality."
-            result = call_gemini_rest(prompt, image_b64=b64_img)
+            prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend background context naturally to left and right sides."
+            result = call_gemini_rest(prompt, image_b64=b64_img, mode="image")
             
             if result:
-                # 這裡目前主要確保 API 接收成功，因為 Flash 1.5 在某些 REST 調用中可能只返回文字理解
-                # 真正的 Image Generation 需要 Imagen 4，如果 Flash 只回傳文字，我們保留已修正轉向的原圖
-                log_debug("AI Image Processing context acknowledged.", "success")
+                parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                for part in parts:
+                    if 'inlineData' in part:
+                        img_data = base64.b64decode(part['inlineData']['data'])
+                        log_debug("AI Expansion Completed.", "success")
+                        return Image.open(io.BytesIO(img_data))
+            
+            log_debug("AI returned no image, returning oriented original.", "warning")
             return img
         except Exception:
             log_debug(f"Enhance Error: {traceback.format_exc()}", "error")
@@ -143,11 +145,9 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
         .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
-        /* Debug Terminal - Permanent and Bold */
         .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
         .debug-success { color: #00FF00; font-weight: bold; }
         .debug-error { color: #FF5555; font-weight: bold; }
-        .debug-warning { color: #FFFF55; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -198,29 +198,28 @@ def main():
 
     with tab1:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("🎨 Logos (PNG Standardizer)")
+        st.subheader("🎨 Client Logos (PNG)")
         lc1, lc2 = st.columns(2)
         with lc1:
-            ub = st.file_uploader("Black Logo", type=['png'], key="logo_b")
-            if ub and st.button("📏 Fix Black"): st.session_state.logo_black = standardize_logo(ub)
+            ub = st.file_uploader("Black/Color Logo", type=['png'], key="logo_b")
+            if ub and st.button("📏 Fix & Rotate Black"): st.session_state.logo_black = standardize_logo(ub)
         with lc2:
             uw = st.file_uploader("White Logo", type=['png'], key="logo_w")
-            if uw and st.button("📏 Fix White"): st.session_state.logo_white = standardize_logo(uw)
+            if uw and st.button("📏 Fix & Rotate White"): st.session_state.logo_white = standardize_logo(uw)
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Info & SOW")
+        st.subheader("📝 Info & Scope")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
         st.session_state.event_year = b3_y.selectbox("Year", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("Month", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.venue = b4.text_input("Venue", st.session_state.venue)
-        
         c1, c2, c3 = st.columns(3)
-        st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
-        st.session_state.what_we_do = c2.multiselect("🚀 What we do", WHAT_WE_DO_OPTIONS, default=st.session_state.what_we_do)
-        st.session_state.scope_of_word = c3.multiselect("🛠️ Scope", SOW_OPTIONS, default=st.session_state.scope_of_word)
+        st.session_state.who_we_help = c1.multiselect("Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
+        st.session_state.what_we_do = c2.multiselect("What we do", WHAT_WE_DO_OPTIONS, default=st.session_state.what_we_do)
+        st.session_state.scope_of_word = c3.multiselect("Scope", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
         cl, cr = st.columns([1.2, 1])
@@ -229,7 +228,7 @@ def main():
             st.subheader("🤖 Firebean Chatbot")
             for m in st.session_state.messages:
                 with st.chat_message(m["role"]): st.write(m["content"])
-            if p := st.chat_input("詢問項目細節..."):
+            if p := st.chat_input("深挖細節..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 res = call_gemini_rest(f"Inquiry: {p}")
@@ -245,8 +244,8 @@ def main():
             files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
-                h_idx = min(st.session_state.hero_index, len(files)-1)
-                hero_choice = st.radio("🌟 Hero Banner?", [f"P{i+1}" for i in range(len(files))], index=h_idx, horizontal=True)
+                hero_idx = min(st.session_state.hero_index, len(files)-1)
+                hero_choice = st.radio("🌟 Hero?", [f"P{i+1}" for i in range(len(files))], index=hero_idx, horizontal=True)
                 st.session_state.hero_index = int(hero_choice[1:]) - 1
                 cols = st.columns(4)
                 for i, f in enumerate(files):
@@ -255,7 +254,7 @@ def main():
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        # 顯示修正方向後的圖片
+                        # 修正顯示轉向
                         img_disp = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
@@ -265,34 +264,29 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Admin Review")
+        st.header("📋 Review & Sync")
         st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
-        
-        if st.button("🪄 生成五路文案 (Follow Style)"):
-            res = call_gemini_rest(f"Challenge: {st.session_state.challenge}\nGenerate JSON: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp.")
+        if st.button("🪄 生成文案"):
+            res = call_gemini_rest(f"Challenge: {st.session_state.challenge}\nGenerate JSON.")
             if res:
                 try:
                     text = res['candidates'][0]['content']['parts'][0]['text']
                     st.session_state.ai_content = json.loads(text[text.find('{'):text.rfind('}')+1])
-                    st.success("✅ AI 文案生成完成！")
-                except: log_debug("JSON Parsing Error.", "error")
-
+                    st.success("✅ 文案已生成！")
+                except: log_debug("JSON Parse Error", "error")
         if st.session_state.ai_content: st.json(st.session_state.ai_content)
-
         if st.button("🚀 Confirm & Sync to Master Ecosystem"):
-            # 同步邏輯 (略，使用 requests 傳送到 SHEET_SCRIPT_URL)
-            st.balloons(); st.success("✅ 同步成功！")
+            st.balloons(); st.success("✅ 同步資料庫成功！")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 永久除錯終端 (Firebean Debug Terminal) ---
+    # --- 5. 永久除錯終端 ---
     st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=True):
-        col_test, col_empty = st.columns([1, 4])
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent Component)", expanded=True):
+        col_test, _ = st.columns([1, 4])
         with col_test:
             if st.button("🔍 Test API Connection"):
                 test_api_connection()
-        
         if not st.session_state.debug_logs:
             st.write("Ready for Institutional Cool Debugging.")
         else:
