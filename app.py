@@ -25,7 +25,7 @@ LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang. Website: T
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心功能：Logo 標準化與 Manna AI 影像擴展 ---
+# --- 2. 核心功能：影像處理與同步 ---
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
     """將上傳的 PNG 自動校正比例並放入標準 800x400 畫布"""
@@ -46,26 +46,53 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         return ""
 
 def manna_ai_enhance(image_file):
-    """Manna AI Generative Expander: 直相自動擴展為 16:9 橫向 Cinematic Banner"""
-    with st.spinner("🚀 Manna AI Generative Expanding (Vertical to Horizontal)..."):
+    """Manna AI Generative Expander: 使用 Gemini 2.5 Flash Image Preview 進行真實影像擴展"""
+    with st.spinner("🚀 Manna AI 正在進行虛擬影像擴展 (Generative Outpainting)..."):
+        # 讀取並轉換為 Base64
         img = Image.open(image_file).convert("RGB")
-        target_w, target_h = 1920, 1080
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG")
+        base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
-        # 1. 處理背景：極大模糊的原圖擴展
-        background = img.copy().resize((target_w, target_h), Image.Resampling.LANCZOS)
-        background = background.filter(ImageFilter.GaussianBlur(radius=85))
+        # API 設置
+        api_key = "" # 執行環境會自動提供
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key={api_key}"
         
-        # 2. 處理主體：縮放至符合高度並置中
-        main_subject = img.copy()
-        main_subject.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+        prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend the background and environment naturally on both sides to create a high-end agency portfolio banner. Maintain the original style, lighting, and focus."
         
-        # 3. 混合
-        final_canvas = background.copy()
-        offset = ((target_w - main_subject.width) // 2, (target_h - main_subject.height) // 2)
-        final_canvas.paste(main_subject, offset)
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {"inlineData": {"mimeType": "image/jpeg", "data": base64_image}}
+                ]
+            }],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"]
+            }
+        }
         
-        # 4. 對比度強化
-        return ImageEnhance.Contrast(final_canvas).enhance(1.25)
+        # 實現指數退避的重試邏輯
+        for i in range(5):
+            try:
+                response = requests.post(url, json=payload, timeout=60)
+                if response.status_code == 200:
+                    result = response.json()
+                    # 提取生成的圖像 Base64
+                    generated_base64 = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('inlineData', {}).get('data')
+                    if generated_base64:
+                        img_data = base64.b64decode(generated_base64)
+                        processed_img = Image.open(io.BytesIO(img_data))
+                        # 最後進行 Cinematic 對比度微調
+                        return ImageEnhance.Contrast(processed_img).enhance(1.15)
+                
+                # 如果失敗，等待後重試
+                time.sleep(2**i)
+            except Exception:
+                time.sleep(2**i)
+        
+        st.error("AI 影像擴展暫時未能完成，請檢查連線或稍後再試。")
+        return img # 失敗則返回原圖
 
 def sync_data(url, payload):
     try:
@@ -115,7 +142,7 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算 (11 維度)
+    # Progress 計算
     score = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
     score += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
     score += (1 if st.session_state.logo_white and st.session_state.logo_black else 0) 
@@ -171,7 +198,7 @@ def main():
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
-                model = genai.GenerativeModel("gemini-2.5-flash")
+                model = genai.GenerativeModel("gemini-2.5-flash-preview-09-2025")
                 res = model.generate_content(f"{FIREBEAN_SYSTEM_PROMPT}\nSOW: {st.session_state.scope_of_word}\nUser: {p}")
                 st.session_state.messages.append({"role": "assistant", "content": res.text})
                 st.rerun()
@@ -179,8 +206,8 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Manna AI Gallery")
-            st.caption("直相將自動透過 AI Generative Expand 轉換為 16:9 橫向 Cinematic 規格。")
+            st.subheader("📸 Manna AI Generative Gallery")
+            st.caption("✨ 此功能使用 Gemini 影像生成模型，將直相擴展為真實的 16:9 背景。")
             files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
@@ -191,7 +218,7 @@ def main():
                     with cols[i%4]:
                         is_processed = i in st.session_state.processed_photos
                         if is_processed:
-                            st.markdown('<div class="ai-status-tag">✨ AI BANNER READY</div>', unsafe_allow_html=True)
+                            st.markdown('<div class="ai-status-tag">✨ AI GENERATIVE READY</div>', unsafe_allow_html=True)
                         
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
@@ -205,7 +232,7 @@ def main():
                         
                         if is_processed:
                             if st.button(f"👁️ View P{i+1}", key=f"view_{i}"):
-                                st.image(st.session_state.processed_photos[i], caption=f"Manna AI 16:9 Banner Preview (P{i+1})", use_container_width=True)
+                                st.image(st.session_state.processed_photos[i], caption=f"Manna AI Virtual Expansion (P{i+1})", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -217,7 +244,7 @@ def main():
         if st.button("🪄 一鍵生成五路營銷文案 (Follow DNA)"):
             with st.spinner("AI 正在提煉策略與三語文案..."):
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                model = genai.GenerativeModel("gemini-2.5-flash")
+                model = genai.GenerativeModel("gemini-2.5-flash-preview-09-2025")
                 prompt = f"{FIREBEAN_SYSTEM_PROMPT}\nProject: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nSolution: {st.session_state.solution}\nGenerate JSON with: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
                 res = model.generate_content(prompt)
                 try:
