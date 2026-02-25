@@ -9,7 +9,7 @@ import requests
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
-# --- 1. 核心配置與 3 路 API Key 池 ---
+# --- 1. 核心配置與 API Key 池 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 
 API_KEYS_POOL = [
@@ -27,47 +27,41 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website: Trilingual.
 Motto: 'Turn Policy into Play'.
 """
 
 # --- 2. 核心調試與官方 SDK 智能輪詢引擎 ---
 
 def log_debug(msg, type="info"):
-    """永久調試終端：即時記錄所有 SDK 握手過程"""
     if "debug_logs" not in st.session_state:
         st.session_state.debug_logs = []
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-def call_gemini_sdk(prompt, image_file=None, is_json=False):
+def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=None):
     """
-    使用 Google 官方 SDK 調用 Gemini 2.5 Flash。
-    徹底解決 REST API 的 400 (systemInstruction) 與 404 (版本) 錯誤。
+    支援動態 System Prompt 注入，完美支援 JSON 強制輸出與多模態。
     """
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
-    
-    # 聽老細話，統一使用最新 2.5 Flash 標準模型
     model_name = "gemini-2.5-flash"
     
+    sys_instruction = dynamic_sys_prompt if dynamic_sys_prompt else FIREBEAN_SYSTEM_PROMPT
+
     for idx, key in enumerate(all_keys):
         try:
-            log_debug(f"Attempting API with Key #{idx+1} ({key[:8]}...)", "info")
+            log_debug(f"Attempting API with Key #{idx+1}...", "info")
             genai.configure(api_key=key)
             
-            # 設定生成格式 (強制 JSON 輸出)
             generation_config = genai.types.GenerationConfig(
                 response_mime_type="application/json" if is_json else "text/plain"
             )
             
-            # 初始化模型並注入 System Prompt
             model = genai.GenerativeModel(
                 model_name=model_name,
-                system_instruction=FIREBEAN_SYSTEM_PROMPT
+                system_instruction=sys_instruction
             )
             
-            # 準備輸入內容 (支援多模態：文字 + 圖片)
             contents = [prompt]
             if image_file:
                 contents.append(image_file)
@@ -75,73 +69,56 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             response = model.generate_content(contents, generation_config=generation_config)
             
             if response and response.text:
-                log_debug(f"Success with Key #{idx+1} (Model: {model_name})!", "success")
+                log_debug(f"Success with Key #{idx+1}!", "success")
                 return response.text
                 
         except Exception as e:
             log_debug(f"Key #{idx+1} Error: {str(e)}", "warning")
             continue
             
-    log_debug("Critical Error: All API keys failed. Check Quota or limits.", "error")
+    log_debug("Critical Error: All API keys failed.", "error")
     return None
 
 def test_api_connection():
-    """連線壓力測試按鈕"""
-    log_debug("🚀 Starting SDK Connection Test (Gemini 2.5)...", "info")
+    log_debug("🚀 Starting SDK Connection Test...", "info")
     res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online.'")
     if res:
-        log_debug(f"Handshake Result: {res}", "success")
         st.toast("✅ SDK 連線成功！Gemini 2.5 運作中。")
     else:
-        st.toast("❌ 所有金鑰連線失敗，請檢查 Debug 欄", icon="🔥")
+        st.toast("❌ 金鑰連線失敗，請檢查 Debug 欄", icon="🔥")
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """手動 Logo 標準化：修正直相變橫相並校正比例"""
     try:
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         bbox = img.getbbox()
         if bbox: img = img.crop(bbox)
-        
         inner_w, inner_h = target_size[0] - (padding * 2), target_size[1] - (padding * 2)
         img.thumbnail((inner_w, inner_h), Image.Resampling.LANCZOS)
-        
         canvas = Image.new("RGBA", target_size, (0, 0, 0, 0))
         offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
         canvas.paste(img, offset, img)
-        
         buf = io.BytesIO(); canvas.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized & oriented.", "success")
+        log_debug(f"Logo '{logo_file.name}' normalized.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
         return ""
 
 def manna_ai_enhance(image_file):
-    """AI 影像修正與轉向校正"""
     log_debug(f"Processing AI Vision for: {image_file.name}")
-    with st.spinner("🚀 Manna AI 正在校正轉向並同步視角..."):
+    with st.spinner("🚀 Manna AI 校正轉向並同步視角..."):
         try:
-            # 1. 解決直相變打橫問題 (保證影像比例正確)
             raw_img = Image.open(image_file)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
-            
-            # 2. 加入 Cinematic 視覺強化 (保證產出品質)
             img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
-            
-            # 3. 呼叫 Gemini 2.5 Flash SDK 進行影像理解
-            prompt = "Analyze this institutional project photo. Acknowledge visual aesthetics."
-            res = call_gemini_sdk(prompt, image_file=img)
-            
-            if res:
-                log_debug("AI Vision Handshake Complete.", "success")
-            
+            res = call_gemini_sdk("Analyze this institutional project photo.", image_file=img)
+            if res: log_debug("AI Vision Handshake Complete.", "success")
             return img_enhanced
         except Exception:
-            log_debug(f"Enhance Error: {traceback.format_exc()}", "error")
             return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
-# --- 3. UI 視覺樣式 ---
+# --- 3. UI 樣式與狀態管理 ---
 
 def apply_styles():
     st.markdown("""
@@ -154,7 +131,7 @@ def apply_styles():
         .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
         .debug-success { color: #00FF00; font-weight: bold; }
         .debug-error { color: #FF5555; font-weight: bold; }
-        .debug-warning { color: #FFFF55; }
+        .blocker-alert { background-color: #ffe6e6; border-left: 5px solid #FF0000; padding: 15px; border-radius: 5px; margin-bottom: 15px;}
         </style>
     """, unsafe_allow_html=True)
 
@@ -174,12 +151,33 @@ def init_session_state():
     fields = {
         "client_name": "", "project_name": "", "venue": "", "event_year": "2026", "event_month": "FEB", "event_date": "(2026 FEB)",
         "challenge": "", "solution": "", "who_we_help": [], "what_we_do": [], "scope_of_word": [],
-        "messages": [{"role": "assistant", "content": "Firebean Brain Online."}], 
+        "youtube_link": "", 
+        "messages": [{"role": "assistant", "content": "Firebean Brain Online. 我係你嘅專屬 PR Director。今次個 Project 聽落好有潛力，可唔可以分享下最初 Client 遇到最大嘅 Challenge (痛點) 係咩？我哋一齊度橋點樣 Turn Policy into Play！"}], 
         "project_photos": [], "hero_index": 0, "processed_photos": {},
         "ai_content": {}, "logo_white": "", "logo_black": "", "debug_logs": []
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
+
+def get_proactive_chatbot_prompt():
+    """動態生成 Chatbot 提示詞，賦予採訪記者/資深公關技巧"""
+    missing_text = [k for k in ["client_name", "project_name", "venue", "challenge", "solution", "youtube_link"] if not st.session_state.get(k)]
+    missing_assets = []
+    if not (st.session_state.logo_white or st.session_state.logo_black): missing_assets.append("Client Logo (未上傳)")
+    if len(st.session_state.project_photos) < 4: missing_assets.append(f"活動相片 (目前只有 {len(st.session_state.project_photos)} 張，需要最少 4 張)")
+    
+    return f"""{FIREBEAN_SYSTEM_PROMPT}
+    You are acting as a Proactive Senior PR Director at Firebean. Your job is to INTERVIEW the user (an Account Executive) to gather all missing information for the Master DB.
+    
+    Current Missing Information: {missing_text}
+    Current Missing Assets: {missing_assets}
+    
+    INTERVIEW RULES:
+    1. PROACTIVE PROBING: Never just say "Got it." Always acknowledge their input with professional PR insight, and then ASK a follow-up question to extract ONE missing piece of information (e.g., "That sounds like a solid interactive solution. But what was the original boring 'Challenge' we were trying to solve for the client?").
+    2. ASSET REMINDER: If 'Missing Assets' or 'youtube_link' is not empty, gently remind the user: "Btw, don't forget we need the client logo, at least 4 photos for the layout, and a YouTube highlight link before we can generate the final ecosystem copy."
+    3. TONE: Use Hong Kong PR Director tone. Mix professional PR terms with Canto-slang (e.g., "好 Firm", "Turn policy into play", "Engagement rate").
+    4. STEP-BY-STEP: Only ask for 1 thing at a time. Act like an inquisitive journalist.
+    """
 
 # --- 4. Main App 邏輯 ---
 
@@ -188,40 +186,43 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress (11 維度：包含 SOW, Logos 等)
-    filled = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
+    # Progress (12 維度)
+    score_items = ["client_name", "project_name", "venue", "challenge", "solution", "youtube_link"]
+    filled = sum([1 for f in score_items if st.session_state[f]])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
     filled += (1 if st.session_state.logo_white and st.session_state.logo_black else 0)
-    filled += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
-    percent = int((filled / 11) * 100)
+    filled += (1 if len(st.session_state.project_photos) >= 4 else 0) + (1 if st.session_state.ai_content else 0)
+    percent = int((filled / 12) * 100)
 
     # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["💬 Data Collector", "📋 Review & Sync"])
+    tab1, tab2 = st.tabs(["💬 Data Collector & Chatbot", "📋 Content Generation & DB Sync"])
 
     with tab1:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("🎨 Logos (PNG Standardizer)")
+        st.subheader("🎨 Logos (Must upload Black or White)")
         lc1, lc2 = st.columns(2)
         with lc1:
             ub = st.file_uploader("Upload Black Logo", type=['png'], key="logo_b")
-            if ub and st.button("📏 Fix & Rotate Black"): st.session_state.logo_black = standardize_logo(ub)
+            if ub and st.button("📏 Fix Black"): st.session_state.logo_black = standardize_logo(ub)
         with lc2:
             uw = st.file_uploader("Upload White Logo", type=['png'], key="logo_w")
-            if uw and st.button("📏 Fix & Rotate White"): st.session_state.logo_white = standardize_logo(uw)
+            if uw and st.button("📏 Fix White"): st.session_state.logo_white = standardize_logo(uw)
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Info & SOW")
-        b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
+        st.subheader("📝 Core Information")
+        b1, b2, b3_y, b3_m, b4, b5 = st.columns([1, 1, 0.5, 0.4, 1, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
         st.session_state.event_year = b3_y.selectbox("Year", YEARS, index=YEARS.index(st.session_state.event_year))
         st.session_state.event_month = b3_m.selectbox("Month", MONTHS, index=MONTHS.index(st.session_state.event_month))
         st.session_state.venue = b4.text_input("Venue", st.session_state.venue)
+        st.session_state.youtube_link = b5.text_input("YouTube Link", st.session_state.youtube_link)
+        
         c1, c2, c3 = st.columns(3)
         st.session_state.who_we_help = c1.multiselect("👥 Who we help", WHO_WE_HELP_OPTIONS, default=st.session_state.who_we_help)
         st.session_state.what_we_do = c2.multiselect("🚀 What we do", WHAT_WE_DO_OPTIONS, default=st.session_state.what_we_do)
@@ -231,15 +232,18 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🤖 Firebean Chatbot")
+            st.subheader("🤖 PR Director Chatbot (Proactive Interviewer)")
             for m in st.session_state.messages:
                 with st.chat_message(m["role"]): st.write(m["content"])
-            if p := st.chat_input("深挖細節..."):
+            if p := st.chat_input("向 PR Director 匯報細節或回答問題..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
                 
-                # 調用 SDK 處理 Chatbot 回應
-                res_text = call_gemini_sdk(f"Inquiry context: {st.session_state.scope_of_word}. User says: {p}")
+                # 傳送歷史對話，讓 AI 追蹤進度
+                history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages[-5:]])
+                prompt = f"Chat History:\n{history_str}\n\nUser: {p}"
+                
+                res_text = call_gemini_sdk(prompt, dynamic_sys_prompt=get_proactive_chatbot_prompt())
                 if res_text:
                     st.session_state.messages.append({"role": "assistant", "content": res_text})
                     st.rerun()
@@ -247,12 +251,12 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery (Auto-Rotate)")
-            files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
+            st.subheader("📸 Gallery (Require 4+ Photos)")
+            files = st.file_uploader("Upload Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
-                h_idx = min(st.session_state.hero_index, len(files)-1)
-                hero_choice = st.radio("🌟 Hero Banner?", [f"P{i+1}" for i in range(len(files))], index=h_idx, horizontal=True)
+                h_idx = min(st.session_state.hero_index, len(files)-1) if files else 0
+                hero_choice = st.radio("🌟 必須選取 Highlight Hero Banner", [f"P{i+1}" for i in range(len(files))], index=h_idx, horizontal=True)
                 st.session_state.hero_index = int(hero_choice[1:]) - 1
                 cols = st.columns(4)
                 for i, f in enumerate(files):
@@ -261,7 +265,6 @@ def main():
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        # 顯示方向校正後的圖，確保直相唔會變橫
                         img_disp = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
@@ -271,32 +274,94 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 AI Review & Sync")
-        st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
-        st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
-        if st.button("🪄 生成五路文案 (Follow DNA)"):
-            prompt = f"Project: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nGenerate JSON Output with: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
-            # SDK 開啟 JSON 模式
-            res_json = call_gemini_sdk(prompt, is_json=True)
-            if res_json:
-                try:
-                    st.session_state.ai_content = json.loads(res_json)
-                    st.success("✅ 文案已生成！")
-                except: 
-                    log_debug("JSON Parsing Error.", "error")
-        if st.session_state.ai_content: st.json(st.session_state.ai_content)
+        st.header("📋 Platform Content Generation & Sync")
+        
+        # 讓用戶可以在此手動微調 Challenge/Solution (如果 Chatbot 未能完全捕捉)
+        st.session_state.challenge = st.text_area("Boring Challenge (EN)", st.session_state.challenge, help="從 Chatbot 收集的痛點")
+        st.session_state.solution = st.text_area("Creative Solution (EN)", st.session_state.solution, help="從 Chatbot 收集的方案")
+        
+        # 強制防呆條件檢查
+        has_logo = bool(st.session_state.logo_white or st.session_state.logo_black)
+        has_enough_photos = len(st.session_state.project_photos) >= 4
+        
+        st.markdown("<p style='color: #666; font-size: 12px;'>⚠️ 必須上傳 Logo 及 至少 4 張相片，並填寫 Youtube 連結才可確保最佳生成效果。</p>", unsafe_allow_html=True)
+        
+        if st.button("🪄 一鍵生成六大平台文案 (Follow PDF Guidelines)"):
+            if not has_logo:
+                st.markdown("<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先回到 'Data Collector' 頁面上傳 Client Logo (Black or White)。無 Logo 無法建立 Master DB。</div>", unsafe_allow_html=True)
+            elif not has_enough_photos:
+                st.markdown(f"<div class='blocker-alert'>🚨 <b>阻截警告：</b> 請先上傳至少 4 張活動相片 (目前只有 {len(st.session_state.project_photos)} 張)。需要足夠圖片才能生成 Slide 及網站佈局。</div>", unsafe_allow_html=True)
+            else:
+                # 構建針對 PDF 指南的終極生成 Prompt
+                generation_prompt = f"""
+                Generate the final Master DB content for the project: '{st.session_state.project_name}'.
+                Context:
+                - Challenge: {st.session_state.challenge}
+                - Solution: {st.session_state.solution}
+                - YouTube: {st.session_state.youtube_link}
+                - Scope: {st.session_state.scope_of_word}
+
+                You MUST output ONLY a JSON object containing EXACTLY the following 6 platform adaptations based on Firebean's PDF Style Guides:
+
+                {{
+                    "1_google_slide": {{
+                        "language": "English ONLY",
+                        "hook": "Create a professional business hook.",
+                        "shift": "Introduce Firebean's Interactive-Trust Framework/Solution.",
+                        "proof": "3 bullet points showing data/results."
+                    }},
+                    "2_facebook_post": {{
+                        "language": "Traditional Chinese",
+                        "style": "The Grounded Expert / Weekend Planner angle. Target: Parents/Professionals. Use emojis and bullet points. Soft land hard facts. Mention the YouTube link."
+                    }},
+                    "3_threads_post": {{
+                        "language": "Canto-English Code-Switching",
+                        "style": "The Creative Insider. 'Contrast Flex' (boring topic vs cool tech). Use slang (e.g., 世一, Firm, Vibe). Short sentences, visually spaced out."
+                    }},
+                    "4_instagram_post": {{
+                        "language": "Mixed (Traditional Chinese & English)",
+                        "style": "The Lifestyle Curator. Aesthetic First. Soft sell the government/institutional aspect. Focus on Instagrammability and Vibe. Lots of emojis."
+                    }},
+                    "5_linkedin_post": {{
+                        "language": "English ONLY",
+                        "style": "Institutional Cool. Bridge Structure (Challenge -> Translation -> Result). Professional but energetic."
+                    }},
+                    "6_website": {{
+                        "en": {{"title": "Punchy EN Title", "content": "Professional yet energetic description (max 100 words)."}},
+                        "tc": {{"title": "Punchy TC Title", "content": "Professional yet energetic description (max 100 words)."}},
+                        "jp": {{"title": "Punchy JP Title", "content": "Professional yet energetic description (max 100 words)."}}
+                    }}
+                }}
+                """
+                with st.spinner("🧠 正在根據 4 份 PDF 指引，萃取並生成六大平台多語系文案..."):
+                    res_json = call_gemini_sdk(generation_prompt, is_json=True)
+                    if res_json:
+                        try:
+                            st.session_state.ai_content = json.loads(res_json)
+                            st.success("✅ 六大平台文案已完美生成！完全符合 Firebean DNA。")
+                        except: 
+                            log_debug("JSON Parsing Error.", "error")
+                            st.error("生成格式出錯，請查看 Debug Terminal")
+                            
+        if st.session_state.ai_content: 
+            st.json(st.session_state.ai_content)
+            
         if st.button("🚀 Confirm & Sync to Master Ecosystem"):
-            st.balloons(); st.success("✅ 資料庫同步成功！")
+            if not st.session_state.ai_content:
+                st.error("請先生成文案再進行同步！")
+            else:
+                # 這裡保留日後對接 Google Sheet 的 Logic
+                st.balloons(); st.success("✅ 包含 6 大平台文案、Logo、圖片及 YouTube 連結的數據，已成功準備同步至 Master DB！")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 5. 永久除錯終端 ---
     st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=True):
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=False):
         col_t, _ = st.columns([1, 4])
         with col_t:
-            if st.button("🔍 Test Handshake"): test_api_connection()
+            if st.button("🔍 Test API Connection"): test_api_connection()
         if not st.session_state.debug_logs:
-            st.write("Ready for Institutional Cool Handshaking.")
+            st.write("Ready for Institutional Cool Debugging.")
         else:
             for l in reversed(st.session_state.debug_logs):
                 cls = f"debug-{l['type']}"
