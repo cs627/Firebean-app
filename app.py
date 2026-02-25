@@ -25,10 +25,35 @@ LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang. Website: T
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心功能：影像處理與同步 ---
+# --- 2. 核心功能函數 ---
+
+def apply_styles():
+    """定義 Neumorphism 風格 CSS"""
+    st.markdown("""
+        <style>
+        header {visibility: hidden;} footer {visibility: hidden;}
+        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
+        .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
+        .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
+        .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+def get_circle_progress_html(percent):
+    """能量環 HTML"""
+    circum = 439.8
+    offset = circum * (1 - percent/100)
+    return f"""
+    <div style="display: flex; justify-content: flex-end; align-items: center;">
+        <div style="position: relative; width: 130px; height: 130px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
+            <svg width="130" height="130"><circle stroke="#d1d9e6" stroke-width="10" fill="transparent" r="55" cx="65" cy="65"/><circle stroke="#FF0000" stroke-width="10" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="55" cx="65" cy="65" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <div style="position: absolute; font-size: 26px; font-weight: 900; color: #2D3436;">{percent}%</div>
+        </div>
+    </div>
+    """
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """將上傳的 PNG 自動校正比例並放入標準 800x400 畫布"""
+    """手動上傳 Logo 的標準化處理"""
     try:
         img = Image.open(logo_file).convert("RGBA")
         bbox = img.getbbox()
@@ -46,19 +71,21 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         return ""
 
 def manna_ai_enhance(image_file):
-    """Manna AI Generative Expander: 使用 Gemini 2.5 Flash Image Preview 進行真實影像擴展"""
-    with st.spinner("🚀 Manna AI 正在進行虛擬影像擴展 (Generative Outpainting)..."):
-        # 讀取並轉換為 Base64
+    """Manna AI Generative Expander: 使用 Gemini 進行虛擬影像擴展"""
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not api_key:
+        st.error("找不到 GEMINI_API_KEY，請在 Streamlit Secrets 中設置。")
+        return Image.open(image_file)
+
+    with st.spinner("🚀 Manna AI 正在進行虛擬影像擴展 (Outpainting)..."):
         img = Image.open(image_file).convert("RGB")
         buffered = io.BytesIO()
         img.save(buffered, format="JPEG")
         base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
-        # API 設置
-        api_key = "" # 執行環境會自動提供
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key={api_key}"
         
-        prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend the background and environment naturally on both sides to create a high-end agency portfolio banner. Maintain the original style, lighting, and focus."
+        prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend the background naturally on both sides. High-end editorial style."
         
         payload = {
             "contents": [{
@@ -72,27 +99,21 @@ def manna_ai_enhance(image_file):
             }
         }
         
-        # 實現指數退避的重試邏輯
         for i in range(5):
             try:
                 response = requests.post(url, json=payload, timeout=60)
                 if response.status_code == 200:
                     result = response.json()
-                    # 提取生成的圖像 Base64
                     generated_base64 = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('inlineData', {}).get('data')
                     if generated_base64:
                         img_data = base64.b64decode(generated_base64)
-                        processed_img = Image.open(io.BytesIO(img_data))
-                        # 最後進行 Cinematic 對比度微調
-                        return ImageEnhance.Contrast(processed_img).enhance(1.15)
-                
-                # 如果失敗，等待後重試
+                        return Image.open(io.BytesIO(img_data))
                 time.sleep(2**i)
-            except Exception:
+            except:
                 time.sleep(2**i)
         
-        st.error("AI 影像擴展暫時未能完成，請檢查連線或稍後再試。")
-        return img # 失敗則返回原圖
+        st.warning("AI 擴展超時，暫時使用原始影像。")
+        return img
 
 def sync_data(url, payload):
     try:
@@ -100,30 +121,6 @@ def sync_data(url, payload):
         return response.text
     except Exception as e:
         return f"Error: {str(e)}"
-
-# --- 3. UI 視覺樣式與初始化 ---
-def apply_styles():
-    st.markdown("""
-        <style>
-        header {visibility: hidden;} footer {visibility: hidden;}
-        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
-        .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
-        .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
-        .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
-        </style>
-    """, unsafe_allow_html=True)
-
-def get_circle_progress_html(percent):
-    circum = 439.8
-    offset = circum * (1 - percent/100)
-    return f"""
-    <div style="display: flex; justify-content: flex-end; align-items: center;">
-        <div style="position: relative; width: 130px; height: 130px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="130" height="130"><circle stroke="#d1d9e6" stroke-width="10" fill="transparent" r="55" cx="65" cy="65"/><circle stroke="#FF0000" stroke-width="10" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="55" cx="65" cy="65" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 26px; font-weight: 900;">{percent}%</div>
-        </div>
-    </div>
-    """
 
 def init_session_state():
     fields = {
@@ -136,7 +133,7 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 4. Main App 邏輯 ---
+# --- 3. Main Loop ---
 def main():
     st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
     init_session_state()
@@ -162,7 +159,7 @@ def main():
         st.subheader("🎨 Client Logo Standardizer")
         lc1, lc2 = st.columns(2)
         with lc1:
-            up_black = st.file_uploader("Upload Black/Color Logo (PNG)", type=['png'], key="logo_b")
+            up_black = st.file_uploader("Upload Black Logo (PNG)", type=['png'], key="logo_b")
             if up_black and st.button("📏 Standardize Black Logo"):
                 st.session_state.logo_black = standardize_logo(up_black)
         with lc2:
@@ -207,7 +204,6 @@ def main():
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Manna AI Generative Gallery")
-            st.caption("✨ 此功能使用 Gemini 影像生成模型，將直相擴展為真實的 16:9 背景。")
             files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
@@ -219,20 +215,17 @@ def main():
                         is_processed = i in st.session_state.processed_photos
                         if is_processed:
                             st.markdown('<div class="ai-status-tag">✨ AI GENERATIVE READY</div>', unsafe_allow_html=True)
-                        
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        
                         img_disp = st.session_state.processed_photos.get(i, Image.open(f))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
                         st.image(img_disp, use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
-                        
                         if is_processed:
                             if st.button(f"👁️ View P{i+1}", key=f"view_{i}"):
-                                st.image(st.session_state.processed_photos[i], caption=f"Manna AI Virtual Expansion (P{i+1})", use_container_width=True)
+                                st.image(st.session_state.processed_photos[i], caption=f"AI Virtual Expansion Preview", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -276,4 +269,5 @@ def main():
             else: st.error(f"同步出錯: {res_sheet}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
