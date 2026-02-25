@@ -10,6 +10,7 @@ from rembg import remove
 from datetime import datetime
 
 # --- 1. 配置與 URL ---
+# 這是你提供的正式 Google Apps Script 網址
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
@@ -22,49 +23,23 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Follow 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-LinkedIn/Slides: EN only. IG/Threads: Canto-slang. Website: Trilingual.
+LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang (世一, Firm, Vibe). Website: Trilingual (EN, TC, JP).
 """
 
 # --- 2. 核心功能：Logo 與 影像處理 ---
 def process_manna_logo(logo_file):
+    """將上傳的 Logo 去背景並生成黑、白兩色高對比版本"""
     with st.spinner("🎨 Manna AI 正在進行 Logo 提煉 (Vector-Look)..."):
         input_image = Image.open(logo_file)
+        # AI 高級去背景
         no_bg = remove(input_image, alpha_matting=True)
+        # 提取 Alpha 層並平滑化，產生向量感
         alpha = no_bg.getchannel('A').filter(ImageFilter.GaussianBlur(radius=0.5))
         alpha = alpha.point(lambda p: 255 if p > 128 else 0)
         
+        # 生成透明底純白 Logo (適合深色 Slide)
         white_logo = Image.new("RGBA", no_bg.size, (255, 255, 255, 255))
         white_logo.putalpha(alpha)
-        black_logo = Image.new("RGBA", no_bg.size, (0, 0, 0, 255))
-        black_logo.putalpha(alpha)
-
-        def to_b64(img):
-            buf = io.BytesIO()
-            img.save(buf, format="PNG", optimize=True)
-            return base64.b64encode(buf.getvalue()).decode()
-        return to_b64(white_logo), to_b64(black_logo)
-
-def manna_ai_enhance(image_file):
-    img = Image.open(image_file)
-    w, h = img.size
-    with st.spinner("🚀 Manna AI Cinematic 處理中..."):
-        img = ImageEnhance.Contrast(img).enhance(1.35)
-        if w < 1920:
-            new_h = int(h * (1920 / w))
-            img = img.resize((1920, new_h), Image.Resampling.LANCZOS)
-    return img
-
-def sync_data(url, payload):
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        return response.text
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# --- 3. UI 視覺樣式 (這是 Logs 報錯遺漏的部分) ---
-def apply_styles():
-    st.markdown("""
-        <style>
-        header {visibility: hidden;} footer {visibility: hidden;}
-        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
-        .neu-card { background: #E0E5EC; border-radius: 30px; box-shadow: 15px 15px 30px #bec3c9, -15px -15px 30px #ffffff;
+        
+        # 生成透明底純黑 Logo (適合白色 Website)
+        black_logo = Image.new("RGBA", no_bg.size, (
