@@ -8,10 +8,10 @@ import traceback
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
-# --- 1. 配置與 URL ---
+# --- 1. 核心配置與 3 路 API Key 池 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 
-# 注入老細提供的 3 粒 API Keys 進行輪詢
+# 老細提供的 3 粒金鑰，系統會自動輪詢直至成功
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
     "AIzaSyCVuoSuWV3tfGCu2tjikCkMOVRWCBFne20",
@@ -31,107 +31,133 @@ LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心調試與 API 輪詢引擎 ---
+# --- 2. 核心調試與 API 輪詢對接引擎 ---
 
 def log_debug(msg, type="info"):
-    """永久調試系統：確保日誌即時更新"""
+    """永久調試終端：即時記錄所有 API 握手過程"""
     if "debug_logs" not in st.session_state:
         st.session_state.debug_logs = []
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-def call_gemini_rest(prompt, image_b64=None, mode="text"):
+def call_gemini_rest(prompt, image_b64=None):
     """
-    智能輪詢調用：如果一粒 Key 失敗，自動嘗試下一粒。
-    修正了 system_instruction 的 Payload 格式問題。
+    智能輪詢調用引擎：
+    1. 修正 system_instruction 的 Payload 格式。
+    2. 如果一粒 Key 報錯（如 429, 400），自動跳轉至下一粒。
     """
-    # 優先從 Secrets 攞 Key，如果冇就用 Pool
+    # 組合 Keys
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
-    active_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
+    all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
     
-    model_name = "gemini-1.5-flash" # 使用最穩定模型
+    # 規格化 Payload
+    model_name = "gemini-1.5-flash" # 使用全球通用最穩定模型
     
-    # Payload 構建 (system_instruction 必須 snake_case)
+    # 注意：REST API 要求欄位名為 system_instruction (底線)
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "system_instruction": {"parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]}
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": prompt}]
+        }],
+        "system_instruction": {
+            "parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]
+        },
+        "generationConfig": {
+            "temperature": 1,
+            "maxOutputTokens": 2048
+        }
     }
     
     if image_b64:
-        payload["contents"][0]["parts"].append({"inlineData": {"mimeType": "image/jpeg", "data": image_b64}})
-        timeout = 100
-    else:
-        timeout = 60
+        payload["contents"][0]["parts"].append({
+            "inlineData": {
+                "mimeType": "image/jpeg",
+                "data": image_b64
+            }
+        })
 
-    for i, key in enumerate(active_keys):
+    # 開始輪詢嘗試
+    for idx, key in enumerate(all_keys):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
         try:
-            log_debug(f"Attempting API call with Key #{i+1}...", "info")
-            response = requests.post(url, json=payload, timeout=timeout)
+            log_debug(f"Attempting Key #{idx+1} ({key[:8]}...)", "info")
+            response = requests.post(
+                url, 
+                headers={"Content-Type": "application/json"},
+                json=payload, 
+                timeout=60
+            )
             
             if response.status_code == 200:
-                log_debug(f"Success with Key #{i+1} ({model_name})", "success")
+                log_debug(f"Success with Key #{idx+1}!", "success")
                 return response.json()
             else:
-                log_debug(f"Key #{i+1} Failed ({response.status_code}): {response.text[:100]}", "warning")
-                # 繼續循環嘗試下一粒 Key
-                continue
+                err_detail = response.json().get('error', {}).get('message', 'Unknown Error')
+                log_debug(f"Key #{idx+1} Failed ({response.status_code}): {err_detail[:100]}", "warning")
+                continue # 嘗試下一粒
         except Exception as e:
-            log_debug(f"Key #{i+1} Connection Error: {str(e)}", "error")
+            log_debug(f"Key #{idx+1} Request Exception: {str(e)}", "error")
             continue
             
-    log_debug("ALL API KEYS FAILED. Please check quota or network.", "error")
+    log_debug("Critical Error: All 3 API keys failed or exhausted.", "error")
     return None
 
 def test_api_connection():
-    """測試目前輪詢系統是否能連線成功"""
-    log_debug("🚀 Starting Multi-Key Connection Test...", "info")
-    res = call_gemini_rest("Connection Test: Respond with 'Institutional Cool Status: Ready'.")
+    """連線壓力測試按鈕"""
+    log_debug("🚀 Starting Multi-Key Handshake Test...", "info")
+    res = call_gemini_rest("Ping test. Please respond with: 'Ready to Turn Policy into Play.'")
     if res:
         try:
             feedback = res['candidates'][0]['content']['parts'][0]['text']
-            log_debug(f"Final Test Result: {feedback}", "success")
-            st.toast("✅ 連線測試通過！已確認 Key Pool 運作中。")
+            log_debug(f"Handshake Result: {feedback}", "success")
+            st.toast("✅ 連線對接成功！系統運作正常。")
         except:
-            log_debug("Response received but format error.", "error")
+            log_debug("API responded but JSON parsing failed.", "error")
     else:
-        st.toast("❌ 所有 Key 均連線失敗，請檢查 Debug 欄", icon="🔥")
+        st.toast("❌ 所有金鑰連線失敗，請檢查網路或 API 限制", icon="🔥")
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """修正直相旋轉並標準化 Logo"""
+    """手動 Logo 標準化：修正直相變橫相並校正比例"""
     try:
+        # 修正 EXIF 轉向
         raw = Image.open(logo_file)
-        img = ImageOps.exif_transpose(raw).convert("RGBA") # 強制校正轉向
+        img = ImageOps.exif_transpose(raw).convert("RGBA")
+        
         bbox = img.getbbox()
         if bbox: img = img.crop(bbox)
+        
         inner_w, inner_h = target_size[0] - (padding * 2), target_size[1] - (padding * 2)
         img.thumbnail((inner_w, inner_h), Image.Resampling.LANCZOS)
+        
         canvas = Image.new("RGBA", target_size, (0, 0, 0, 0))
         offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
         canvas.paste(img, offset, img)
+        
         buf = io.BytesIO(); canvas.save(buf, format="PNG")
-        log_debug(f"Logo {logo_file.name} normalized & oriented.", "success")
+        log_debug(f"Logo '{logo_file.name}' normalized & oriented.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
         return ""
 
 def manna_ai_enhance(image_file):
-    """AI 影像校正與理解"""
+    """AI 影像修正與轉向校正"""
     log_debug(f"Processing AI Vision for: {image_file.name}")
     with st.spinner("🚀 Manna AI 正在校正轉向並同步視角..."):
         try:
-            # 解決手機相片自動變打橫嘅唯一方法
-            img = ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
+            # 解決直相變打橫問題
+            raw_img = Image.open(image_file)
+            img = ImageOps.exif_transpose(raw_img).convert("RGB")
+            
             buf = io.BytesIO(); img.save(buf, format="JPEG", quality=90)
             b64_img = base64.b64encode(buf.getvalue()).decode('utf-8')
             
-            prompt = "Analyze this image for Firebean's 16:9 banner. Acknowledge visual style."
-            result = call_gemini_rest(prompt, image_b64=b64_img, mode="image")
+            # 發送影像到 API 進行理解
+            res = call_gemini_rest("Analyze this institutional project photo.", image_b64=b64_img)
+            if res:
+                log_debug("AI Vision Handshake Complete.", "success")
             
-            if result:
-                log_debug("AI Vision Process Acknowledged.", "success")
-            return img
+            return img # 返回正確轉向後的圖片
         except Exception:
             log_debug(f"Enhance Error: {traceback.format_exc()}", "error")
             return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
@@ -146,6 +172,7 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
         .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
+        /* 永久除錯終端樣式 */
         .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 50px; }
         .debug-success { color: #00FF00; font-weight: bold; }
         .debug-error { color: #FF5555; font-weight: bold; }
@@ -183,9 +210,8 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress (11 維度)
-    score_items = ["client_name", "project_name", "venue", "challenge", "solution"]
-    filled = sum([1 for f in score_items if st.session_state[f]])
+    # Progress (11 維度：包含 SOW, Logos 等)
+    filled = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
     filled += (1 if st.session_state.logo_white and st.session_state.logo_black else 0)
     filled += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
@@ -196,7 +222,7 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["💬 Data Collector", "📋 AI Review & Sync"])
+    tab1, tab2 = st.tabs(["💬 Data Collector", "📋 Review & Sync"])
 
     with tab1:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -233,7 +259,7 @@ def main():
             if p := st.chat_input("深挖細節..."):
                 st.session_state.messages.append({"role": "user", "content": p})
                 with st.chat_message("user"): st.write(p)
-                res = call_gemini_rest(f"Question: {p}")
+                res = call_gemini_rest(f"Inquiry context: {st.session_state.scope_of_word}. User says: {p}")
                 if res:
                     ans = res['candidates'][0]['content']['parts'][0]['text']
                     st.session_state.messages.append({"role": "assistant", "content": ans})
@@ -256,7 +282,7 @@ def main():
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
-                        # 關鍵：顯示方向校正後的圖，確保直相唔會變橫
+                        # 關鍵：強制修正轉向後的顯示
                         img_disp = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
@@ -266,17 +292,17 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Review & Sync")
+        st.header("📋 AI Review & Sync")
         st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
-        if st.button("🪄 生成五路文案"):
-            res = call_gemini_rest(f"Challenge: {st.session_state.challenge}\nGenerate JSON Output.")
+        if st.button("🪄 生成五路文案 (Follow DNA)"):
+            res = call_gemini_rest(f"Generate trilingual marketing content for: {st.session_state.project_name}. JSON Output.")
             if res:
                 try:
                     text = res['candidates'][0]['content']['parts'][0]['text']
                     st.session_state.ai_content = json.loads(text[text.find('{'):text.rfind('}')+1])
                     st.success("✅ 文案已生成！")
-                except: log_debug("JSON Parse Error", "error")
+                except: log_debug("JSON Parsing Error.", "error")
         if st.session_state.ai_content: st.json(st.session_state.ai_content)
         if st.button("🚀 Confirm & Sync to Master Ecosystem"):
             st.balloons(); st.success("✅ 資料庫同步成功！")
@@ -284,13 +310,12 @@ def main():
 
     # --- 5. 永久除錯終端 (Firebean Debug Terminal) ---
     st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent Component)", expanded=True):
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Persistent)", expanded=True):
         col_t, _ = st.columns([1, 4])
         with col_t:
-            if st.button("🔍 Test API Connection"):
-                test_api_connection()
+            if st.button("🔍 Test Handshake"): test_api_connection()
         if not st.session_state.debug_logs:
-            st.write("Ready for Institutional Cool Debugging.")
+            st.write("Ready for Institutional Cool Handshaking.")
         else:
             for l in reversed(st.session_state.debug_logs):
                 cls = f"debug-{l['type']}"
