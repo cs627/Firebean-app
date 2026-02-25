@@ -12,6 +12,7 @@ from datetime import datetime
 # --- 1. 核心配置與 API Key 池 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 
+# 備用 Key 池 (雖然過期，但保留作後備架構)
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
     "AIzaSyCVuoSuWV3tfGCu2tjikCkMOVRWCBFne20",
@@ -39,7 +40,11 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=None):
-    secret_key = st.secrets.get("GEMINI_API_KEY", "")
+    # 確保優先讀取 Streamlit Secrets 的 Key
+    secret_key = ""
+    if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
+        secret_key = st.secrets["GEMINI_API_KEY"]
+        
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
     model_name = "gemini-2.5-flash"
     
@@ -47,7 +52,8 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
 
     for idx, key in enumerate(all_keys):
         try:
-            log_debug(f"Attempting API with Key #{idx+1}...", "info")
+            is_secret = "(Secret Key)" if (secret_key and idx == 0) else f"(Pool Key #{idx})"
+            log_debug(f"Attempting API with Key {is_secret}...", "info")
             genai.configure(api_key=key)
             
             generation_config = genai.types.GenerationConfig(
@@ -66,7 +72,7 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
             response = model.generate_content(contents, generation_config=generation_config)
             
             if response and response.text:
-                log_debug(f"Success with Key #{idx+1}!", "success")
+                log_debug(f"✅ Success with Key {is_secret}!", "success")
                 cleaned_text = response.text.strip()
                 if cleaned_text.startswith("```json"):
                     cleaned_text = cleaned_text[7:]
@@ -75,7 +81,7 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
                 return cleaned_text.strip()
                 
         except Exception as e:
-            log_debug(f"Key #{idx+1} Error: {str(e)}", "warning")
+            log_debug(f"Key Error {is_secret}: {str(e)}", "warning")
             continue
             
     log_debug("Critical Error: All API keys failed.", "error")
@@ -83,6 +89,13 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
 
 def test_api_connection():
     log_debug("🚀 Starting SDK Connection Test...", "info")
+    
+    # 新增：直接在 Debug 顯示 Secret 是否存在
+    if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
+        log_debug("🔑 [System] 成功讀取 Streamlit Secrets 中的 API Key！", "success")
+    else:
+        log_debug("⚠️ [System] 找不到 Streamlit Secrets！請檢查 Cloud Settings。", "error")
+        
     res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online.'")
     if res:
         st.toast("✅ SDK 連線成功！Gemini 2.5 運作中。")
@@ -210,7 +223,7 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算 (滿分為 10 項，YouTube 完全不計入計算，可選填)
+    # Progress 計算 (滿分為 10 項，YouTube 不計入)
     score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -251,14 +264,13 @@ def main():
         st.session_state.youtube_link = b5.text_input("YouTube Link (Optional)", st.session_state.youtube_link)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 這裡將之前的 Dropdown (Multiselect) 轉換為 Radio (單選) 和 Checkbox (多選)
+        # 全面 Checkbox 與 Radio 選單
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("🗂️ Project Classification")
         c1, c2, c3 = st.columns(3)
         
         with c1:
             st.markdown("**👥 Category (Client)** *(單選)*")
-            # 確保有預設值避免報錯
             cat_idx = WHO_WE_HELP_OPTIONS.index(st.session_state.who_we_help[0]) if st.session_state.who_we_help and st.session_state.who_we_help[0] in WHO_WE_HELP_OPTIONS else 0
             selected_cat = st.radio("Category", WHO_WE_HELP_OPTIONS, index=cat_idx, label_visibility="collapsed")
             st.session_state.who_we_help = [selected_cat]
@@ -337,7 +349,7 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 6 Platforms Generation & DB Sync")
         
-        # 強制防呆條件檢查 (Logo OR 條件、照片數量 >= 4)
+        # 強制防呆條件檢查
         has_logo = bool(st.session_state.logo_white or st.session_state.logo_black)
         has_enough_photos = len(st.session_state.project_photos) >= 4
         has_completed_mc = len(st.session_state.mc_questions) == 20
