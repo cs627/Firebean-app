@@ -134,7 +134,8 @@ def manna_ai_enhance(image_file):
 
 def generate_mc_questions():
     prompt = f"""
-    You are an AI PR Strategist. The user has inputted the following for a new project:
+    You are an AI PR Strategist. The user is a PR agency employee (Account Executive) logging details about a recently completed campaign they executed for a CLIENT.
+    They have inputted the following for this project:
     - Client Category: {st.session_state.who_we_help}
     - What We Do: {st.session_state.what_we_do}
     - Scope of Work: {st.session_state.scope_of_word}
@@ -144,13 +145,13 @@ def generate_mc_questions():
     **CRITICAL REQUIREMENT: ALL questions and options MUST be written in Traditional Chinese (繁體中文).**
     
     Logic (6-7-7 Matrix):
-    - [6 Questions] about Client Category (digging into business goals and audience pain points).
-    - [7 Questions] about What We Do (asking about experience design and positioning).
-    - [7 Questions] about Scope of Work (asking about strategic preferences and execution style).
+    - [6 Questions] about Client Category: 這是詢問「客戶/品牌」面對的痛點與商業目標，絕對不是問公關行業本身的痛點。請詢問該客戶的目標受眾遇到了什麼問題？客戶希望透過這次活動改變大眾什麼觀感？
+    - [7 Questions] about What We Do: 詢問關於該活動的體驗設計、互動科技應用及靈魂定位。
+    - [7 Questions] about Scope of Work: 詢問關於具體的公關執行策略、宣傳風格及落地成效。
     
     Output strictly as a JSON array of objects. Example format:
     [
-        {{"id": 1, "category": "行業痛點 (Client Category)", "question": "這是一條繁體中文的問題...", "options": ["A. 選項一", "B. 選項二", "C. 選項三", "D. 選項四"]}}
+        {{"id": 1, "category": "客戶品牌痛點 (Client Category)", "question": "這是一條詢問客戶痛點的繁體中文問題...", "options": ["A. 選項一", "B. 選項二", "C. 選項三", "D. 選項四"]}}
     ]
     Do not wrap in Markdown. Output JSON only.
     """
