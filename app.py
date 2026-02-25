@@ -260,21 +260,37 @@ def main():
                         st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab2:
+ with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 Platform Generation & Sync")
-        if st.button("🪄 一鍵生成六大平台文案 (Follow DNA)"):
-            with st.spinner("🧠 正在生成三語文案 (精簡 50-100 字)..."):
-                prompt = "Generate Master JSON for Slides, Socials, and Website (Trilingual, 50-100 words)."
-                res_json = call_gemini_sdk(prompt, is_json=True)
-                if res_json: st.session_state.ai_content = json.loads(res_json); st.success("✅ 生成完畢！")
         
-        if st.session_state.ai_content:
-            st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync to Master Ecosystem"):
-                if sync_to_master_db(st.session_state.ai_content):
-                    st.balloons(); st.success("✅ 包含 A-T 欄數據已成功同步！")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 確保 J 欄同 K 欄有野，如果無，就用 Session State 入面嘅
+        st.session_state.challenge = st.text_area("Boring Challenge (EN)", st.session_state.challenge)
+        st.session_state.solution = st.text_area("Creative Solution (EN)", st.session_state.solution)
+        
+        if st.button("🪄 一鍵生成六大平台文案 (Follow DNA)"):
+            with st.spinner("🧠 正在將「餐廳資料」轉化為 Firebean DNA 文案..."):
+                # 🔥 關鍵修正：將所有 User Input 變成 Prompt 的一部分
+                generation_prompt = f"""
+                You MUST generate content based ONLY on the following project data:
+                - Client: {st.session_state.client_name}
+                - Project Name: {st.session_state.project_name}
+                - Core Challenge: {st.session_state.challenge}
+                - Creative Solution: {st.session_state.solution}
+                - Venue: {st.session_state.venue}
+                - Scope of Work: {", ".join(st.session_state.scope_of_word)}
+                - YouTube: {st.session_state.youtube_link}
+
+                Output Task: 
+                Generate a JSON object for Slides, LinkedIn, FB, Threads, IG, and Website (EN, TC, JP).
+                Keep Challenge/Solution sections between 50-100 words. 
+                Strictly Traditional Chinese (TC). NO Urban Planning talk unless the project is about it.
+                """
+                
+                res_json = call_gemini_sdk(generation_prompt, is_json=True)
+                if res_json: 
+                    st.session_state.ai_content = json.loads(res_json)
+                    st.success("✅ 餐廳專屬文案生成成功！")
 
     # 永久除錯終端
     st.markdown("---")
