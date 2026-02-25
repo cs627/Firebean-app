@@ -25,32 +25,19 @@ LinkedIn/Slides: EN only (Hook-Shift-Proof). IG/Threads: Canto-slang. Website: T
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心功能：Logo 標準化處理器 (No AI BG Removal) ---
+# --- 2. 核心功能：Logo 標準化與 Manna AI 影像擴展 ---
+
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """讀取 PNG，自動裁切內容並放入標準透明畫布"""
+    """將上傳的 PNG 自動校正比例並放入標準 800x400 畫布"""
     try:
         img = Image.open(logo_file).convert("RGBA")
-        
-        # 1. 自動裁切掉四周的透明位
         bbox = img.getbbox()
-        if bbox:
-            img = img.crop(bbox)
-        
-        # 2. 計算比例，確保放入 target_size 內並預留 padding
-        inner_w = target_size[0] - (padding * 2)
-        inner_h = target_size[1] - (padding * 2)
-        
-        # 使用 contain 縮放，保持比例
+        if bbox: img = img.crop(bbox)
+        inner_w, inner_h = target_size[0] - (padding * 2), target_size[1] - (padding * 2)
         img.thumbnail((inner_w, inner_h), Image.Resampling.LANCZOS)
-        
-        # 3. 建立標準透明底圖
         canvas = Image.new("RGBA", target_size, (0, 0, 0, 0))
-        
-        # 4. 將 Logo 置中貼上
         offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
         canvas.paste(img, offset, img)
-        
-        # 轉為 Base64
         buf = io.BytesIO()
         canvas.save(buf, format="PNG", optimize=True)
         return base64.b64encode(buf.getvalue()).decode()
@@ -59,15 +46,26 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         return ""
 
 def manna_ai_enhance(image_file):
-    """相片 Cinematic 強化"""
-    img = Image.open(image_file)
-    w, h = img.size
-    with st.spinner("🚀 Manna AI Cinematic 處理中..."):
-        img = ImageEnhance.Contrast(img).enhance(1.35)
-        if w < 1920:
-            new_h = int(h * (1920 / w))
-            img = img.resize((1920, new_h), Image.Resampling.LANCZOS)
-    return img
+    """Manna AI Generative Expander: 直相自動擴展為 16:9 橫向 Cinematic Banner"""
+    with st.spinner("🚀 Manna AI Generative Expanding (Vertical to Horizontal)..."):
+        img = Image.open(image_file).convert("RGB")
+        target_w, target_h = 1920, 1080
+        
+        # 1. 處理背景：極大模糊的原圖擴展
+        background = img.copy().resize((target_w, target_h), Image.Resampling.LANCZOS)
+        background = background.filter(ImageFilter.GaussianBlur(radius=85))
+        
+        # 2. 處理主體：縮放至符合高度並置中
+        main_subject = img.copy()
+        main_subject.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+        
+        # 3. 混合
+        final_canvas = background.copy()
+        offset = ((target_w - main_subject.width) // 2, (target_h - main_subject.height) // 2)
+        final_canvas.paste(main_subject, offset)
+        
+        # 4. 對比度強化
+        return ImageEnhance.Contrast(final_canvas).enhance(1.25)
 
 def sync_data(url, payload):
     try:
@@ -84,6 +82,7 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
+        .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -116,12 +115,12 @@ def main():
     init_session_state()
     apply_styles()
 
-    # --- 11 維度 Progress % ---
-    filled = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
-    filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
-    filled += (1 if st.session_state.logo_white and st.session_state.logo_black else 0) 
-    filled += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
-    percent = int((filled / 11) * 100)
+    # Progress 計算 (11 維度)
+    score = sum([1 for f in ["client_name", "project_name", "venue", "challenge", "solution"] if st.session_state[f]])
+    score += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
+    score += (1 if st.session_state.logo_white and st.session_state.logo_black else 0) 
+    score += (1 if st.session_state.project_photos else 0) + (1 if st.session_state.ai_content else 0)
+    percent = int((score / 11) * 100)
 
     # Header
     c1, c2 = st.columns([1, 1])
@@ -131,31 +130,21 @@ def main():
     tab1, tab2 = st.tabs(["💬 Data Collector & Chatbot", "📋 Ecosystem Sync & AI Content"])
 
     with tab1:
-        # Logo 區 (雙上傳模式)
+        # Logo 區
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("🎨 Client Logo Standardizer")
-        st.caption("請上傳兩款透明背景 PNG，系統將自動校正比例與安全邊距。")
         lc1, lc2 = st.columns(2)
         with lc1:
-            up_black = st.file_uploader("Upload Black/Color Logo (for Web)", type=['png'], key="logo_b")
+            up_black = st.file_uploader("Upload Black/Color Logo (PNG)", type=['png'], key="logo_b")
             if up_black and st.button("📏 Standardize Black Logo"):
                 st.session_state.logo_black = standardize_logo(up_black)
-                st.success("Black Logo Ready")
         with lc2:
-            up_white = st.file_uploader("Upload White Logo (for Slide)", type=['png'], key="logo_w")
+            up_white = st.file_uploader("Upload White Logo (PNG)", type=['png'], key="logo_w")
             if up_white and st.button("📏 Standardize White Logo"):
                 st.session_state.logo_white = standardize_logo(up_white)
-                st.success("White Logo Ready")
-        
-        if st.session_state.logo_black or st.session_state.logo_white:
-            v1, v2 = st.columns(2)
-            if st.session_state.logo_black:
-                v1.image(f"data:image/png;base64,{st.session_state.logo_black}", caption="Standardized Black (800x400)", width=200)
-            if st.session_state.logo_white:
-                v2.image(f"data:image/png;base64,{st.session_state.logo_white}", caption="Standardized White (800x400)", width=200)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 基礎資訊區
+        # 基礎資訊
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("📝 Project Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
@@ -172,7 +161,6 @@ def main():
         st.session_state.scope_of_word = c3.multiselect("🛠️ Scope of work", SOW_OPTIONS, default=st.session_state.scope_of_word)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Chatbot 區
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -191,7 +179,8 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Manna Gallery")
+            st.subheader("📸 Manna AI Gallery")
+            st.caption("直相將自動透過 AI Generative Expand 轉換為 16:9 橫向 Cinematic 規格。")
             files = st.file_uploader("Upload 8 Photos", accept_multiple_files=True)
             if files:
                 st.session_state.project_photos = files
@@ -200,13 +189,23 @@ def main():
                 cols = st.columns(4)
                 for i, f in enumerate(files):
                     with cols[i%4]:
-                        if st.button(f"✨ AI P{i+1}", key=f"ai_{i}"):
+                        is_processed = i in st.session_state.processed_photos
+                        if is_processed:
+                            st.markdown('<div class="ai-status-tag">✨ AI BANNER READY</div>', unsafe_allow_html=True)
+                        
+                        if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"):
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
+                            st.rerun()
+                        
                         img_disp = st.session_state.processed_photos.get(i, Image.open(f))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
                         st.image(img_disp, use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        if is_processed:
+                            if st.button(f"👁️ View P{i+1}", key=f"view_{i}"):
+                                st.image(st.session_state.processed_photos[i], caption=f"Manna AI 16:9 Banner Preview (P{i+1})", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
