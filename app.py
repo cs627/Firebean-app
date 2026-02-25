@@ -140,6 +140,9 @@ def generate_mc_questions():
     - Scope of Work: {st.session_state.scope_of_word}
     
     Please systematically generate exactly 20 multiple-choice questions (A/B/C/D) to extract the "soul" of this project.
+    
+    **CRITICAL REQUIREMENT: ALL questions and options MUST be written in Traditional Chinese (繁體中文).**
+    
     Logic (6-7-7 Matrix):
     - [6 Questions] about Client Category (digging into business goals and audience pain points).
     - [7 Questions] about What We Do (asking about experience design and positioning).
@@ -147,7 +150,7 @@ def generate_mc_questions():
     
     Output strictly as a JSON array of objects. Example format:
     [
-        {{"id": 1, "category": "Client Category", "question": "Question text...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."]}}
+        {{"id": 1, "category": "行業痛點 (Client Category)", "question": "這是一條繁體中文的問題...", "options": ["A. 選項一", "B. 選項二", "C. 選項三", "D. 選項四"]}}
     ]
     Do not wrap in Markdown. Output JSON only.
     """
@@ -302,7 +305,7 @@ def main():
                 if not st.session_state.who_we_help or not st.session_state.what_we_do or not st.session_state.scope_of_word:
                     st.error("請先勾選 Category, What we do, 以及 Scope of Work！")
                 else:
-                    with st.spinner("AI 正在根據你的設定生成 20 條針對性題目..."):
+                    with st.spinner("AI 正在根據你的設定生成 20 條針對性題目 (繁體中文)..."):
                         success = generate_mc_questions()
                         if success:
                             st.success("✅ 題目已生成！請回答以下問題。")
