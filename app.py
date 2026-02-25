@@ -8,7 +8,7 @@ import traceback
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
-# --- 1. 配置與 URL ---
+# --- 1. 定義環境 URL 與 選項清單 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
@@ -20,8 +20,8 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Follow 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-LinkedIn/Slides: EN only. IG/Threads: Canto-slang. Website: Trilingual (EN, TC, JP).
+Strategy: Follow 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
+LinkedIn/Slides: EN only. IG/Threads: Canto-slang. Website: Trilingual.
 Motto: 'Turn Policy into Play'.
 """
 
@@ -35,18 +35,17 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_rest(prompt, image_b64=None, mode="text"):
-    """使用 REST API 調用 Gemini，徹底修復 403/404 報錯"""
-    # 從 Streamlit Secrets 讀取 API Key
+    """使用 REST API 調用 Gemini，修正 404 模型路徑問題"""
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
-        log_debug("SECRET ERROR: GEMINI_API_KEY is missing in Secrets!", "error")
-        st.error("請在 Streamlit Cloud Secrets 中設置 GEMINI_API_KEY")
+        log_debug("SECRET ERROR: GEMINI_API_KEY is missing!", "error")
         return None
     
+    # 修正：改用更廣泛支持的模型名 gemini-1.5-flash 解決 404
+    model_id = "gemini-1.5-flash"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
+    
     if mode == "image" and image_b64:
-        # 影像擴展專用模型 (Outpainting)
-        model_id = "gemini-2.5-flash-image-preview"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
         payload = {
             "contents": [{
                 "parts": [
@@ -55,36 +54,34 @@ def call_gemini_rest(prompt, image_b64=None, mode="text"):
                 ]
             }],
             "generationConfig": {
-                "responseModalities": ["TEXT", "IMAGE"]
+                "responseModalities": ["IMAGE"] if "image" in model_id else ["TEXT"]
             }
         }
     else:
-        # 文字生成模型
-        model_id = "gemini-2.5-flash-preview-09-2025"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "systemInstruction": {"parts": [{"text": FIREBEAN_SYSTEM_PROMPT}]}
         }
 
-    for i in range(5):
+    for i in range(3): # 嘗試 3 次
         try:
             response = requests.post(url, json=payload, timeout=90)
             if response.status_code == 200:
                 log_debug(f"API Success: {model_id}", "success")
                 return response.json()
             else:
-                log_debug(f"API Failed ({response.status_code}): {response.text[:200]}", "error")
-            time.sleep(2**i)
+                log_debug(f"API Error {response.status_code}: {response.text[:200]}", "error")
+            time.sleep(2)
         except Exception as e:
-            log_debug(f"Connection Error: {str(e)}", "error")
-            time.sleep(2**i)
+            log_debug(f"Connection Failed: {str(e)}", "error")
+            time.sleep(2)
     return None
 
 def standardize_logo(logo_file, target_size=(800, 400), padding=40):
-    """修復旋轉問題並標準化 Logo 比例，置中放在透明畫布"""
+    """修復直相旋轉並標準化 Logo 比例"""
     try:
         raw = Image.open(logo_file)
+        # 關鍵修正：解決 EXIF 旋轉問題
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         bbox = img.getbbox()
         if bbox: img = img.crop(bbox)
@@ -98,7 +95,7 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         
         buf = io.BytesIO()
         canvas.save(buf, format="PNG")
-        log_debug(f"Logo {logo_file.name} processed.", "success")
+        log_debug(f"Logo '{logo_file.name}' standardized & rotated correctly.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Error: {str(e)}", "error")
@@ -106,10 +103,10 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
 
 def manna_ai_enhance(image_file):
     """真正 AI 影像擴展 (Outpainting) + 直相方向修正"""
-    log_debug(f"Starting Outpainting for {image_file.name}...")
+    log_debug(f"Initiating AI Outpainting for {image_file.name}...")
     with st.spinner("🚀 Manna AI 正在進行生成式影像擴展..."):
         try:
-            # 解決直相旋轉
+            # 解決直相變橫相
             raw_img = Image.open(image_file)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
             
@@ -117,7 +114,8 @@ def manna_ai_enhance(image_file):
             img.save(buffered, format="JPEG", quality=90)
             b64_img = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
-            prompt = "Generatively outpaint this image into a cinematic 16:9 landscape banner. Extend the background context, lighting, and textures naturally to fill left and right sides."
+            # 使用 Gemini 1.5 Flash 進行視覺任務
+            prompt = "Outpaint this image into a cinematic 16:9 landscape banner. Extend the background context, lighting, and textures naturally to fill the left and right sides."
             
             result = call_gemini_rest(prompt, image_b64=b64_img, mode="image")
             if result:
@@ -127,8 +125,10 @@ def manna_ai_enhance(image_file):
                         img_data = base64.b64decode(part['inlineData']['data'])
                         log_debug("AI Image Expansion Successful.", "success")
                         return Image.open(io.BytesIO(img_data))
+                    elif 'text' in part:
+                        log_debug(f"AI returned text instead of image: {part['text'][:100]}", "warning")
             
-            log_debug("AI response was empty or failed. Returning corrected original.", "warning")
+            log_debug("AI expansion didn't return an image. Using correctly rotated original.", "warning")
             return img
         except Exception:
             log_debug(f"AI Enhance Error: {traceback.format_exc()}", "error")
@@ -144,8 +144,7 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 25px; box-shadow: 12px 12px 24px #bec3c9, -12px -12px 24px #ffffff; padding: 25px; margin-bottom: 20px; }
         .hero-border { border: 4px solid #FF0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); border-radius: 12px; }
         .ai-status-tag { background: #FF3333; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
-        /* Debug Terminal CSS - Permanent Component */
-        .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 200px; overflow-y: auto; }
+        .debug-terminal { background: #1E1E1E; color: #00FF00; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; }
         .debug-success { color: #00FF00; }
         .debug-error { color: #FF5555; }
         .debug-warning { color: #FFFF55; }
@@ -159,7 +158,7 @@ def get_circle_progress_html(percent):
     <div style="display: flex; justify-content: flex-end; align-items: center;">
         <div style="position: relative; width: 130px; height: 130px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
             <svg width="130" height="130"><circle stroke="#d1d9e6" stroke-width="10" fill="transparent" r="55" cx="65" cy="65"/><circle stroke="#FF0000" stroke-width="10" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="55" cx="65" cy="65" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 26px; font-weight: 900;">{percent}%</div>
+            <div style="position: absolute; font-size: 26px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
     </div>
     """
@@ -215,7 +214,7 @@ def main():
 
         # 資訊區
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Project Information")
+        st.subheader("📝 Project Basic Information")
         b1, b2, b3_y, b3_m, b4 = st.columns([1, 1, 0.6, 0.4, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
@@ -263,7 +262,7 @@ def main():
                             st.session_state.processed_photos[i] = manna_ai_enhance(f)
                             st.rerun()
                         
-                        # 預覽修正方向
+                        # 顯示時強制修正方向
                         img_src = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         border = "hero-border" if i == st.session_state.hero_index else ""
                         st.markdown(f'<div class="{border}">', unsafe_allow_html=True)
@@ -277,8 +276,8 @@ def main():
         st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
         
-        if st.button("🪄 生成五路文案 (Follow DNA)"):
-            prompt = f"Project: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nGenerate JSON with: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
+        if st.button("🪄 生成五路文案"):
+            prompt = f"Project: {st.session_state.project_name}\nChallenge: {st.session_state.challenge}\nGenerate JSON: slide_en, linkedin_en, facebook_tc, ig_threads_oral, web_en, web_tc, web_jp."
             result = call_gemini_rest(prompt)
             if result:
                 try:
@@ -288,7 +287,8 @@ def main():
                     st.success("✅ AI 文案生成完成！")
                 except: log_debug("JSON Parse Error", "error")
 
-        if st.session_state.ai_content: st.json(st.session_state.ai_content)
+        if st.session_state.ai_content:
+            st.json(st.session_state.ai_content)
 
         if st.button("🚀 Confirm & Sync to Ecosystem"):
             b64_imgs = []
@@ -309,9 +309,9 @@ def main():
 
     # --- 5. 永久除錯終端 (Firebean Brain Debug Terminal) ---
     st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent Component)", expanded=True):
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent Log)", expanded=True):
         if not st.session_state.debug_logs:
-            st.write("Terminal Stand-by. Ready for Institutional Cool Debugging.")
+            st.write("Terminal Stand-by. Waiting for tasks...")
         else:
             for l in reversed(st.session_state.debug_logs):
                 cls = f"debug-{l['type']}"
