@@ -9,11 +9,13 @@ import requests
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 from datetime import datetime
 
-# --- 1. 核心配置 ---
+# --- 1. 核心配置與 API Key 池 ---
+# 鎖定 A-T 欄同步連結
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bf3CsEYZJCEVzgzS_pSwg8y0B69iHLDywgZyz45ctsZTShe1YxRiTTKGjiMc1HFe/exec"
+
+# 從 Secrets 讀取 Key 池，防止 403 報錯
 API_KEYS_POOL = st.secrets.get("API_KEYS", [])
 
-# 選項定義
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = [
@@ -28,10 +30,11 @@ FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
 LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website: Trilingual (EN, TC, JP).
-Motto: 'Turn Policy into Play'. Strictly NO Simplified Chinese. Sections: 50-100 words.
+Motto: 'Turn Policy into Play'. 
+Strictly NO Simplified Chinese. All Challenge/Solution sections must be 50-100 words.
 """
 
-# --- 2. 核心功能引擎 ---
+# --- 2. 核心 SDK 引擎與影像處理 ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -39,19 +42,24 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=None):
+    """SDK 輪詢機制"""
     if not API_KEYS_POOL:
         log_debug("🚨 API Keys Missing!", "error")
         return None
+    model_name = "gemini-2.0-flash" 
     sys_instruction = dynamic_sys_prompt if dynamic_sys_prompt else FIREBEAN_SYSTEM_PROMPT
+
     for idx, key in enumerate(API_KEYS_POOL):
         try:
             log_debug(f"Attempting API with Key #{idx+1}...", "info")
             genai.configure(api_key=key)
-            model = genai.GenerativeModel(model_name="gemini-2.0-flash", system_instruction=sys_instruction)
-            config = genai.types.GenerationConfig(response_mime_type="application/json" if is_json else "text/plain")
+            generation_config = genai.types.GenerationConfig(
+                response_mime_type="application/json" if is_json else "text/plain"
+            )
+            model = genai.GenerativeModel(model_name=model_name, system_instruction=sys_instruction)
             contents = [prompt]
             if image_file: contents.append(image_file)
-            response = model.generate_content(contents, generation_config=config)
+            response = model.generate_content(contents, generation_config=generation_config)
             if response and response.text:
                 log_debug(f"Success with Key #{idx+1}!", "success")
                 return response.text
@@ -61,6 +69,7 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
     return None
 
 def standardize_logo(logo_file):
+    """Logo PNG 標準化與轉向校正"""
     try:
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
@@ -70,12 +79,11 @@ def standardize_logo(logo_file):
         img.thumbnail((720, 320), Image.Resampling.LANCZOS)
         canvas.paste(img, ((800 - img.width) // 2, (400 - img.height) // 2))
         buf = io.BytesIO(); canvas.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized.", "success")
         return base64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        log_debug(f"Logo Fix Error: {str(e)}", "error"); return ""
+    except Exception: return ""
 
 def manna_ai_enhance(image_file):
+    """Manna AI 影像強化"""
     log_debug(f"Vision Processing: {image_file.name}")
     with st.spinner("🚀 Manna AI 正在校正轉向並同步視角..."):
         try:
@@ -86,7 +94,7 @@ def manna_ai_enhance(image_file):
             return img_enhanced
         except Exception: return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
-# --- 3. UI 視覺樣式與同步 ---
+# --- 3. UI 視覺與同步邏輯 ---
 
 def apply_styles():
     st.markdown("""
@@ -116,6 +124,7 @@ def init_session_state():
         if k not in st.session_state: st.session_state[k] = v
 
 def sync_to_master_db(ai_results):
+    """A-T 欄精準映射"""
     try:
         payload = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -127,14 +136,13 @@ def sync_to_master_db(ai_results):
             "category_what": ", ".join(st.session_state.what_we_do), # G 欄
             "scope_of_work": ", ".join(st.session_state.scope_of_word), # H 欄
             "youtube_link": st.session_state.youtube_link,
-            "challenge": ai_results.get("6_website", {}).get("tc", {}).get("content", ""),
-            "solution": ai_results.get("6_website", {}).get("tc", {}).get("content", ""),
-            "ai_content": ai_results 
+            "challenge": ai_results.get("6_website", {}).get("tc", {}).get("content", ""), # J 欄
+            "solution": ai_results.get("6_website", {}).get("tc", {}).get("content", ""), # K 欄
+            "ai_content": ai_results # L-S 欄
         }
         res = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=30)
         return res.status_code == 200
-    except Exception as e:
-        log_debug(f"Sync failed: {str(e)}", "error"); return False
+    except Exception: return False
 
 # --- 4. Main App ---
 
@@ -143,6 +151,7 @@ def main():
     init_session_state()
     apply_styles()
 
+    # 12 維度進度條
     score_items = ["client_name", "project_name", "venue", "challenge", "solution", "youtube_link"]
     filled = sum([1 for f in score_items if st.session_state[f]])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -150,6 +159,7 @@ def main():
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0) + (1 if st.session_state.ai_content else 0)
     percent = int((filled / 12) * 100)
 
+    # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
@@ -169,7 +179,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.subheader("📝 Core Information & Classifications")
+        st.subheader("📝 Core Information & Checkboxes")
         b1, b2, b3_y, b3_m, b4, b5 = st.columns([1, 1, 0.5, 0.4, 1, 1])
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
@@ -178,19 +188,18 @@ def main():
         st.session_state.venue = b4.text_input("Venue", st.session_state.venue)
         st.session_state.youtube_link = b5.text_input("YouTube Link", st.session_state.youtube_link)
         
-        # --- 全 Checkbox 介面 ---
+        # --- 全 Checkbox 介面 (F, G, H 欄) ---
         st.write("---")
-        cc1, cc2 = st.columns(2)
+        cc1, cc2, cc3 = st.columns(3)
         with cc1:
             st.write("👥 **Who we help (F 欄)**")
             st.session_state.who_we_help = [opt for opt in WHO_WE_HELP_OPTIONS if st.checkbox(opt, value=(opt in st.session_state.who_we_help), key=f"who_{opt}")]
         with cc2:
             st.write("🚀 **What we do (G 欄)**")
             st.session_state.what_we_do = [opt for opt in WHAT_WE_DO_OPTIONS if st.checkbox(opt, value=(opt in st.session_state.what_we_do), key=f"what_{opt}")]
-        
-        st.write("🛠️ **SOW (H 欄)**")
-        sc1, sc2, sc3 = st.columns(3)
-        st.session_state.scope_of_word = [opt for i, opt in enumerate(SOW_OPTIONS) if (sc1 if i%3==0 else sc2 if i%3==1 else sc3).checkbox(opt, value=(opt in st.session_state.scope_of_word), key=f"sow_{opt}")]
+        with cc3:
+            st.write("🛠️ **SOW (H 欄)**")
+            st.session_state.scope_of_word = [opt for opt in SOW_OPTIONS if st.checkbox(opt, value=(opt in st.session_state.scope_of_word), key=f"sow_{opt}")]
         st.markdown('</div>', unsafe_allow_html=True)
 
         cl, cr = st.columns([1.2, 1])
@@ -200,11 +209,17 @@ def main():
                 with st.chat_message(m["role"]): st.write(m["content"])
             if p := st.chat_input("匯報細節..."):
                 st.session_state.messages.append({"role": "user", "content": p})
+                # 🔥 修正處：檢查 res 是否為 None，防止 TypeError
                 res = call_gemini_sdk(f"Progress: {percent}%. Input: {p}")
-                if "{" in res and "}" in res:
-                    st.session_state.ai_content = json.loads(res[res.find("{"):res.rfind("}")+1])
-                    st.session_state.messages.append({"role": "assistant", "content": "✅ 資料圓滿，文案已生成！"})
-                else: st.session_state.messages.append({"role": "assistant", "content": res})
+                if res and "{" in res and "}" in res:
+                    try:
+                        st.session_state.ai_content = json.loads(res[res.find("{"):res.rfind("}")+1])
+                        st.session_state.messages.append({"role": "assistant", "content": "✅ 資料圓滿，文案已生成！"})
+                    except Exception: st.session_state.messages.append({"role": "assistant", "content": res})
+                elif res:
+                    st.session_state.messages.append({"role": "assistant", "content": res})
+                else:
+                    st.error("⚠️ API 目前無回應，請檢查 API Key 配額。")
                 st.rerun()
             if st.button("⏹️ 強制結束訪談並生成"):
                 res_json = call_gemini_sdk("FORCE GENERATE JSON NOW.", is_json=True)
@@ -222,6 +237,7 @@ def main():
                 cols = st.columns(4)
                 for i, f in enumerate(files):
                     with cols[i%4]:
+                        # 🪄 Manna AI 強化掣
                         if st.button(f"🪄 AI P{i+1}", key=f"ai_{i}"): st.session_state.processed_photos[i] = manna_ai_enhance(f); st.rerun()
                         img_disp = st.session_state.processed_photos.get(i, ImageOps.exif_transpose(Image.open(f)))
                         st.markdown(f'<div class="{"hero-border" if i == st.session_state.hero_index else ""}">', unsafe_allow_html=True)
@@ -231,10 +247,12 @@ def main():
 
     with tab2:
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        # 讓用戶微調 Challenge/Solution
         st.session_state.challenge = st.text_area("Challenge (EN)", st.session_state.challenge)
         st.session_state.solution = st.text_area("Solution (EN)", st.session_state.solution)
         if st.button("🪄 一鍵生成文案 (數據注入)"):
             with st.spinner("🧠 正在生成專屬文案..."):
+                # 🔥 防止幻覺：注入真實資料
                 gen_prompt = f"BASED ONLY ON: Client {st.session_state.client_name}, Project {st.session_state.project_name}. Challenge: {st.session_state.challenge}. Solution: {st.session_state.solution}. Generate JSON Socials/Web."
                 res_json = call_gemini_sdk(gen_prompt, is_json=True)
                 if res_json: st.session_state.ai_content = json.loads(res_json); st.success("✅ 生成完畢！")
