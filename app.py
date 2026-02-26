@@ -10,12 +10,11 @@ from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
 # --- 1. 核心配置與 Webhook URL ---
-# 這些是您提供給我的 Google Apps Script 部署 URL
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 使用目前最穩定的模型名，若 2.5 flash 報 404 請嘗試改回 gemini-1.5-flash
-MODEL_ID = "gemini-1.5-flash"
+# 🚀 鎖定 2.5 旗艦模型
+STABLE_MODEL_ID = "gemini-2.5-flash-preview-09-2025"
 
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
@@ -29,9 +28,10 @@ SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Them
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Mission: Analyze PR activities through visual and factual data.
-Language Rule: Output everything in Traditional Chinese (繁體中文).
-Sync Rule: Always output JSON using numbered keys (1_google_slide to 6_website) for API compatibility.
+Mission: PR Events solve brand-audience gaps through high-end experiences.
+Rule: Analyze ALL uploaded photos. Be fact-strict. 
+Language Rule: Always output in Traditional Chinese (繁體中文).
+Sync Rule: Output JSON using numbered keys (1_google_slide to 6_website) for API sync.
 """
 
 # --- 2. 核心邏輯 (Debug, API, Image) ---
@@ -42,7 +42,6 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """具備重試機制與圖片壓縮的 SDK 調用"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
 
@@ -53,37 +52,35 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 response_mime_type="application/json" if is_json else "text/plain",
                 temperature=0.3
             )
-            model = genai.GenerativeModel(model_name=MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
+            model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
             
             contents = [prompt]
             if image_files:
                 for img_file in image_files:
                     img = Image.open(img_file)
-                    img.thumbnail((800, 800))
+                    img.thumbnail((720, 720))
                     contents.append(img)
             
             response = model.generate_content(contents, generation_config=config)
             if response and response.text:
-                log_debug(f"✅ API Success (Key #{idx})", "success")
+                log_debug(f"✅ Gemini 2.5 Success (Key #{idx})", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
-                # 提取 JSON 的 Regex 確保安全
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
-            log_debug(f"❌ API Fail (Key #{idx}): {str(e)[:50]}", "warning")
+            log_debug(f"❌ Key #{idx} Fail: {str(e)[:50]}", "warning")
             continue
     return None
 
 def test_api_connection():
-    """連線測試按鈕"""
     log_debug("🚀 開始連線測試...", "info")
-    res = call_gemini_sdk("Ping. Please respond with: 'Online'.")
+    res = call_gemini_sdk("Ping test. Please respond with: 'Online'.")
     if res:
         st.toast("✅ SDK 連線成功！")
-        log_debug("系統連線正常，可執行分析。", "success")
+        log_debug("API 正常。", "success")
     else:
-        st.toast("❌ 連線失敗，請檢查 Key 是否過期。", icon="🔥")
+        st.toast("❌ 連線失敗，請檢查 Key。", icon="🔥")
 
 def standardize_logo(logo_file):
     try:
@@ -112,7 +109,26 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式元件 ---
+def fill_dummy_data():
+    """🚀 老細專屬：一鍵填寫測試數據"""
+    st.session_state.client_name = "Firebean Test Client"
+    st.session_state.project_name = "AI Tech Event 2026"
+    st.session_state.venue = "HKCEC Hall 1"
+    st.session_state.youtube_link = "https://youtube.com/test"
+    st.session_state.who_we_help = ["LIFESTYLE & CONSUMER"]
+    st.session_state.what_we_do = ["INTERACTIVE & TECH", "SOCIAL & CONTENT"]
+    st.session_state.scope_of_word = ["Event Planning", "Theme Design"]
+    st.session_state.open_question_ans = "This is a dummy concept for testing sync logic."
+    # 填充虛擬 MC 題目防止 AttributeError
+    st.session_state.mc_questions = [
+        {"id": 1, "question": "測試題目 1", "options": ["Option A", "Option B"]},
+        {"id": 2, "question": "測試題目 2", "options": ["Option C", "Option D"]}
+    ]
+    st.session_state[f"ans_1"] = ["Option A"]
+    st.session_state[f"ans_2"] = ["Option C"]
+    log_debug("🚀 測試數據已自動填寫！", "info")
+
+# --- 3. UI 樣式 ---
 
 def get_animated_bar_html(percent, status_text):
     return f"""
@@ -131,9 +147,9 @@ def get_circle_progress_html(percent):
     offset = circum * (1 - percent/100)
     return f"""
     <div style="display: flex; justify-content: flex-end; align-items: center;">
-        <div style="position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="110" height="110"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="45" cx="55" cy="55" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;">{percent}%</div>
+        <div style="position: relative; width: 100px; height: 100px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
+            <svg width="100" height="100"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="40" cx="50" cy="50" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <div style="position: absolute; font-size: 18px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
     </div>"""
 
@@ -146,7 +162,7 @@ def apply_styles():
         h1, h2, h3, label { color: #2D3436 !important; font-weight: 800 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border-radius: 10px !important; }
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
-        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 180px; overflow-y: auto; }
+        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -163,7 +179,7 @@ def main():
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
     filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
-    filled += (1 if len(st.session_state.mc_questions) == 20 else 0)
+    filled += (1 if len(st.session_state.mc_questions) >= 2 else 0) # 測試版降低門檻
     total_pct = int((filled / 10) * 100)
     if total_pct > 100: total_pct = 100
 
@@ -172,18 +188,21 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
     with c2: st.markdown(get_circle_progress_html(total_pct), unsafe_allow_html=True)
 
-    # 導航按鈕
+    # 導航
     st.markdown("<br>", unsafe_allow_html=True)
     n1, n2, n3 = st.columns(3)
-    tabs_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
-    for i, t in enumerate(tabs_list):
-        if [n1, n2, n3][i].button(t, use_container_width=True, key=f"nav_{i}", type="primary" if st.session_state.active_tab == t else "secondary"):
+    tabs = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
+    for i, t in enumerate(tabs):
+        if [n1, n2, n3][i].button(t, use_container_width=True, type="primary" if st.session_state.active_tab == t else "secondary"):
             st.session_state.active_tab = t
             st.rerun()
     st.markdown("---")
 
     # --- TAB 1: COLLECTOR ---
     if st.session_state.active_tab == "📝 Project Collector":
+        # 🚀 測試模式快捷掣
+        st.button("🧪 老細專用：一鍵填寫測試內容", on_click=fill_dummy_data, use_container_width=True)
+        
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("🎨 Assets & Fact Info")
         col1, col2 = st.columns(2)
@@ -221,32 +240,27 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🧠 靈魂診斷官 (全相片掃描)")
-            if st.button("🪄 執行全相片視覺分析並出題"):
+            st.subheader("🧠 靈魂診斷官 (Gemini 2.5 全相片掃描)")
+            if st.button("🪄 生成 20 條 MC 題目 (視覺分析)"):
                 if not st.session_state.project_photos:
                     st.error("請上傳活動相片作事實對位。")
                 else:
                     loader = st.empty()
-                    status = "📸 正在掃描全相片細節並獲取視覺事實..."
+                    status = "📸 正在掃描全相片細節 (Gemini 2.5)..."
                     for p in range(0, 80, 5):
                         loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                         time.sleep(0.04)
                     
-                    vision_prompt = """
-                    Analyze these event photos. Strictly list visual facts in Traditional Chinese: 
-                    Identify branding, décor, tech equipment, scale, and food service. 
-                    No hallucinations.
-                    """
+                    vision_prompt = "Analyze event photos. List visual facts (branding, decor, tech) in Traditional Chinese. Be fact-strict."
                     st.session_state.visual_facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                     
                     loader.markdown(get_animated_bar_html(90, "🧠 正在基於視覺證據生成繁中題目..."), unsafe_allow_html=True)
                     
-                    # 🚀 修復：使用雙括號 {{}} 防止 ValueError
+                    # 🚀 使用雙括號 {{ }} 避開 ValueError
                     prompt = f"""
                     你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
-                    以及項目資料：Client: {st.session_state.client_name}, Cat: {st.session_state.who_we_help[0]}
-                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足。
-                    [指令]：全部使用「繁體中文」。Output STRICTLY JSON Array: [{{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}}]
+                    生成 20 條繁中 MC 題目。中心思想：透過 PR 活動體驗解決接觸不足問題。
+                    Output STRICTLY JSON Array: [{{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
@@ -254,7 +268,6 @@ def main():
                         time.sleep(0.5); loader.empty()
                         try: 
                             parsed = json.loads(res)
-                            # 🛡️ 類型檢查防禦：修復 AttributeError
                             if isinstance(parsed, list):
                                 st.session_state.mc_questions = [q for q in parsed if isinstance(q, dict)]
                                 st.success("✅ 活動回顧題目已生成！")
@@ -268,9 +281,11 @@ def main():
                         st.markdown(f"<div class='mc-question'>Q{q_id}. {q.get('question')}</div>", unsafe_allow_html=True)
                         sel = []
                         for opt_idx, opt_text in enumerate(q.get('options', [])):
-                            if st.checkbox(opt_text, key=f"mc_cb_{q_id}_{opt_idx}"): sel.append(opt_text)
+                            # 確保 value 同步
+                            val = opt_text in st.session_state.get(f"ans_{q_id}", [])
+                            if st.checkbox(opt_text, key=f"mc_cb_{q_id}_{opt_idx}", value=val): sel.append(opt_text)
                         st.session_state[f"ans_{q_id}"] = sel
-                st.session_state.open_question_ans = st.text_area("覺得我哋嘅概念最特別是什麼？", st.session_state.open_question_ans)
+                st.session_state.open_question_ans = st.text_area("覺得概念最特別是什麼？", st.session_state.open_question_ans)
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
@@ -298,7 +313,7 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 2026 社交平台策略發布")
         
-        if st.button("🪄 一鍵生成文案 (編號對接專用版)"):
+        if st.button("🪄 一鍵生成文案 (對接編號專用版)"):
             loader = st.empty()
             status = f"🧠 FIREBEAN BRAIN 正在分析數據鏈..."
             for p in range(0, 96, 3): 
@@ -311,10 +326,9 @@ def main():
                     ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                     sum_ans_text.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
             
-            # 🚀 關鍵：編號型 Key 確保 Apps Script 對接
             prompt = f"""
-            作為 Strategist，根據事實：{st.session_state.visual_facts}
-            執行數據：{chr(10).join(sum_ans_text)} | 靈魂概念：{st.session_state.open_question_ans}
+            作為 Strategist，根據事實執行數據：{chr(10).join(sum_ans_text)}
+            以及靈魂概念：{st.session_state.open_question_ans}
             Output STRICTLY RAW JSON with these numbered keys for Google API Sync:
             - "品牌痛點分析": text (繁中)
             - "活動方案核心": text (繁中)
@@ -322,7 +336,7 @@ def main():
             - "2_facebook_post": text
             - "3_threads_post": text
             - "4_instagram_post": text (繁中, <150字)
-            - "5_linkedin_post": text (Professional English)
+            - "5_linkedin_post": text (Professional Business English)
             - "6_website": {{ "en": "...", "tc": "...", "jp": "..." }}
             """
             res = call_gemini_sdk(prompt, is_json=True)
@@ -331,8 +345,10 @@ def main():
                 time.sleep(0.5); loader.empty()
                 try: 
                     st.session_state.ai_content = json.loads(res)
+                    st.session_state.challenge = st.session_state.ai_content.get("品牌痛點分析", "")
+                    st.session_state.solution = st.session_state.ai_content.get("活動方案核心", "")
                 except: st.error("JSON 解析失敗。")
-            else: loader.empty(); st.error("API 失敗，請更換有效金鑰。")
+            else: loader.empty(); st.error("API 失敗，請更換密鑰。")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
@@ -355,8 +371,7 @@ def main():
                             "category_who": st.session_state.who_we_help[0],
                             "category_what": ", ".join(st.session_state.what_we_do),
                             "scope_of_work": ", ".join(st.session_state.scope_of_word),
-                            "challenge": st.session_state.ai_content.get("品牌痛點分析", ""),
-                            "solution": st.session_state.ai_content.get("活動方案核心", ""),
+                            "challenge": st.session_state.challenge, "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
                             "mc_summary": "\n".join(final_mc_summary),
                             "ai_content": st.session_state.ai_content,
@@ -383,7 +398,7 @@ def main():
             else: st.error("Email 格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. Debug 終端 ---
+    # --- 5. 永久除錯終端 ---
     with st.expander("🛠️ Firebean Brain Debug Terminal", expanded=False):
         if st.button("🔍 測試 API 連線"): test_api_connection()
         if st.session_state.debug_logs:
