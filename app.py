@@ -9,7 +9,7 @@ import re
 from PIL import Image, ImageEnhance, ImageOps, ImageDraw
 from datetime import datetime
 
-# --- 1. 配置 (請確保 URL 正確) ---
+# --- 1. 配置 (更新為老細提供之最新 WEB URL) ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaQu2KpJ06I0yWL4dEwk0naB1FOlHkt7Ta340xH84IDwQI7jQNUI3eSmxrwKyQHNj5/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZvtm8M8a5sLYF3vz9kLyAdimzzwpSlnTkzIeQ3DJxkklNYNlwSoJc5j5CkorM6w5V/exec"
 
@@ -21,9 +21,9 @@ SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Them
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Lead Strategist. 
-Identity: 'Institutional Cool'. 
-Rule: Analyze photos strictly for facts. Always output in Traditional Chinese (繁體中文).
+Identity: 'Institutional Cool'. Always output in Traditional Chinese (繁體中文).
 Sync Rule: Output JSON with numbered keys (1_google_slide to 6_website) for API compatibility.
+Include 'challenge_summary' and 'solution_summary' in your analysis.
 """
 
 # --- 2. 核心邏輯 ---
@@ -54,38 +54,36 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def create_dummy_data():
-    """🚀 老細測試神器：自動畫圖、自動填字、自動選 SOW"""
-    st.session_state.client_name = "Firebean Dummy"
-    st.session_state.project_name = "2026 Sync Test Project"
-    st.session_state.venue = "HKCEC Hall 3"
-    st.session_state.youtube_link = "https://youtube.com/test"
+    """🚀 老細測試神器：生出 8 張相測試兩頁 Slide 填充"""
+    st.session_state.client_name = "Firebean Dummy Test"
+    st.session_state.project_name = "2026 Sync Full Test"
+    st.session_state.venue = "HKCEC Hall 1"
     st.session_state.who_we_help = ["LIFESTYLE & CONSUMER"]
-    st.session_state.what_we_do = ["INTERACTIVE & TECH"]
-    st.session_state.scope_of_word = ["Theme Design", "Event Production"]
-    st.session_state.open_question_ans = "AI-Driven Engagement Strategy."
+    st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
+    st.session_state.scope_of_word = ["Theme Design", "Concept Development", "Event Production"]
+    st.session_state.open_question_ans = "AI Emotional Capture Strategy."
     
-    # 自動繪製 4 張 Dummy 相片
-    colors = [(255,0,0), (0,255,0), (0,0,255), (200,200,0)]
+    # 生出 8 張 Dummy 相
     st.session_state.project_photos = []
+    colors = [(255,0,0), (0,255,0), (0,0,255), (200,200,0), (200,0,200), (0,200,200), (100,100,100), (0,0,0)]
     for i, c in enumerate(colors):
         img = Image.new('RGB', (800, 600), color=c)
-        d = ImageDraw.Draw(img); d.text((50,50), f"Dummy Image {i+1}", fill=(255,255,255))
+        d = ImageDraw.Draw(img); d.text((50,50), f"Dummy P{i+1}", fill=(255,255,255))
         buf = io.BytesIO(); img.save(buf, format="JPEG"); buf.seek(0)
         st.session_state.project_photos.append(buf)
     
-    st.session_state.mc_questions = [{"id": 1, "question": "API Connection?", "options": ["OK", "Fail"]}]
+    st.session_state.mc_questions = [{"id": 1, "question": "API Connection Test?", "options": ["OK", "FAIL"]}]
     st.session_state["ans_1"] = ["OK"]
-    log_debug("🚀 Dummy Content Loaded!", "success")
+    log_debug("🚀 一鍵填充 8 張相片數據完成！", "success")
 
 def init_session_state():
     fields = {"active_tab": "📝 Project Collector", "client_name": "", "project_name": "", "venue": "", 
-              "who_we_help": ["LIFESTYLE & CONSUMER"], "what_we_do": [], "scope_of_word": [],
+              "who_we_help": ["GOVERNMENT & PUBLIC SECTOR"], "what_we_do": [], "scope_of_word": [],
               "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
               "debug_logs": [], "mc_questions": [], "open_question_ans": "", "visual_facts": ""}
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式 ---
 def apply_styles():
     st.markdown("""<style>
         .stApp { background-color: #E0E5EC; color: #2D3436; }
@@ -101,19 +99,19 @@ def main():
     apply_styles()
 
     # Progress Calculation
-    total_pct = min(100, int((sum([1 for f in ["client_name", "project_name", "venue"] if st.session_state[f]]) / 3) * 100))
+    filled = sum([1 for f in ["client_name", "project_name", "venue"] if st.session_state[f]])
+    percent = min(100, int((filled / 3) * 100))
 
     # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=150)
-    with c2: st.metric("System Ready", f"{total_pct}%")
+    with c2: st.metric("System Load", f"{percent}%")
 
     st.markdown("<br>", unsafe_allow_html=True)
     tabs = st.tabs(["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"])
 
-    # TAB 1: COLLECTOR
     with tabs[0]:
-        if st.button("🧪 老細專用：一鍵填充 Dummy 測試數據", use_container_width=True):
+        if st.button("🧪 老細專用：一鍵填充 Dummy 測試數據 (含 8 張圖片)", use_container_width=True):
             create_dummy_data(); st.rerun()
         
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -122,16 +120,16 @@ def main():
         st.session_state.project_name = col2.text_input("Project Name", st.session_state.project_name)
         st.session_state.venue = col3.text_input("Venue", st.session_state.venue)
         
-        c_a, c_b, c_c = st.columns(3)
-        with c_a: st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS)]
-        with c_b: st.session_state.what_we_do = [opt for opt in WHAT_WE_DO_OPTIONS if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do))]
-        with c_c: st.session_state.scope_of_word = [opt for opt in SOW_OPTIONS if st.checkbox(opt, key=f"s_{opt}", value=(opt in st.session_state.scope_of_word))]
+        ca, cb, cc = st.columns(3)
+        with ca: st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS)]
+        with cb: st.session_state.what_we_do = [opt for opt in WHAT_WE_DO_OPTIONS if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do))]
+        with cc: st.session_state.scope_of_word = [opt for opt in SOW_OPTIONS if st.checkbox(opt, key=f"s_{opt}", value=(opt in st.session_state.scope_of_word))]
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if st.button("🪄 生成 MC 題目 (Vision 分析)"):
-            with st.spinner("Gemini 2.5 掃描中..."):
-                st.session_state.visual_facts = call_gemini_sdk("List visual facts in Traditional Chinese.", image_files=st.session_state.project_photos)
-                res = call_gemini_sdk(f"基於事實 {st.session_state.visual_facts} 生成 20 條繁中 MC。格式: [{{'id':1,'question':'...','options':['A','B']}}]", is_json=True)
+        if st.button("🪄 生成 20 條繁中 MC (Vision 分析)"):
+            with st.spinner("Gemini 2.5 分析圖片中..."):
+                st.session_state.visual_facts = call_gemini_sdk("Analyze event facts in Traditional Chinese.", image_files=st.session_state.project_photos)
+                res = call_gemini_sdk(f"基於事實 {st.session_state.visual_facts} 生成 20 條繁中 MC。格式: [{{\"id\":1,\"question\":\"...\",\"options\":[\"A\",\"B\"]}}]", is_json=True)
                 if res: st.session_state.mc_questions = json.loads(res)
 
         if st.session_state.mc_questions:
@@ -139,32 +137,32 @@ def main():
                 if isinstance(q, dict):
                     st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']}</div>", unsafe_allow_html=True)
                     st.session_state[f"ans_{q['id']}"] = [opt for opt in q['options'] if st.checkbox(opt, key=f"cb_{q['id']}_{opt}")]
-
-        files = st.file_uploader("Upload Photos", accept_multiple_files=True)
-        if files: st.session_state.project_photos = files
+        
+        fup = st.file_uploader("Upload up to 8 Photos", accept_multiple_files=True)
+        if fup: st.session_state.project_photos = fup
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # TAB 2: SYNC
     with tabs[1]:
-        if st.button("🪄 生成對接文案"):
-            with st.spinner("AI Strategist 對位中..."):
+        if st.button("🪄 生成文案及挑戰/方案"):
+            with st.spinner("AI 構思中..."):
                 sum_ans = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q.get('id')}')}" for q in st.session_state.mc_questions if isinstance(q, dict)]
-                prompt = f"數據:{sum_ans} | 概念:{st.session_state.open_question_ans}. Output JSON with numbered keys 1_google_slide to 6_website. Also include 'challenge' and 'solution'."
+                prompt = f"數據:{sum_ans}. Output JSON numbering keys 1_google_slide to 6_website. Plus 'challenge_summary' and 'solution_summary'."
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res: st.session_state.ai_content = json.loads(res)
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync to Master DB & Slide", type="primary", use_container_width=True):
-                with st.spinner("多軌同步中..."):
+            if st.button("🚀 Confirm & Sync (Sheet + Slide + Folder)", type="primary", use_container_width=True):
+                with st.spinner("正在執行多軌同步..."):
                     try:
                         sync_imgs = [base64.b64encode(f.read() if hasattr(f, 'read') else f.getvalue()).decode() for f in st.session_state.project_photos]
                         payload = {
                             "action": "sync_project", "client_name": st.session_state.client_name,
                             "project_name": st.session_state.project_name, "venue": st.session_state.venue,
                             "category": st.session_state.who_we_help[0], "scope": ", ".join(st.session_state.scope_of_word),
-                            "date": datetime.now().strftime("%b %Y"), "challenge": st.session_state.ai_content.get("challenge", ""),
-                            "solution": st.session_state.ai_content.get("solution", ""),
+                            "date": datetime.now().strftime("%Y-%m-%d"), 
+                            "challenge": st.session_state.ai_content.get("challenge_summary", ""),
+                            "solution": st.session_state.ai_content.get("solution_summary", ""),
                             "ai_content": st.session_state.ai_content, "images": sync_imgs
                         }
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
@@ -174,7 +172,7 @@ def main():
                     except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
 
     with st.expander("🛠️ Debug Terminal"):
-        logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.debug_logs)])
+        logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
         st.markdown(f"<div class='debug-terminal'>{logs}</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__": main()
