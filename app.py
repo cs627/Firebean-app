@@ -13,7 +13,7 @@ from datetime import datetime
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 🚀 根據老細提供的 Rate Limit 截圖，使用最新 2.5 模型
+# 🚀 使用最新 2.5 模型 (根據您的權限截圖)
 STABLE_MODEL_ID = "gemini-2.5-flash"
 
 API_KEYS_POOL = [
@@ -31,6 +31,7 @@ You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institu
 Your philosophy: PR Events are the ultimate bridge between brands and people.
 You diagnose and solve 'lack of reach' through PR experiences seen in user data and photos.
 Rule: Analyze ALL uploaded photos. Be fact-strict. No hallucinations.
+Language Rule: Always use Traditional Chinese (繁體中文) for internal diagnostics and public posts unless specified.
 Always output JSON in numbered keys (1_google_slide to 6_website) for API sync.
 """
 
@@ -58,17 +59,15 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             contents = [prompt]
             if image_files:
                 for img_file in image_files:
-                    # 🖼️ 優化：將相片長邊縮放至 800px 以加快分析速度
                     img = Image.open(img_file)
                     img.thumbnail((800, 800))
                     contents.append(img)
             
             response = model.generate_content(contents, generation_config=config)
             if response and response.text:
-                log_debug(f"✅ Gemini 2.5 Success (Key #{idx})", "success")
+                log_debug(f"✅ API Success (Key #{idx})", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
-                # JSON 提取防爆
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
@@ -227,7 +226,7 @@ def main():
                     st.error("請上傳活動相片作事實對位。")
                 else:
                     loader = st.empty()
-                    status = "📸 正在掃描全相片細節 (已優化尺寸)..."
+                    status = "📸 正在掃描全相片細節並獲取視覺事實..."
                     for p in range(0, 80, 5):
                         loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                         time.sleep(0.04)
@@ -243,12 +242,18 @@ def main():
                     
                     loader.markdown(get_animated_bar_html(90, "🧠 正在基於視覺證據生成題目..."), unsafe_allow_html=True)
                     
-                    # 生成 MC
+                    # 🚀 強制繁體中文生成 MC
                     prompt = f"""
                     你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
                     以及項目資料：Client: {st.session_state.client_name}, Category: {st.session_state.who_we_help[0]}
                     生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足問題。
-                    Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...']}}]
+                    
+                    [重要指令]：
+                    1. 題目與選項必須全部使用「繁體中文 (Traditional Chinese)」。
+                    2. 題目比例：6題分析痛點，7題診斷體驗設計，7題評估轉化成效。
+                    3. 選項要專業且貼近公關實務。
+                    
+                    Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
@@ -296,7 +301,7 @@ def main():
         
         if st.button("🪄 一鍵生成文案 (編號對接專用版)"):
             loader = st.empty()
-            status = f"🧠 FIREBEAN BRAIN 正在分析全相片數據鏈..."
+            status = f"🧠 FIREBEAN BRAIN 正在分析數據鏈..."
             for p in range(0, 96, 3): 
                 loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                 time.sleep(0.04)
@@ -312,13 +317,13 @@ def main():
             客戶: {st.session_state.client_name} | 項目: {st.session_state.project_name}
             
             Output STRICTLY RAW JSON with these numbered keys for Google Sync:
-            - "品牌痛點分析": text
-            - "活動方案核心": text
+            - "品牌痛點分析": text (繁中)
+            - "活動方案核心": text (繁中)
             - "1_google_slide": {{ "hook": "...", "shift": "...", "proof": "..." }}
             - "2_facebook_post": text
             - "3_threads_post": text
-            - "4_instagram_post": text (Traditional Chinese, <150 words)
-            - "5_linkedin_post": text (Business English)
+            - "4_instagram_post": text (繁中, <150 words)
+            - "5_linkedin_post": text (Professional English)
             - "6_website": {{ "en": "...", "tc": "...", "jp": "..." }}
             """
             res = call_gemini_sdk(prompt, is_json=True)
