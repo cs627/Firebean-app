@@ -9,10 +9,12 @@ import requests
 from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
-# --- 1. 核心配置與 API Key 池 ---
-SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
+# --- 1. 核心配置與 API / Webhook URL ---
+# Master DB (Google Sheet) 接收器
+SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
+# Google Slide 自動生成接收器
+SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 備用 Key 池
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
     "AIzaSyCVuoSuWV3tfGCu2tjikCkMOVRWCBFne20",
@@ -40,7 +42,6 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=None):
-    # 確保優先讀取 Streamlit Secrets 的 Key
     secret_key = ""
     if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
         secret_key = st.secrets["GEMINI_API_KEY"]
@@ -89,7 +90,6 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
 
 def test_api_connection():
     log_debug("🚀 Starting SDK Connection Test...", "info")
-    
     if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
         log_debug("🔑 [System] 成功讀取 Streamlit Secrets 中的 API Key！", "success")
     else:
@@ -113,7 +113,7 @@ def standardize_logo(logo_file, target_size=(800, 400), padding=40):
         offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
         canvas.paste(img, offset, img)
         buf = io.BytesIO(); canvas.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized.", "success")
+        log_debug(f"Logo '{logo_file.name}' normalized & converted to Base64 PNG.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
@@ -178,7 +178,6 @@ def apply_styles():
         h1, h2, h3, h4, h5, h6, p, label, div[data-testid="stMarkdownContainer"] > p { color: #2D3436 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; -webkit-text-fill-color: #2D3436 !important; }
         
-        /* 隱藏 Checkbox/Radio 預設背景帶來的不協調 */
         div[data-testid="stCheckbox"] label span { color: #2D3436 !important; }
         div[data-testid="stRadio"] label span { color: #2D3436 !important; }
 
@@ -228,7 +227,6 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算 (滿分為 10 項，YouTube 不計入)
     score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -239,7 +237,6 @@ def main():
     percent = int((filled / 10) * 100)
     if percent > 100: percent = 100
 
-    # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
@@ -269,7 +266,6 @@ def main():
         st.session_state.youtube_link = b5.text_input("YouTube Link (Optional)", st.session_state.youtube_link)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 全面 Checkbox 與 Radio 選單
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.subheader("🗂️ Project Classification")
         c1, c2, c3 = st.columns(3)
@@ -314,19 +310,16 @@ def main():
                         else:
                             st.error("生成失敗，請重試。")
 
-            # 顯示 20 條 MC (已全面升級為可多選 Checkbox)
             if st.session_state.mc_questions:
                 st.markdown("---")
                 for q in st.session_state.mc_questions:
                     st.markdown(f"<div class='mc-question'>Q{q['id']}. [{q['category']}] {q['question']} <span class='mc-hint'>(可多選)</span></div>", unsafe_allow_html=True)
                     
-                    # 使用 Checkbox 收集多個答案
                     selected_opts = []
                     for opt_idx, opt in enumerate(q['options']):
                         if st.checkbox(opt, key=f"mc_cb_{q['id']}_{opt_idx}"):
                             selected_opts.append(opt)
                             
-                    # 將勾選的答案合併成字串，儲存在 session 供 Tab 2 讀取
                     st.session_state[f"mc_ans_{q['id']}"] = ", ".join(selected_opts) if selected_opts else "未作答"
                 
                 st.markdown("---")
@@ -362,7 +355,6 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 6 Platforms Generation & DB Sync")
         
-        # 強制防呆條件檢查
         has_logo = bool(st.session_state.logo_white or st.session_state.logo_black)
         has_enough_photos = len(st.session_state.project_photos) >= 4
         has_completed_mc = len(st.session_state.mc_questions) == 20
@@ -453,7 +445,7 @@ def main():
             if not st.session_state.ai_content:
                 st.error("請先生成文案再進行同步！")
             else:
-                with st.spinner("🔄 正在打包 6 大平台文案及相片，準備發送至 Google Sheet..."):
+                with st.spinner("🔄 正在雙軌發送數據至 Master DB (Google Sheet) 及自動生成 Google Slide..."):
                     try:
                         b64_imgs = []
                         for i, f in enumerate(st.session_state.project_photos):
@@ -461,6 +453,11 @@ def main():
                             buf = io.BytesIO()
                             img.convert("RGB").save(buf, format="JPEG", quality=80)
                             b64_imgs.append(base64.b64encode(buf.getvalue()).decode())
+
+                        # 確保黑白 Logo 有被打包入 payload
+                        has_black = bool(st.session_state.logo_black)
+                        has_white = bool(st.session_state.logo_white)
+                        log_debug(f"Packaging Payload: {len(b64_imgs)} photos. Black Logo: {has_black}. White Logo: {has_white}", "info")
 
                         payload = {
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -476,19 +473,42 @@ def main():
                             "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
                             "ai_content": st.session_state.ai_content,
-                            "logo_white": st.session_state.logo_white,
-                            "logo_black": st.session_state.logo_black,
+                            "logo_white": st.session_state.logo_white, # 呢度已經傳送咗 Base64
+                            "logo_black": st.session_state.logo_black, # 呢度已經傳送咗 Base64
                             "images": b64_imgs
                         }
 
-                        response = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
-                        if response.status_code == 200 or response.status_code == 302:
+                        sheet_ok = False
+                        slide_ok = False
+                        
+                        try:
+                            log_debug("Sending to Google Sheet Apps Script...", "info")
+                            res_sheet = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
+                            sheet_ok = res_sheet.status_code in [200, 302]
+                            log_debug(f"Sheet Response: {res_sheet.status_code}", "success" if sheet_ok else "warning")
+                        except Exception as e:
+                            log_debug(f"Sheet Sync Error: {str(e)}", "error")
+
+                        try:
+                            log_debug("Sending to Google Slide Apps Script...", "info")
+                            res_slide = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
+                            slide_ok = res_slide.status_code in [200, 302]
+                            log_debug(f"Slide Response: {res_slide.status_code}", "success" if slide_ok else "warning")
+                        except Exception as e:
+                            log_debug(f"Slide Sync Error: {str(e)}", "error")
+
+                        if sheet_ok and slide_ok:
                             st.balloons()
-                            st.success("✅ 真實數據已成功發送並同步至 Google Sheet Master DB！")
+                            st.success("✅ 真實數據已成功同步至 Master DB，並成功觸發 Google Slide 自動生成！")
+                        elif sheet_ok and not slide_ok:
+                            st.warning("⚠️ 數據已成功寫入 Google Sheet，但 Google Slide 生成失敗（請檢查 Slide Apps Script）。")
+                        elif not sheet_ok and slide_ok:
+                            st.warning("⚠️ Google Slide 已成功生成，但 Google Sheet 寫入失敗（請檢查 Sheet Apps Script）。")
                         else:
-                            st.error(f"❌ 同步失敗，HTTP 狀態碼: {response.status_code}")
+                            st.error("❌ Google Sheet 與 Google Slide 同步皆失敗，請查看最底部的 Debug Terminal。")
+                            
                     except Exception as e:
-                        st.error(f"❌ 連線錯誤: {str(e)}")
+                        st.error(f"❌ 打包數據時發生錯誤: {str(e)}")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 5. 永久除錯終端 ---
