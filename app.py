@@ -69,11 +69,9 @@ def standardize_logo(logo_file):
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         buf = io.BytesIO(); img.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized & converted to Base64 PNG.", "success")
+        log_debug(f"Logo '{logo_file.name}' encoded to Base64.", "success")
         return base64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        log_debug(f"Logo Fix Error: {str(e)}", "error")
-        return ""
+    except: return ""
 
 def manna_ai_enhance(image_file):
     try:
@@ -94,17 +92,27 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與大字體狀態交代 ---
+# --- 3. UI 樣式與 % Progress Bar 動畫 ---
 
-def get_text_status_html(status_text="AI Processing..."):
-    """取代 SVG 動畫：使用大字體純文字交代狀態"""
+def get_animated_bar_html(percent, status_text):
+    """生成自定義 Neumorphic 進度條與大字體狀態"""
     return f"""
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin: 20px 0; border: 2px solid #FF0000;">
-        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 32px; text-align: center; line-height: 1.4; letter-spacing: 2px;">
+    <div style="padding: 40px; background: #E0E5EC; border-radius: 25px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 30px 0; border: 1px solid rgba(255,0,0,0.1);">
+        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 28px; text-align: center; margin-bottom: 25px; letter-spacing: 1px;">
             {status_text}
         </div>
-        <div style="margin-top: 15px; color: #2D3436; font-size: 14px; font-weight: 600;">System is calculating project DNA...</div>
-    </div>"""
+        <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 30px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
+            <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s ease-in-out;">
+                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 16px; line-height: 30px;">
+                    {percent}%
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 15px; color: #2D3436; font-size: 13px; font-weight: 700; opacity: 0.7;">
+            FIREBEAN BRAIN SYSTEM CALIBRATING...
+        </div>
+    </div>
+    """
 
 def get_circle_progress_html(percent):
     circum = 439.8
@@ -147,15 +155,15 @@ def main():
     filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
     filled += (1 if len(st.session_state.mc_questions) == 20 else 0)
-    percent = int((filled / 10) * 100)
-    if percent > 100: percent = 100
+    percent_total = int((filled / 10) * 100)
+    if percent_total > 100: percent_total = 100
 
     # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
-    with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
+    with c2: st.markdown(get_circle_progress_html(percent_total), unsafe_allow_html=True)
 
-    # 全闊度導航按鈕
+    # 全闊度導航
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -186,14 +194,12 @@ def main():
         with c_a: 
             st.markdown("**👥 Category**")
             st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS, label_visibility="collapsed")]
-        
         with c_b: 
             st.markdown("**🚀 What we do**")
             new_wwd = []
             for opt in WHAT_WE_DO_OPTIONS:
                 if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do)): new_wwd.append(opt)
             st.session_state.what_we_do = new_wwd
-            
         with c_c:
             st.markdown("**🛠️ Scope**")
             new_sow = []
@@ -208,30 +214,28 @@ def main():
             st.subheader("🧠 專案靈魂萃取器 (6-7-7 診斷矩陣)")
             
             if st.button("🪄 生成 20 條受眾心理診斷題"):
-                # 顯示大字體文字狀態
+                # --- % Progress Bar 動畫開始 ---
                 loader = st.empty()
-                loader.markdown(get_text_status_html("📖 正在翻閱資料及診斷受眾 DNA..."), unsafe_allow_html=True)
+                status_msg = "📖 正在翻閱資料及診斷受眾 DNA..."
+                for p in range(0, 96, 4): # 先跑到 96%
+                    loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
+                    time.sleep(0.05)
                 
-                prompt = f"""
-                根據以下專案設定，生成 20 條針對「End Users (受眾)」的 MC 心理診斷題目 (分配比例 6:7:7)。
-                [Category]: {st.session_state.who_we_help}
-                [What We Do]: {st.session_state.what_we_do}
-                [Scope]: {st.session_state.scope_of_word}
-                
-                題目規範：
-                1. 維度一：Client Category (6題) - 診斷受眾對該行業的原始慾望或焦慮。
-                2. 維度二：What We Do (7題) - 診斷受眾在該活動形式下的互動偏好。
-                3. 維度三：Scope of Work (7題) - 診斷傳播手段對受眾的有效打擊點。
-                
-                Output 必須是 JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
-                """
+                # 執行 API
+                prompt = f"Generate 20 MC questions for {st.session_state.project_name} in Trad Chinese. 6-7-7 Matrix. Output raw JSON Array."
                 res = call_gemini_sdk(prompt, is_json=True)
-                loader.empty()
+                
                 if res:
+                    loader.markdown(get_animated_bar_html(100, "✅ 診斷完成！已生成題目"), unsafe_allow_html=True)
+                    time.sleep(0.5)
+                    loader.empty()
                     try:
                         st.session_state.mc_questions = json.loads(res)
                         st.success("✅ 靈魂診斷題目已生成！")
-                    except: st.error("JSON 格式毀損，請重試。")
+                    except: st.error("JSON 毀損")
+                else:
+                    loader.empty()
+                    st.error("API 失敗")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -249,7 +253,7 @@ def main():
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Gallery (Require 4+ Photos)")
-            files = st.file_uploader("Upload up to 8 Photos", accept_multiple_files=True, key="photo_up")
+            files = st.file_uploader("Upload Photos", accept_multiple_files=True, key="photo_up")
             if files:
                 st.session_state.project_photos = files
                 hero_choice = st.radio("🌟 Select Hero Banner", [f"P{i+1}" for i in range(len(files))], horizontal=True)
@@ -261,7 +265,7 @@ def main():
                         st.image(img, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-        if percent == 100:
+        if percent_total == 100:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🚀 診斷完成！進入策略 Review", use_container_width=True, type="primary"):
                 st.session_state.active_tab = "📋 Review & Multi-Sync"
@@ -276,36 +280,32 @@ def main():
             if len(st.session_state.project_photos) < 4:
                 st.error("🚨 阻截：請至少上傳 4 張相片")
             else:
-                # 顯示大字體文字狀態
+                # --- % Progress Bar 動畫開始 ---
                 loader = st.empty()
-                loader.markdown(get_text_status_html("🧠 Firebean Brain 正在將診斷結果轉化為靈魂文案..."), unsafe_allow_html=True)
+                status_msg = "🧠 FIREBEAN BRAIN 正在進行對位與文案轉化..."
+                for p in range(0, 96, 3): 
+                    loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
+                    time.sleep(0.04)
                 
-                prompt = f"""
-                作為 Firebean 專案靈魂診斷官，根據診斷題目答案及 Open Question: {st.session_state.open_question_ans} 生成報告。
-                
-                規範：
-                1. 品牌痛點分析 (<100字)：受眾心理缺口。
-                2. 活動方案核心 (<100字)：Firebean 如何填補。
-                3. 社交平台策略 (JSON 格式)：
-                   - LinkedIn: Professional Business English, 150-300字, 行業洞察。
-                   - Threads: 極度口語化 Canto-slang, 50字內精警短句, 反傳統觀點。
-                   - Instagram: 首兩行 125 字內亮點, 繁中, 總數 150 字內。
-                   - Facebook: 資訊大本營, 「痛點→方案→行動」漏斗, 含清晰 CTA。
-                """
+                prompt = f"As Firebean Strategist, generate report for project {st.session_state.project_name}. Follow 2026 Social Guide (IG < 150 words Trad Chinese, LI Business EN). Output raw JSON."
                 res = call_gemini_sdk(prompt, is_json=True)
-                loader.empty()
+                
                 if res:
+                    loader.markdown(get_animated_bar_html(100, "✅ 靈魂文案已完美對位！"), unsafe_allow_html=True)
+                    time.sleep(0.5)
+                    loader.empty()
                     try:
                         st.session_state.ai_content = json.loads(res)
-                        st.session_state.challenge = st.session_state.ai_content.get("品牌痛點分析", "")
-                        st.session_state.solution = st.session_state.ai_content.get("活動方案核心", "")
-                        st.success("✅ 靈魂文案已完美對位！")
-                    except: st.error("JSON 格式出錯")
+                        st.success("✅ 策略報告生成成功！")
+                    except: st.error("JSON 錯誤")
+                else:
+                    loader.empty()
+                    st.error("API 失敗")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🔥 Confirm & Sync to Master DB", use_container_width=True, type="primary"):
-                with st.spinner("🔄 多軌同步中..."):
+                with st.spinner("🔄 同步中..."):
                     try:
                         sum_ans = []
                         if st.session_state.mc_questions:
@@ -325,8 +325,8 @@ def main():
                             "category_who": ", ".join(st.session_state.who_we_help),
                             "category_what": ", ".join(st.session_state.what_we_do),
                             "scope_of_work": ", ".join(st.session_state.scope_of_word),
-                            "challenge": st.session_state.challenge,
-                            "solution": st.session_state.solution,
+                            "challenge": st.session_state.ai_content.get("品牌痛點分析", ""),
+                            "solution": st.session_state.ai_content.get("活動方案核心", ""),
                             "open_question": st.session_state.open_question_ans,
                             "mc_summary": "\n".join(sum_ans),
                             "ai_content": st.session_state.ai_content,
@@ -351,14 +351,16 @@ def main():
         if st.button("📥 加入 Contacts"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success("✅ 已同步至 Contacts Tab！")
+                if res.status_code == 200: st.success("✅ 已同步至 CRM！")
             else: st.error("格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 5. 永久除錯終端 ---
     st.markdown("---")
     with st.expander("🛠️ Firebean Brain Debug Terminal", expanded=False):
-        if st.button("🔍 Test API Connection"): test_api_connection()
+        if st.button("🔍 Test API Connection"):
+            res = call_gemini_sdk("Ping.")
+            if res: st.toast("API OK")
         if st.session_state.debug_logs:
             logs_html = "".join([f"<div class='debug-{l['type']}'>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.debug_logs)])
             st.markdown(f"<div class='debug-terminal'>{logs_html}</div>", unsafe_allow_html=True)
