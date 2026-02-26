@@ -65,7 +65,6 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             if response and response.text:
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
                 cleaned_text = response.text.strip()
-                # 修復 Syntax Error: 完整的字串清理邏輯
                 if cleaned_text.startswith("```json"):
                     cleaned_text = cleaned_text[7:]
                 if cleaned_text.endswith("```"):
@@ -275,11 +274,24 @@ def main():
                         st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
                         st.success("✅ 文案已生成！")
         
+        # 💡 如果文案已生成，就會顯示 Review 同埋 Sync 按鈕
         if st.session_state.ai_content:
+            st.subheader("✨ AI 生成預覽")
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync (Sheet + Slide + Drive)"):
+            
+            st.markdown("---")
+            st.subheader("🚀 同步至 Master DB")
+            # 顯眼的紅色同步按鈕
+            if st.button("🔥 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
                 with st.spinner("🔄 多軌同步中..."):
                     try:
+                        # 整理回答數據
+                        collected_answers = []
+                        if st.session_state.mc_questions:
+                            for q in st.session_state.mc_questions:
+                                ans = st.session_state.get(f"ans_{q['id']}", [])
+                                collected_answers.append(f"Q: {q['question']} | A: {', '.join(ans)}")
+                        
                         payload = {
                             "action": "sync_project",
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -294,6 +306,7 @@ def main():
                             "challenge": st.session_state.challenge,
                             "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
+                            "mc_summary": "\n".join(collected_answers),
                             "ai_content": st.session_state.ai_content,
                             "logo_black": st.session_state.logo_black,
                             "logo_white": st.session_state.logo_white,
