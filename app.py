@@ -27,9 +27,8 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Your mission is to extract REAL project insights. You must be FACT-STRICT. 
-Do not hallucinate heritage or monuments unless the user specifies them in the Venue field.
-If Category is F&B, focus on food service, logistics, and catering challenges.
+Your core philosophy: PR Events are the ultimate bridge between brands and people.
+Through physical or digital experiences, we solve audience 'misunderstanding' or 'lack of reach' via strategic PR activities.
 """
 
 # --- 2. 核心邏輯 (Debug, API, Image) ---
@@ -60,7 +59,6 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
-                # JSON 提取防爆 Regex
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
@@ -73,7 +71,7 @@ def standardize_logo(logo_file):
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         buf = io.BytesIO(); img.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized & converted.", "success")
+        log_debug(f"Logo '{logo_file.name}' normalized.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
@@ -83,7 +81,6 @@ def manna_ai_enhance(image_file):
     try:
         raw_img = Image.open(image_file)
         img = ImageOps.exif_transpose(raw_img).convert("RGB")
-        # 增加對比度提升質感
         img = ImageEnhance.Contrast(img).enhance(1.15)
         return img
     except: 
@@ -104,7 +101,6 @@ def init_session_state():
 # --- 3. UI 樣式與 % Progress Bar 動畫 ---
 
 def get_animated_bar_html(percent, status_text):
-    """Neumorphic 進度條，解決 Screenshot 顯示源碼的 Bug"""
     return f"""
     <div style="padding: 35px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0;">
         <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 24px; text-align: center; margin-bottom: 20px; letter-spacing: 1.5px;">
@@ -172,7 +168,7 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent_total), unsafe_allow_html=True)
 
-    # 全闊度導航按鈕 (顯眼全畫面)
+    # 全闊度導航
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -202,7 +198,6 @@ def main():
         c_a, c_b, c_c = st.columns(3)
         with c_a: 
             st.markdown("**👥 Category**")
-            # 鎖定 Radio 值
             st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS, label_visibility="collapsed", index=WHO_WE_HELP_OPTIONS.index(st.session_state.who_we_help[0]) if st.session_state.who_we_help[0] in WHO_WE_HELP_OPTIONS else 0)]
         with c_b: 
             st.markdown("**🚀 What we do**")
@@ -221,44 +216,39 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🧠 專案回顧與洞察 (20 條活動相關 MC)")
+            st.subheader("🧠 公關活動診斷與回顧 (20 MC)")
             
             if st.button("🪄 生成 20 條 MC 題目"):
                 loader = st.empty()
-                status_msg = f"📖 正在分析 {st.session_state.who_we_help[0]} 類別之執行 DNA..."
+                status_msg = "📖 正在以『公關活動』為核心診斷專案執行細節..."
                 for p in range(0, 96, 4):
                     loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
                     time.sleep(0.05)
                 
-                # --- 核心優化：鎖定 Category，嚴禁幻覺古蹟 ---
+                # --- 🚀 核心邏輯修改：以 PR 活動為中心思想 ---
                 prompt = f"""
-                你是 Firebean 活動策略師。根據以下事實數據，生成 20 條 MC 題目，引導記錄執行細節、困難及創新點。
+                你是 Firebean 公關活動診斷官。客戶的痛點是受眾「接觸不足」或「缺乏理解」，期望透過舉辦公關活動來讓受眾「親身體驗理解」從而解決問題。
+                請根據以下事實，生成 20 條 MC 題目來收集活動執行數據。
                 
                 [事實 फैक्ट्स]
-                - 客戶類別: {st.session_state.who_we_help[0]}
-                - 專案名稱: {st.session_state.project_name}
-                - 地點: {st.session_state.venue}
-                - 活动形式: {st.session_state.what_we_do}
-                - 服務範疇: {st.session_state.scope_of_word}
+                - 客戶 Client: {st.session_state.client_name} (類別: {st.session_state.who_we_help[0]})
+                - 專案 Project: {st.session_state.project_name} (形式: {st.session_state.what_we_do})
+                - 地點 Venue: {st.session_state.venue} | 服務 SOW: {st.session_state.scope_of_word}
 
-                [嚴格指令]
-                1. 題目必須與以上 [事實] 100% 相關。
-                2. ⚠️ 如果類別是 F&B & HOSPITALITY，題目必須圍繞餐飲、衛生、供應鏈、試食流程。
-                3. ⚠️ 除非地點 (Venue) 明確寫了「古蹟」，否則嚴禁提及歷史古蹟或文物保護。
-                4. 題目比例 (6-7-7 矩陣):
-                   - 困難與挑戰 (6題): 針對該地點與類別的物流、技術、對接難點。
-                   - 創新點 (7題): 針對該形式，Firebean 的創意亮點。
-                   - 洞察 (7題): 受眾反應與未來優化。
+                [出題結構 6-7-7 矩陣 - 必須以 PR 活動為中心]
+                1. 受眾接觸與理解痛點 (6題): 診斷在舉辦活動前，受眾對品牌有什麼誤解或隔閡？點解傳統傳播失效？
+                2. 公關活動體驗設計 (7題): 針對地點與形式，我們設計了什麼獨特體驗或互動，讓受眾「理解並體驗」品牌的靈魂？
+                3. PR 活動轉化成效 (7題): 受眾在活動後展現了什麼理解上的轉變？活動如何填補了受眾的心理缺口？
 
-                要求：繁體中文。Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
+                要求：繁體中文，選項必須具體且專業。Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
                 """
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
-                    loader.markdown(get_animated_bar_html(100, "✅ 題目已精準生成！"), unsafe_allow_html=True)
+                    loader.markdown(get_animated_bar_html(100, "✅ 診斷題目已生成！"), unsafe_allow_html=True)
                     time.sleep(0.5); loader.empty()
                     try:
                         st.session_state.mc_questions = json.loads(res)
-                        st.success("✅ 活動回顧題目已生成！")
+                        st.success("✅ 公關活動回顧題目已生成！")
                     except: st.error("JSON 格式毀損")
                 else: loader.empty(); st.error("API 調用失敗")
             
@@ -277,7 +267,7 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery (Require 4+ Photos)")
+            st.subheader("📸 Gallery (Require 4+)")
             files = st.file_uploader("Upload Photos", accept_multiple_files=True, key="photo_up")
             if files:
                 st.session_state.project_photos = files
@@ -324,13 +314,13 @@ def main():
                 靈魂概念：{st.session_state.open_question_ans}
                 
                 生成 JSON 報告：
-                1. 品牌痛點分析 (<100字): 基於事實與診斷回答。
-                2. 活動方案核心 (<100字): 基於創新點。
+                1. 品牌痛點分析 (<100字): 聚焦於受眾接觸不到或理解不深的痛點。
+                2. 活動方案核心 (<100字): 聚焦於公關活動如何透過體驗讓受眾理解品牌。
                 3. 策略文案:
-                   - LinkedIn: 專業商務英文, 150-300字, 思想領導力, 提及客戶及地點。
-                   - Threads: 口語化廣東話, 50字內精警句, 提及有趣的執行細節。
-                   - Instagram: 繁中, 150字內, 前兩行亮點, 重視 Vibe。
-                   - Facebook: 痛點-方案-行動漏斗, 含清晰 CTA。
+                   - LinkedIn: 專業商務英文, 150-300字, 行業領導力視角。
+                   - Threads: 口語化廣東話, 50字內, 提及活動亮點。
+                   - Instagram: 繁中, 150字內, 首兩行亮點, 視覺旁白風格。
+                   - Facebook: 痛點-方案-行動漏斗寫法, 含清晰 CTA。
                 """
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
@@ -345,7 +335,7 @@ def main():
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🔥 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
-                with st.spinner("🔄 同步中 (DB + Slide + Drive)..."):
+                with st.spinner("🔄 同步中..."):
                     try:
                         sum_ans_sync = []
                         if st.session_state.mc_questions:
@@ -374,10 +364,9 @@ def main():
                             "logo_white": st.session_state.logo_white,
                             "images": [base64.b64encode(f.getvalue()).decode() for f in st.session_state.project_photos]
                         }
-                        r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
-                        r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
-                        log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ Master Ecosystem 同步成功！")
+                        requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
+                        requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
+                        st.balloons(); st.success("✅ 全部數據已同步！")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -391,7 +380,7 @@ def main():
         if st.button("📥 加入 CRM 名單"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success("✅ 已分流至 Contacts Tab！")
+                if res.status_code == 200: st.success("✅ 已分流至 Contacts！")
             else: st.error("格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
