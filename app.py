@@ -160,7 +160,7 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
-        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; }
+        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
     </style>""", unsafe_allow_html=True)
 
 # --- 4. Main App ---
@@ -195,17 +195,27 @@ def main():
         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "🛠️ Debug Terminal"]
+    
+    # 🎯 UI 佈局更新：將三個按鈕排成一排 (2個分頁導航 + 1個測試按鈕)
     nav_cols = st.columns(3)
-    for i, t in enumerate(tab_list):
-        if nav_cols[i].button(t, use_container_width=True, type="primary" if st.session_state.active_tab == t else "secondary"):
-            st.session_state.active_tab = t; st.rerun()
+    
+    if nav_cols[0].button("📝 Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "📝 Project Collector" else "secondary"):
+        st.session_state.active_tab = "📝 Project Collector"
+        st.rerun()
+        
+    if nav_cols[1].button("📋 Review & Multi-Sync", use_container_width=True, type="primary" if st.session_state.active_tab == "📋 Review & Multi-Sync" else "secondary"):
+        st.session_state.active_tab = "📋 Review & Multi-Sync"
+        st.rerun()
+        
+    # 老細測試按鈕移至右上角
+    if nav_cols[2].button("🧪 老細一鍵填充 (深度內容測試)", use_container_width=True):
+        fill_dummy_data()
+        st.rerun()
+
+    st.markdown("<hr style='margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
     # --- TAB 分頁內容 ---
     if st.session_state.active_tab == "📝 Project Collector":
-        if st.button("🧪 老細一鍵填充 (深度內容測試)", use_container_width=True):
-            fill_dummy_data(); st.rerun()
-        
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -237,10 +247,7 @@ def main():
                 if not st.session_state.project_photos: st.error("請先上傳相片。")
                 else:
                     with st.spinner("AI 掃描相片 Facts 並綜合專案背景生成題目中..."):
-                        # 第一步：一樣先解析相片事實
                         facts = call_gemini_sdk("Identify branding and tech facts.", image_files=st.session_state.project_photos)
-                        
-                        # 第二步：組合所有專案變數與相片事實，餵給 AI
                         mc_prompt = f"""
 請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
@@ -256,7 +263,6 @@ def main():
 請確保題目具備深度，能引導出具體的痛點。
 必須嚴格輸出為 JSON 陣列格式：[{{\"id\":1,\"question\":\"問題內容...\",\"options\":[\"選項A\",\"選項B\"]}}]
 """
-                        # 第三步：呼叫 AI 生成完美對應的 20 題 JSON
                         res = call_gemini_sdk(mc_prompt, is_json=True)
                         if res: st.session_state.mc_questions = json.loads(res); st.rerun()
 
@@ -313,7 +319,6 @@ def main():
                 with st.spinner("🔄 同步中..."):
                     try:
                         imgs = [base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode() for f in st.session_state.project_photos]
-                        # 🚀 校準對位 Payload (對應規格書 Section 3 & 4)
                         payload = {
                             "action": "sync_project",
                             "client_name": st.session_state.client_name,
@@ -339,7 +344,36 @@ def main():
                     except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    elif st.session_state.active_tab == "🛠️ Debug Terminal":
+    # 🎯 Debug Terminal 移至底部 (使用 expander 收納，保持畫面乾淨)
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    with st.expander("🛠️ Debug Terminal & API Settings", expanded=False):
+        st.markdown("### 🔑 API Key 測試工具")
+        
+        # API Key 測試功能
+        col_api, col_btn = st.columns([3, 1])
+        with col_api:
+            test_key = st.text_input("輸入 Gemini API Key 進行連線測試 (不會覆蓋 Secret)", type="password")
+        with col_btn:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("連線測試", use_container_width=True):
+                if test_key:
+                    with st.spinner("連線中..."):
+                        try:
+                            genai.configure(api_key=test_key)
+                            model = genai.GenerativeModel("gemini-1.5-flash")
+                            res = model.generate_content("Reply only the word: SUCCESS")
+                            if res and "SUCCESS" in res.text.upper():
+                                st.success("✅ API Key 測試成功！連線正常。")
+                                log_debug("API Key 手動連線測試成功。", "success")
+                            else:
+                                st.error("❌ 連線異常，請檢查 Key。")
+                        except Exception as e:
+                            st.error(f"❌ 錯誤: {e}")
+                            log_debug(f"API Key 手動測試失敗: {e}", "error")
+                else:
+                    st.warning("請先輸入 API Key。")
+
+        st.markdown("### 📝 System Logs")
         logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
         st.markdown(f"<div class='debug-terminal'>{logs}</div>", unsafe_allow_html=True)
 
