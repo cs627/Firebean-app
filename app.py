@@ -26,9 +26,9 @@ YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 FIREBEAN_SYSTEM_PROMPT = """
-You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Your core philosophy: PR Events are the ultimate bridge between brands and people.
-Through physical or digital experiences, we solve audience 'misunderstanding' or 'lack of reach' via strategic PR activities.
+You are 'Firebean Brain', the Architect of Public Engagement and Lead Project Strategist. 
+Your specialty is 'Institutional Cool'. You extract real project insights to create impactful PR content.
+Focus: Bridge Structure (Real-world Difficulty -> Firebean's Innovative Solution -> Tangible Impact).
 """
 
 # --- 2. 核心邏輯 (Debug, API, Image) ---
@@ -50,11 +50,9 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             genai.configure(api_key=key)
             config = genai.types.GenerationConfig(response_mime_type="application/json" if is_json else "text/plain")
             model = genai.GenerativeModel(model_name=model_name, system_instruction=FIREBEAN_SYSTEM_PROMPT)
-            
             contents = [prompt]
             if image_file: contents.append(image_file)
             response = model.generate_content(contents, generation_config=config)
-            
             if response and response.text:
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
                 raw_text = response.text.strip()
@@ -71,7 +69,7 @@ def standardize_logo(logo_file):
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         buf = io.BytesIO(); img.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' normalized.", "success")
+        log_debug(f"Logo '{logo_file.name}' encoded to Base64.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
@@ -81,10 +79,8 @@ def manna_ai_enhance(image_file):
     try:
         raw_img = Image.open(image_file)
         img = ImageOps.exif_transpose(raw_img).convert("RGB")
-        img = ImageEnhance.Contrast(img).enhance(1.15)
-        return img
-    except: 
-        return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
+        return ImageEnhance.Contrast(img).enhance(1.15)
+    except: return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
 def init_session_state():
     fields = {
@@ -98,23 +94,23 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與 % Progress Bar 動畫 ---
+# --- 3. UI 樣式與 % Progress Bar ---
 
 def get_animated_bar_html(percent, status_text):
     return f"""
-    <div style="padding: 35px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0;">
-        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 24px; text-align: center; margin-bottom: 20px; letter-spacing: 1.5px;">
+    <div style="padding: 40px; background: #E0E5EC; border-radius: 25px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 30px 0; border: 1px solid rgba(255,0,0,0.1);">
+        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 28px; text-align: center; margin-bottom: 25px; letter-spacing: 1px;">
             {status_text}
         </div>
-        <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 26px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
+        <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 30px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
             <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s ease-in-out;">
-                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 14px; line-height: 26px;">
+                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 16px; line-height: 30px;">
                     {percent}%
                 </div>
             </div>
         </div>
-        <div style="text-align: center; margin-top: 12px; color: #2D3436; font-size: 11px; font-weight: 800; opacity: 0.6;">
-            FIREBEAN BRAIN SYSTEM SYNCING...
+        <div style="text-align: center; margin-top: 15px; color: #2D3436; font-size: 13px; font-weight: 700; opacity: 0.7;">
+            FIREBEAN BRAIN SYSTEM CALIBRATING...
         </div>
     </div>
     """
@@ -138,8 +134,8 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; color: #2D3436; }
         h1, h2, h3, label, p { color: #2D3436 !important; font-weight: 700 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; }
-        .mc-question { font-weight: 800; color: #FF0000 !important; margin-top: 20px; border-bottom: 1px solid rgba(255,0,0,0.1); padding-bottom: 5px;}
-        .mc-container { margin-bottom: 15px; padding-left: 10px; border-left: 4px solid #FF0000; }
+        .mc-question { font-weight: 600; color: #FF0000 !important; margin-top: 15px; }
+        .mc-container { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #FF0000; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 30px; }
         .debug-success { color: #00FF00 !important; font-weight: bold; }
         .debug-error { color: #FF5555 !important; font-weight: bold; }
@@ -153,7 +149,7 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress 計算 (10 維度)
+    # Progress 計算
     score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -217,7 +213,6 @@ def main():
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🧠 公關活動診斷與回顧 (20 MC)")
-            
             if st.button("🪄 生成 20 條 MC 題目"):
                 loader = st.empty()
                 status_msg = "📖 正在以『公關活動』為核心診斷專案執行細節..."
@@ -225,22 +220,11 @@ def main():
                     loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
                     time.sleep(0.05)
                 
-                # --- 🚀 核心邏輯修改：以 PR 活動為中心思想 ---
                 prompt = f"""
-                你是 Firebean 公關活動診斷官。客戶的痛點是受眾「接觸不足」或「缺乏理解」，期望透過舉辦公關活動來讓受眾「親身體驗理解」從而解決問題。
-                請根據以下事實，生成 20 條 MC 題目來收集活動執行數據。
-                
-                [事實 फैक्ट्स]
-                - 客戶 Client: {st.session_state.client_name} (類別: {st.session_state.who_we_help[0]})
-                - 專案 Project: {st.session_state.project_name} (形式: {st.session_state.what_we_do})
-                - 地點 Venue: {st.session_state.venue} | 服務 SOW: {st.session_state.scope_of_word}
-
-                [出題結構 6-7-7 矩陣 - 必須以 PR 活動為中心]
-                1. 受眾接觸與理解痛點 (6題): 診斷在舉辦活動前，受眾對品牌有什麼誤解或隔閡？點解傳統傳播失效？
-                2. 公關活動體驗設計 (7題): 針對地點與形式，我們設計了什麼獨特體驗或互動，讓受眾「理解並體驗」品牌的靈魂？
-                3. PR 活動轉化成效 (7題): 受眾在活動後展現了什麼理解上的轉變？活動如何填補了受眾的心理缺口？
-
-                要求：繁體中文，選項必須具體且專業。Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
+                你是 Firebean 公關診斷官。生成 20 條針對「PR 活動解決痛點」的 MC 題目。
+                專案: {st.session_state.project_name} | 客戶: {st.session_state.client_name}
+                地點: {st.session_state.venue} | SOW: {st.session_state.scope_of_word}
+                Output STRICTLY JSON Array of objects with 'id', 'question', 'options'.
                 """
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
@@ -248,30 +232,27 @@ def main():
                     time.sleep(0.5); loader.empty()
                     try:
                         st.session_state.mc_questions = json.loads(res)
-                        st.success("✅ 公關活動回顧題目已生成！")
-                    except: st.error("JSON 格式毀損")
-                else: loader.empty(); st.error("API 調用失敗")
+                    except: st.error("JSON Error")
+                else: loader.empty(); st.error("API Error")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
                     q_id = q.get('id', i + 1)
                     st.markdown(f"<div class='mc-question'>Q{q_id}. {q.get('question')}</div>", unsafe_allow_html=True)
-                    st.markdown("<div class='mc-container'>", unsafe_allow_html=True)
                     selected = []
                     for opt_idx, opt_text in enumerate(q.get('options', [])):
                         if st.checkbox(opt_text, key=f"mc_cb_{q_id}_{opt_idx}"): selected.append(opt_text)
                     st.session_state[f"ans_{q_id}"] = selected
-                    st.markdown("</div>", unsafe_allow_html=True)
                 st.session_state.open_question_ans = st.text_area("覺得我哋嘅概念最特別是什麼？", st.session_state.open_question_ans)
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery (Require 4+)")
-            files = st.file_uploader("Upload Photos", accept_multiple_files=True, key="photo_up")
+            st.subheader("📸 Gallery")
+            files = st.file_uploader("Upload Photos (min 4)", accept_multiple_files=True, key="photo_up")
             if files:
                 st.session_state.project_photos = files
-                hero_choice = st.radio("🌟 Select Hero Banner", [f"P{i+1}" for i in range(len(files))], horizontal=True)
+                hero_choice = st.radio("🌟 Hero Banner", [f"P{i+1}" for i in range(len(files))], horizontal=True)
                 st.session_state.hero_index = int(hero_choice[1:]) - 1
                 cols = st.columns(4)
                 for i, f in enumerate(files):
@@ -281,7 +262,6 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         if percent_total == 100:
-            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🚀 資料已齊全！進入策略 Review", use_container_width=True, type="primary"):
                 st.session_state.active_tab = "📋 Review & Multi-Sync"
                 st.rerun()
@@ -292,50 +272,48 @@ def main():
         st.header("📋 2026 社交平台策略發布")
         
         if st.button("🪄 一鍵生成所有平台策略文案"):
-            if len(st.session_state.project_photos) < 4:
-                st.error("🚨 阻截：請至少上傳 4 張相片")
-            else:
-                loader = st.empty()
-                status_msg = f"🧠 FIREBEAN BRAIN 正在分析 {st.session_state.client_name} 的數據鏈..."
-                for p in range(0, 96, 3): 
-                    loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
-                    time.sleep(0.04)
-                
-                sum_ans = []
-                for i, q in enumerate(st.session_state.mc_questions):
-                    ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
-                    sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
-                
-                full_facts = f"Client: {st.session_state.client_name}, Project: {st.session_state.project_name}, Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}, Category: {st.session_state.who_we_help[0]}"
-                
-                prompt = f"""
-                作為 Firebean Strategist，根據事實數據：{full_facts}
-                執行洞察：{chr(10).join(sum_ans)} 
-                靈魂概念：{st.session_state.open_question_ans}
-                
-                生成 JSON 報告：
-                1. 品牌痛點分析 (<100字): 聚焦於受眾接觸不到或理解不深的痛點。
-                2. 活動方案核心 (<100字): 聚焦於公關活動如何透過體驗讓受眾理解品牌。
-                3. 策略文案:
-                   - LinkedIn: 專業商務英文, 150-300字, 行業領導力視角。
-                   - Threads: 口語化廣東話, 50字內, 提及活動亮點。
-                   - Instagram: 繁中, 150字內, 首兩行亮點, 視覺旁白風格。
-                   - Facebook: 痛點-方案-行動漏斗寫法, 含清晰 CTA。
-                """
-                res = call_gemini_sdk(prompt, is_json=True)
-                if res:
-                    loader.markdown(get_animated_bar_html(100, "✅ 靈魂文案已對位完成！"), unsafe_allow_html=True)
-                    time.sleep(0.5); loader.empty()
-                    try:
-                        st.session_state.ai_content = json.loads(res)
-                        st.success("✅ 策略報告生成成功！")
-                    except: st.error("JSON 格式錯誤")
-                else: loader.empty(); st.error("API 失敗")
+            loader = st.empty()
+            status_msg = f"🧠 FIREBEAN BRAIN 正在分析 {st.session_state.client_name} 的數據..."
+            for p in range(0, 96, 3): 
+                loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
+                time.sleep(0.04)
+            
+            sum_ans = []
+            for i, q in enumerate(st.session_state.mc_questions):
+                ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
+                sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
+            
+            # 🚀 關鍵：強制輸出符合 Apps Script 編號的 JSON Key
+            prompt = f"""
+            作為 Firebean Strategist，根據事實數據：
+            Client: {st.session_state.client_name}, Project: {st.session_state.project_name}, Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}
+            執行洞察：{chr(10).join(sum_ans)} | 靈魂概念：{st.session_state.open_question_ans}
+            
+            Output STRICTLY RAW JSON with these exact keys:
+            - "品牌痛點分析": <100 words
+            - "活動方案核心": <100 words
+            - "1_google_slide": {{ "hook": "...", "shift": "...", "proof": "..." }}
+            - "2_facebook_post": text
+            - "3_threads_post": text
+            - "4_instagram_post": text (Traditional Chinese, <150 words)
+            - "5_linkedin_post": text (English, Business view)
+            - "6_website": {{ "en": "...", "tc": "...", "jp": "..." }}
+            """
+            res = call_gemini_sdk(prompt, is_json=True)
+            if res:
+                loader.markdown(get_animated_bar_html(100, "✅ 策略報告生成成功！"), unsafe_allow_html=True)
+                time.sleep(0.5); loader.empty()
+                try:
+                    st.session_state.ai_content = json.loads(res)
+                    st.session_state.challenge = st.session_state.ai_content.get("品牌痛點分析", "")
+                    st.session_state.solution = st.session_state.ai_content.get("活動方案核心", "")
+                except: st.error("JSON 解析失敗")
+            else: loader.empty(); st.error("API 失敗")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🔥 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
-                with st.spinner("🔄 同步中..."):
+            if st.button("🔥 Confirm & Sync to Master DB", use_container_width=True, type="primary"):
+                with st.spinner("🔄 同步中 (DB + Slide + Drive)..."):
                     try:
                         sum_ans_sync = []
                         if st.session_state.mc_questions:
@@ -355,8 +333,8 @@ def main():
                             "category_who": st.session_state.who_we_help[0],
                             "category_what": ", ".join(st.session_state.what_we_do),
                             "scope_of_work": ", ".join(st.session_state.scope_of_word),
-                            "challenge": st.session_state.ai_content.get("品牌痛點分析", ""),
-                            "solution": st.session_state.ai_content.get("活動方案核心", ""),
+                            "challenge": st.session_state.challenge,
+                            "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
                             "mc_summary": "\n".join(sum_ans_sync),
                             "ai_content": st.session_state.ai_content,
@@ -364,9 +342,10 @@ def main():
                             "logo_white": st.session_state.logo_white,
                             "images": [base64.b64encode(f.getvalue()).decode() for f in st.session_state.project_photos]
                         }
-                        requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
-                        requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
-                        st.balloons(); st.success("✅ 全部數據已同步！")
+                        r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
+                        r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
+                        log_debug(f"Sheet Status: {r1.status_code}", "success")
+                        st.balloons(); st.success("✅ 同步成功！")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -380,14 +359,13 @@ def main():
         if st.button("📥 加入 CRM 名單"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success("✅ 已分流至 Contacts！")
+                if res.status_code == 200: st.success("✅ 已同步至 Contacts！")
             else: st.error("格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 永久除錯終端 ---
-    st.markdown("---")
-    with st.expander("🛠️ Firebean Brain Debug Terminal", expanded=False):
-        if st.button("🔍 Test API Connection"):
+    # --- 5. Debug Terminal ---
+    with st.expander("🛠️ Debug Terminal", expanded=False):
+        if st.button("🔍 Test API"):
             res = call_gemini_sdk("Ping.")
             if res: st.toast("API OK")
         if st.session_state.debug_logs:
