@@ -12,7 +12,7 @@ from datetime import datetime
 # --- 1. 核心配置與 API Key 池 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLR9MVr4rNgCQeXd2zGq43_F3ncsml_t7IP4OkjqBNtdNiv0ETitiuzx4oif3T0tCZ/exec"
 
-# 備用 Key 池 (雖然過期，但保留作後備架構)
+# 備用 Key 池
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
     "AIzaSyCVuoSuWV3tfGCu2tjikCkMOVRWCBFne20",
@@ -90,7 +90,6 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False, dynamic_sys_prompt=N
 def test_api_connection():
     log_debug("🚀 Starting SDK Connection Test...", "info")
     
-    # 新增：直接在 Debug 顯示 Secret 是否存在
     if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
         log_debug("🔑 [System] 成功讀取 Streamlit Secrets 中的 API Key！", "success")
     else:
@@ -142,7 +141,8 @@ def generate_mc_questions():
     
     Please systematically generate exactly 20 multiple-choice questions (A/B/C/D) to extract the "soul" of this project.
     
-    **CRITICAL REQUIREMENT: ALL questions and options MUST be written in Traditional Chinese (繁體中文).**
+    **CRITICAL REQUIREMENT 1: ALL questions and options MUST be written in Traditional Chinese (繁體中文).**
+    **CRITICAL REQUIREMENT 2: 這些題目必須設計為「可多選 (Multiple-response)」的情境題，選項之間不應完全互斥，讓用戶可以勾選所有符合該專案情況的策略或痛點。**
     
     Logic (6-7-7 Matrix):
     - [6 Questions] about Client Category: 這是詢問「客戶/品牌」面對的痛點與商業目標，絕對不是問公關行業本身的痛點。請詢問該客戶的目標受眾遇到了什麼問題？客戶希望透過這次活動改變大眾什麼觀感？
@@ -193,6 +193,7 @@ def apply_styles():
         
         .blocker-alert { background-color: #ffe6e6 !important; border-left: 5px solid #FF0000; padding: 15px; border-radius: 5px; margin-bottom: 15px; color: #2D3436 !important;}
         .mc-question { font-weight: 600; color: #d32f2f !important; margin-top: 15px; }
+        .mc-hint { font-size: 0.8em; color: #666; font-weight: normal; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -309,16 +310,24 @@ def main():
                     with st.spinner("AI 正在根據你的設定生成 20 條針對性題目 (繁體中文)..."):
                         success = generate_mc_questions()
                         if success:
-                            st.success("✅ 題目已生成！請回答以下問題。")
+                            st.success("✅ 題目已生成！請勾選符合情況的選項 (可多選)。")
                         else:
                             st.error("生成失敗，請重試。")
 
-            # 顯示 20 條 MC
+            # 顯示 20 條 MC (已全面升級為可多選 Checkbox)
             if st.session_state.mc_questions:
                 st.markdown("---")
                 for q in st.session_state.mc_questions:
-                    st.markdown(f"<div class='mc-question'>Q{q['id']}. [{q['category']}] {q['question']}</div>", unsafe_allow_html=True)
-                    st.radio("Options", q['options'], key=f"mc_ans_{q['id']}", label_visibility="collapsed")
+                    st.markdown(f"<div class='mc-question'>Q{q['id']}. [{q['category']}] {q['question']} <span class='mc-hint'>(可多選)</span></div>", unsafe_allow_html=True)
+                    
+                    # 使用 Checkbox 收集多個答案
+                    selected_opts = []
+                    for opt_idx, opt in enumerate(q['options']):
+                        if st.checkbox(opt, key=f"mc_cb_{q['id']}_{opt_idx}"):
+                            selected_opts.append(opt)
+                            
+                    # 將勾選的答案合併成字串，儲存在 session 供 Tab 2 讀取
+                    st.session_state[f"mc_ans_{q['id']}"] = ", ".join(selected_opts) if selected_opts else "未作答"
                 
                 st.markdown("---")
                 st.markdown("<div class='mc-question'>🔥 Final Open Question:</div>", unsafe_allow_html=True)
