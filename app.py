@@ -5,10 +5,11 @@ import base64
 import time
 import json
 import requests
+import re
 from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
-# --- 1. 核心配置與 Webhook URL ---
+# --- 1. 核心配置與 Webhook URL (已修復 URL 格式) ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
@@ -31,7 +32,7 @@ LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心邏輯 (包含 Debug 與 API 引擎) ---
+# --- 2. 核心邏輯 (包含防爆 JSON 解析) ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -52,7 +53,7 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             log_debug(f"Attempting API with Key {is_secret}...", "info")
             genai.configure(api_key=key)
             
-            generation_config = genai.types.GenerationConfig(
+            config = genai.types.GenerationConfig(
                 response_mime_type="application/json" if is_json else "text/plain"
             )
             
@@ -60,16 +61,18 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             contents = [prompt]
             if image_file: contents.append(image_file)
                 
-            response = model.generate_content(contents, generation_config=generation_config)
+            response = model.generate_content(contents, generation_config=config)
             
             if response and response.text:
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
-                cleaned_text = response.text.strip()
-                if cleaned_text.startswith("```json"):
-                    cleaned_text = cleaned_text[7:]
-                if cleaned_text.endswith("```"):
-                    cleaned_text = cleaned_text[:-3]
-                return cleaned_text.strip()
+                raw_text = response.text.strip()
+                
+                if not is_json: return raw_text
+                
+                json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
+                if json_match:
+                    return json_match.group(1)
+                return raw_text
                 
         except Exception as e:
             log_debug(f"Key Error {is_secret}: {str(e)}", "warning")
@@ -80,16 +83,9 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
 
 def test_api_connection():
     log_debug("🚀 Starting SDK Connection Test...", "info")
-    if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
-        log_debug("🔑 [System] 成功讀取 Streamlit Secrets 中的 API Key！", "success")
-    else:
-        log_debug("⚠️ [System] 找不到 Streamlit Secrets！請檢查 Cloud Settings。", "error")
-        
-    res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online.'")
-    if res:
-        st.toast("✅ SDK 連線成功！Gemini 2.5 運作中。")
-    else:
-        st.toast("❌ 金鑰連線失敗，請檢查 Debug 欄", icon="🔥")
+    res = call_gemini_sdk("Ping test. Respond exactly: 'Firebean 2.5 Online.'")
+    if res: st.toast("✅ SDK 連線成功！")
+    else: st.toast("❌ 連線失敗")
 
 def standardize_logo(logo_file):
     try:
@@ -106,8 +102,7 @@ def manna_ai_enhance(image_file):
     try:
         raw_img = Image.open(image_file)
         img = ImageOps.exif_transpose(raw_img).convert("RGB")
-        img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
-        return img_enhanced
+        return ImageEnhance.Contrast(img).enhance(1.15)
     except Exception as e:
         log_debug(f"Manna AI Enhancement Error: {str(e)}", "error")
         return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
@@ -131,9 +126,9 @@ def get_circle_progress_html(percent):
     offset = circum * (1 - percent/100)
     return f"""
     <div style="display: flex; justify-content: flex-end; align-items: center;">
-        <div style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="120" height="120"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="50" cx="60" cy="60" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 22px; font-weight: 900; color: #2D3436;">{percent}%</div>
+        <div style="position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
+            <svg width="110" height="110"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="45" cx="55" cy="55" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <div style="position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
     </div>
     """
@@ -142,12 +137,10 @@ def apply_styles():
     st.markdown("""
         <style>
         header {visibility: hidden;} footer {visibility: hidden;}
-        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
+        .stApp { background-color: #E0E5EC; color: #2D3436; }
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; color: #2D3436; }
         h1, h2, h3, label, p { color: #2D3436 !important; font-weight: 700 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; }
-        .hero-border { border: 4px solid #FF0000; border-radius: 12px; }
-        .ai-status-tag { background: #FF3333; color: white !important; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
         .mc-question { font-weight: 600; color: #d32f2f !important; margin-top: 15px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 30px; }
         .debug-success { color: #00FF00 !important; font-weight: bold; }
@@ -181,9 +174,9 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
-    for i, tab_name in enumerate(tab_list):
-        if nav_cols[i].button(tab_name, use_container_width=True, key=f"nav_{i}", type="primary" if st.session_state.active_tab == tab_name else "secondary"):
-            st.session_state.active_tab = tab_name
+    for i, t in enumerate(tab_list):
+        if nav_cols[i].button(t, use_container_width=True, key=f"nav_{i}", type="primary" if st.session_state.active_tab == t else "secondary"):
+            st.session_state.active_tab = t
             st.rerun()
     st.markdown("---")
 
@@ -222,10 +215,16 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🧠 專案靈魂萃取器 (20 MC)")
             if st.button("🪄 生成 20 條 MC 題目 (繁體中文)"):
-                with st.spinner("AI 出題中..."):
-                    prompt = f"Generate 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese..."
-                    res = call_gemini_sdk(prompt)
-                    if res: st.session_state.mc_questions = json.loads(res)
+                with st.spinner("AI 正在分析並生成 JSON..."):
+                    prompt = f"Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. Output ONLY a raw JSON array."
+                    res = call_gemini_sdk(prompt, is_json=True)
+                    if res:
+                        try:
+                            st.session_state.mc_questions = json.loads(res)
+                            st.success("✅ 題目已生成！")
+                        except Exception as e:
+                            log_debug(f"JSON Parsing Error: {str(e)}", "error")
+                            st.error("JSON 格式毀損，請重試。")
             
             if st.session_state.mc_questions:
                 for q in st.session_state.mc_questions:
@@ -255,35 +254,33 @@ def main():
                 st.session_state.active_tab = "📋 Review & Multi-Sync"
                 st.rerun()
 
-    # --- TAB 2: REVIEW & SYNC ---
+    # --- TAB 2: REVIEW & MULTI-SYNC ---
     elif st.session_state.active_tab == "📋 Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 Platform Sync")
-        if st.button("🪄 一鍵生成六大平台文案"):
+        if st.button("🪄 一鍵生成六大平台文案 (Follow DNA)"):
             if not st.session_state.logo_white and not st.session_state.logo_black:
                 st.error("🚨 阻截：請先上傳 Logo")
             elif len(st.session_state.project_photos) < 4:
                 st.error("🚨 阻截：請至少上傳 4 張相片")
             else:
-                with st.spinner("AI 根據 PDF 指引生成中 (IG 字數限制中)..."):
+                with st.spinner("AI 根據 PDF DNA 指引生成中 (IG 字數限制中)..."):
                     prompt = f"Analyze project {st.session_state.project_name}... Generate JSON for 6 platforms. IMPORTANT: Instagram must be Traditional Chinese and <150 words."
-                    res = call_gemini_sdk(prompt)
+                    res = call_gemini_sdk(prompt, is_json=True)
                     if res:
-                        st.session_state.ai_content = json.loads(res)
-                        st.session_state.challenge = st.session_state.ai_content.get("challenge_summary", "")
-                        st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
-                        st.success("✅ 文案已生成！")
+                        try:
+                            st.session_state.ai_content = json.loads(res)
+                            st.session_state.challenge = st.session_state.ai_content.get("challenge_summary", "")
+                            st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
+                            st.success("✅ 文案已生成！")
+                        except: st.error("文案 JSON 格式出錯")
         
-        # 💡 如果文案已生成，就會顯示 Review 同埋 Sync 按鈕
         if st.session_state.ai_content:
             st.subheader("✨ AI 生成預覽")
             st.json(st.session_state.ai_content)
             
-            st.markdown("---")
-            st.subheader("🚀 同步至 Master DB")
-            # 顯眼的紅色同步按鈕
             if st.button("🔥 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
-                with st.spinner("🔄 多軌同步中..."):
+                with st.spinner("🔄 同步中..."):
                     try:
                         # 整理回答數據
                         collected_answers = []
@@ -325,21 +322,19 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("👥 CRM 聯絡人管理")
         col_em, col_name = st.columns(2)
-        with col_em: new_email = st.text_input("Customer Email", key="crm_email")
-        with col_name: new_name = st.text_input("Customer Name (Optional)", key="crm_name")
-        if st.button("📥 手動新增至 CRM 名單"):
+        with col_em: new_email = st.text_input("Customer Email", key="crm_em")
+        with col_name: new_name = st.text_input("Customer Name", key="crm_na")
+        if st.button("📥 手動新增至 CRM"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success(f"✅ {new_email} 已加入 Contacts Tab！")
-            else: st.error("請輸入有效的電郵。")
+                if res.status_code == 200: st.success("✅ 已加入 Contacts！")
+            else: st.error("電郵格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 5. 永久除錯終端 ---
     st.markdown("---")
     with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=False):
-        col_t, _ = st.columns([1, 4])
-        with col_t:
-            if st.button("🔍 Test API Connection"): test_api_connection()
+        if st.button("🔍 Test API Connection"): test_api_connection()
         if st.session_state.debug_logs:
             logs_html = "".join([f"<div class='debug-{l['type']}'>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.debug_logs)])
             st.markdown(f"<div class='debug-terminal'>{logs_html}</div>", unsafe_allow_html=True)
