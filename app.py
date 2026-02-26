@@ -24,14 +24,13 @@ WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & T
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 
 FIREBEAN_SYSTEM_PROMPT = """
-You are 'Firebean Brain', the Lead Project Strategist. 
-Identity: 'Institutional Cool'. 
-Philosophy: PR Events are the ultimate bridge between brands and people.
-Rule: Analyze ALL provided photos collectively. Be fact-strict. 
-Solve audience 'lack of reach' or 'lack of understanding' through the PR activities seen in the photos.
+You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
+Mission: Analyze PR activities through visual and factual data.
+Rule: Be fact-strict. If photos show F&B, do not hallucinate historical heritage sites.
+Focus on PR experiences as the bridge to brand understanding.
 """
 
-# --- 2. 核心邏輯 (Debug, API, Image) ---
+# --- 2. 核心邏輯 (優化版) ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -39,35 +38,45 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """支援多張圖片分析的 SDK 調用"""
+    """
+    優化版 SDK 調用：
+    1. 加入圖像壓縮以減少傳送時間。
+    2. 加入自動重試機制。
+    """
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
     model_name = "gemini-2.5-flash-preview-09-2025"
 
     for idx, key in enumerate(all_keys):
-        try:
-            genai.configure(api_key=key)
-            config = genai.types.GenerationConfig(
-                response_mime_type="application/json" if is_json else "text/plain",
-                temperature=0.7
-            )
-            model = genai.GenerativeModel(model_name=model_name, system_instruction=FIREBEAN_SYSTEM_PROMPT)
-            
-            contents = [prompt]
-            if image_files:
-                for img_file in image_files:
-                    img = Image.open(img_file)
-                    contents.append(img)
-            
-            response = model.generate_content(contents, generation_config=config)
-            if response and response.text:
-                log_debug(f"✅ API Success (Key #{idx})", "success")
-                raw_text = response.text.strip()
-                if not is_json: return raw_text
-                json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
-                return json_match.group(1) if json_match else raw_text
-        except Exception as e:
-            continue
+        # 重試次數限制
+        for attempt in range(2): 
+            try:
+                genai.configure(api_key=key)
+                config = genai.types.GenerationConfig(
+                    response_mime_type="application/json" if is_json else "text/plain",
+                    temperature=0.5
+                )
+                model = genai.GenerativeModel(model_name=model_name, system_instruction=FIREBEAN_SYSTEM_PROMPT)
+                
+                contents = [prompt]
+                if image_files:
+                    for img_file in image_files:
+                        # 🖼️ 優化：壓縮相片，減少 API Loading Time
+                        img = Image.open(img_file)
+                        img.thumbnail((1024, 1024)) # 保持比例，縮放至 1024px 以內
+                        contents.append(img)
+                
+                response = model.generate_content(contents, generation_config=config)
+                if response and response.text:
+                    log_debug(f"✅ API Success (Key #{idx})", "success")
+                    raw_text = response.text.strip()
+                    if not is_json: return raw_text
+                    json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
+                    return json_match.group(1) if json_match else raw_text
+            except Exception as e:
+                log_debug(f"API Attempt Fail (Key #{idx}): {str(e)[:50]}...", "warning")
+                time.sleep(1) # 暫停一下再重試
+                continue
     return None
 
 def standardize_logo(logo_file):
@@ -92,17 +101,17 @@ def init_session_state():
         "who_we_help": [WHO_WE_HELP_OPTIONS[0]], "what_we_do": [], "scope_of_word": [],
         "youtube_link": "", "project_photos": [], "hero_index": 0, "ai_content": {}, 
         "logo_white": "", "logo_black": "", "debug_logs": [], "mc_questions": [], 
-        "open_question_ans": "", "visual_evidence_summary": ""
+        "open_question_ans": "", "visual_fact_summary": ""
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與動畫 ---
+# --- 3. UI 元件 ---
 
 def get_animated_bar_html(percent, status_text):
     return f"""
     <div style="padding: 35px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0;">
-        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 22px; text-align: center; margin-bottom: 20px;">{status_text}</div>
+        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 20px; text-align: center; margin-bottom: 20px; letter-spacing: 1px;">{status_text}</div>
         <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 26px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
             <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s;">
                 <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 13px; line-height: 26px;">{percent}%</div>
@@ -116,9 +125,9 @@ def get_circle_progress_html(percent):
     offset = circum * (1 - percent/100)
     return f"""
     <div style="display: flex; justify-content: flex-end; align-items: center;">
-        <div style="position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="110" height="110"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="45" cx="55" cy="55" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;">{percent}%</div>
+        <div style="position: relative; width: 100px; height: 100px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
+            <svg width="100" height="100"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="40" cx="50" cy="50" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <div style="position: absolute; font-size: 18px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
     </div>"""
 
@@ -130,8 +139,8 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
         h1, h2, h3, label { color: #2D3436 !important; font-weight: 800 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border-radius: 10px !important; }
-        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 20px; border-left: 4px solid #FF0000; padding-left: 10px; }
-        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 200px; overflow-y: auto; }
+        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
+        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 180px; overflow-y: auto; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -154,7 +163,7 @@ def main():
 
     # Header
     c1, c2 = st.columns([1, 1])
-    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
+    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
     with c2: st.markdown(get_circle_progress_html(total_pct), unsafe_allow_html=True)
 
     # 導航
@@ -209,43 +218,41 @@ def main():
             st.subheader("🧠 靈魂診斷官 (全相片分析 + 20 MC)")
             if st.button("🪄 執行全相片分析並出題"):
                 if not st.session_state.project_photos:
-                    st.error("請先上傳相片。")
+                    st.error("請至少上傳 4 張相片作分析。")
                 else:
                     loader = st.empty()
-                    status = "📸 正在讀取並掃描所有相片細節..."
-                    for p in range(0, 96, 4):
+                    status = "📸 正在掃描全相片細節 (已優化傳輸)..."
+                    for p in range(0, 80, 5):
                         loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
-                        time.sleep(0.05)
+                        time.sleep(0.04)
                     
-                    # 🚀 第一步：全相片視覺事實提取
+                    # 🚀 第一步：全相片視覺事實提取 (加入壓縮)
                     vision_prompt = """
-                    Analyze these event photos collectively. List out the REAL visual facts: 
-                    1. What technology or equipment is clearly visible? 
-                    2. Describe the decor, branding, and atmosphere. 
-                    3. Describe the audience engagement and activities.
-                    4. Identify any specific food, products, or service flow seen.
-                    Strictly report what is visible. No guessing.
+                    Analyze these event photos collectively. Strictly report what you see: 
+                    Identify branding, scale, technology, food/products, and audience reaction. 
+                    Be precise. Do not hallucinate historical sites if they are not there.
                     """
-                    st.session_state.visual_evidence_summary = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
+                    summary = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
+                    st.session_state.visual_fact_summary = summary if summary else "No specific visual facts extracted."
                     
-                    # 🚀 第二步：基於視覺事實生成 20 題
+                    loader.markdown(get_animated_bar_html(90, "🧠 正在根據視覺事實生成題目..."), unsafe_allow_html=True)
+                    
+                    # 🚀 第二步：基於視覺事實生成 20 題 (文字對文字，極快)
                     prompt = f"""
-                    你是 Firebean 公關診斷官。根據以下事實生成 20 條 MC 題目。
-                    [視覺事實]: {st.session_state.visual_evidence_summary}
-                    [項目資料]: Client: {st.session_state.client_name}, Venue: {st.session_state.venue}, Type: {st.session_state.who_we_help[0]}
-                    
-                    中心思想：PR 活動如何透過體驗解決理解不足。
+                    你是 Firebean 診斷官。根據以下視覺實錄生成 20 條 MC 題目。
+                    [視覺實錄]: {st.session_state.visual_fact_summary}
+                    [事實資料]: Client: {st.session_state.client_name}, Venue: {st.session_state.venue}, Category: {st.session_state.who_we_help[0]}
+                    中心思想：PR 活動如何解決受眾理解不足的問題。
                     比例: 6題痛點, 7題體驗設計, 7題轉化成效。
-                    要求：題目必須緊扣視覺事實，嚴禁幻覺。
                     Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...']}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
-                        loader.markdown(get_animated_bar_html(100, "✅ 全相片診斷完成！"), unsafe_allow_html=True)
+                        loader.markdown(get_animated_bar_html(100, "✅ 診斷完成！"), unsafe_allow_html=True)
                         time.sleep(0.5); loader.empty()
                         try: st.session_state.mc_questions = json.loads(res)
                         except: st.error("JSON Error")
-                    else: loader.empty(); st.error("API 失敗")
+                    else: loader.empty(); st.error("API 失敗，請重試 (可能是金鑰限制)。")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -285,7 +292,7 @@ def main():
         
         if st.button("🪄 一鍵生成文案 (對接編號版)"):
             loader = st.empty()
-            status = f"🧠 FIREBEAN BRAIN 正在分析全相片事實與數據..."
+            status = f"🧠 FIREBEAN BRAIN 正在融合全相片事實與數據..."
             for p in range(0, 96, 3): 
                 loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                 time.sleep(0.04)
@@ -295,13 +302,12 @@ def main():
                 ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                 sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
             
-            # 🚀 關鍵：編號型 Key 確保 Apps Script 對位
             prompt = f"""
-            作為 Strategist，根據事實：{st.session_state.visual_evidence_summary}
+            作為 Strategist，根據事實：{st.session_state.visual_fact_summary}
             以及執行數據：{chr(10).join(sum_ans)} | 靈魂概念：{st.session_state.open_question_ans}
             客戶: {st.session_state.client_name} | 項目: {st.session_state.project_name} | 地點: {st.session_state.venue}
             
-            Output STRICTLY RAW JSON with these numbered keys:
+            Output STRICTLY RAW JSON with these numbered keys for Google Sync:
             - "品牌痛點分析": text
             - "活動方案核心": text
             - "1_google_slide": {{ "hook": "...", "shift": "...", "proof": "..." }}
@@ -313,21 +319,22 @@ def main():
             """
             res = call_gemini_sdk(prompt, is_json=True)
             if res:
-                loader.markdown(get_animated_bar_html(100, "✅ 靈魂文案已對位！"), unsafe_allow_html=True)
+                loader.markdown(get_animated_bar_html(100, "✅ 對位完成！"), unsafe_allow_html=True)
                 time.sleep(0.5); loader.empty()
                 try: st.session_state.ai_content = json.loads(res)
-                except: st.error("JSON 解析失敗")
+                except: st.error("JSON Parsing Error")
             else: loader.empty(); st.error("API 失敗")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
-                with st.spinner("🔄 正在多軌同步..."):
+            if st.button("🔥 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
+                with st.spinner("🔄 同步中 (Sheet + Slide + Drive)..."):
                     try:
                         ans_sync = []
                         if st.session_state.mc_questions:
                             for i, q in enumerate(st.session_state.mc_questions):
-                                ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
+                                q_id = q.get('id', i+1)
+                                ans = st.session_state.get(f"ans_{q_id}", [])
                                 ans_sync.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
                         
                         payload = {
@@ -352,8 +359,8 @@ def main():
                         }
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
-                        log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 同步成功！請檢查 Google Sheet & Slide。")
+                        log_debug(f"Sheet Status: {r1.status_code}, Slide Status: {r2.status_code}", "success")
+                        st.balloons(); st.success("✅ 同步成功！數據已射入 Master DB 同 Slide。")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -366,11 +373,11 @@ def main():
         if st.button("📥 手動新增至 CRM"):
             if "@" in e_em:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": e_em, "name": e_na})
-                if res.status_code == 200: st.success("✅ 已分流至 Contacts 工作表！")
+                if res.status_code == 200: st.success("✅ 已同步至 Contacts 工作表！")
             else: st.error("Email 格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 永久除錯終端 ---
+    # --- 5. Debug Terminal ---
     with st.expander("🛠️ Firebean Brain Debug Terminal", expanded=False):
         if st.session_state.debug_logs:
             logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.debug_logs)])
