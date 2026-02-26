@@ -265,11 +265,12 @@ def main():
                             "venue": st.session_state.venue,
                             "date": f"{st.session_state.event_year} {st.session_state.event_month}",
                             "youtube": st.session_state.youtube,
-                            "category": st.session_state.category, # 對位 {{CATEGORY}}
+                            "category": st.session_state.category, 
                             "category_what": ", ".join(st.session_state.what_we_do),
-                            "scope": ", ".join(st.session_state.scope),       # 對位 {{SCOPE}}
+                            "scope": ", ".join(st.session_state.scope),       
                             "challenge": st.session_state.challenge,
                             "solution": st.session_state.solution,
+                            "open_question": st.session_state.open_question_ans, # 👈 新增這一行
                             "logo_white": st.session_state.logo_white,
                             "logo_black": st.session_state.logo_black,
                             "images": imgs,
