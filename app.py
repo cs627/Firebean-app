@@ -65,4 +65,271 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             if response and response.text:
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
                 cleaned_text = response.text.strip()
-                if cleaned_text.startswith("
+                # 修復 Syntax Error: 完整的字串清理邏輯
+                if cleaned_text.startswith("```json"):
+                    cleaned_text = cleaned_text[7:]
+                if cleaned_text.endswith("```"):
+                    cleaned_text = cleaned_text[:-3]
+                return cleaned_text.strip()
+                
+        except Exception as e:
+            log_debug(f"Key Error {is_secret}: {str(e)}", "warning")
+            continue
+            
+    log_debug("Critical Error: All API keys failed.", "error")
+    return None
+
+def test_api_connection():
+    log_debug("🚀 Starting SDK Connection Test...", "info")
+    if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
+        log_debug("🔑 [System] 成功讀取 Streamlit Secrets 中的 API Key！", "success")
+    else:
+        log_debug("⚠️ [System] 找不到 Streamlit Secrets！請檢查 Cloud Settings。", "error")
+        
+    res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online.'")
+    if res:
+        st.toast("✅ SDK 連線成功！Gemini 2.5 運作中。")
+    else:
+        st.toast("❌ 金鑰連線失敗，請檢查 Debug 欄", icon="🔥")
+
+def standardize_logo(logo_file):
+    try:
+        raw = Image.open(logo_file)
+        img = ImageOps.exif_transpose(raw).convert("RGBA")
+        buf = io.BytesIO(); img.save(buf, format="PNG")
+        log_debug(f"Logo '{logo_file.name}' normalized & converted to Base64 PNG.", "success")
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        log_debug(f"Logo Fix Error: {str(e)}", "error")
+        return ""
+
+def manna_ai_enhance(image_file):
+    try:
+        raw_img = Image.open(image_file)
+        img = ImageOps.exif_transpose(raw_img).convert("RGB")
+        img_enhanced = ImageEnhance.Contrast(img).enhance(1.15)
+        return img_enhanced
+    except Exception as e:
+        log_debug(f"Manna AI Enhancement Error: {str(e)}", "error")
+        return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
+
+def init_session_state():
+    fields = {
+        "active_tab": "📝 Project Collector",
+        "client_name": "", "project_name": "", "venue": "", "event_year": "2026", "event_month": "FEB",
+        "who_we_help": [WHO_WE_HELP_OPTIONS[0]], "what_we_do": [], "scope_of_word": [],
+        "youtube_link": "", "project_photos": [], "hero_index": 0, "processed_photos": {},
+        "ai_content": {}, "logo_white": "", "logo_black": "", "debug_logs": [],
+        "mc_questions": [], "open_question_ans": "", "challenge": "", "solution": ""
+    }
+    for k, v in fields.items():
+        if k not in st.session_state: st.session_state[k] = v
+
+# --- 3. UI 樣式與進度環 ---
+
+def get_circle_progress_html(percent):
+    circum = 439.8
+    offset = circum * (1 - percent/100)
+    return f"""
+    <div style="display: flex; justify-content: flex-end; align-items: center;">
+        <div style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
+            <svg width="120" height="120"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="50" cx="60" cy="60" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
+            <div style="position: absolute; font-size: 22px; font-weight: 900; color: #2D3436;">{percent}%</div>
+        </div>
+    </div>
+    """
+
+def apply_styles():
+    st.markdown("""
+        <style>
+        header {visibility: hidden;} footer {visibility: hidden;}
+        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
+        .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; color: #2D3436; }
+        h1, h2, h3, label, p { color: #2D3436 !important; font-weight: 700 !important; }
+        input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; }
+        .hero-border { border: 4px solid #FF0000; border-radius: 12px; }
+        .ai-status-tag { background: #FF3333; color: white !important; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px; }
+        .mc-question { font-weight: 600; color: #d32f2f !important; margin-top: 15px; }
+        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 30px; }
+        .debug-success { color: #00FF00 !important; font-weight: bold; }
+        .debug-error { color: #FF5555 !important; font-weight: bold; }
+        </style>
+    """, unsafe_allow_html=True)
+
+# --- 4. Main App ---
+
+def main():
+    st.set_page_config(page_title="Firebean Brain 2026", layout="wide")
+    init_session_state()
+    apply_styles()
+
+    # Progress 計算 (10 維度)
+    score_items = ["client_name", "project_name", "venue", "open_question_ans"]
+    filled = sum([1 for f in score_items if st.session_state.get(f)])
+    filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
+    filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
+    filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
+    filled += (1 if len(st.session_state.mc_questions) == 20 else 0)
+    percent = int((filled / 10) * 100)
+    if percent > 100: percent = 100
+
+    # Header
+    c1, c2 = st.columns([1, 1])
+    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
+    with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
+
+    # 全闊度導航按鈕
+    st.markdown("<br>", unsafe_allow_html=True)
+    nav_cols = st.columns(3)
+    tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
+    for i, tab_name in enumerate(tab_list):
+        if nav_cols[i].button(tab_name, use_container_width=True, key=f"nav_{i}", type="primary" if st.session_state.active_tab == tab_name else "secondary"):
+            st.session_state.active_tab = tab_name
+            st.rerun()
+    st.markdown("---")
+
+    # --- TAB 1: PROJECT COLLECTOR ---
+    if st.session_state.active_tab == "📝 Project Collector":
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.subheader("🎨 Assets & Core Info")
+        col1, col2 = st.columns(2)
+        with col1:
+            ub = st.file_uploader("Upload Black Logo", type=['png'], key="logo_b")
+            if ub and st.button("Fix Black"): st.session_state.logo_black = standardize_logo(ub)
+        with col2:
+            uw = st.file_uploader("Upload White Logo", type=['png'], key="logo_w")
+            if uw and st.button("Fix White"): st.session_state.logo_white = standardize_logo(uw)
+        
+        b1, b2, b3, b4 = st.columns([1, 1, 1, 1])
+        st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
+        st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
+        st.session_state.venue = b3.text_input("Venue", st.session_state.venue)
+        st.session_state.youtube_link = b4.text_input("YouTube Link (Optional)", st.session_state.youtube_link)
+        
+        c_a, c_b, c_c = st.columns(3)
+        with c_a: 
+            st.markdown("**👥 Category**")
+            st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS, label_visibility="collapsed")]
+        with c_b: 
+            st.markdown("**🚀 What we do**")
+            st.session_state.what_we_do = [opt for opt in WHAT_WE_DO_OPTIONS if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do))]
+        with c_c:
+            st.markdown("**🛠️ Scope**")
+            st.session_state.scope_of_word = [opt for opt in SOW_OPTIONS if st.checkbox(opt, key=f"s_{opt}", value=(opt in st.session_state.scope_of_word))]
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        cl, cr = st.columns([1.2, 1])
+        with cl:
+            st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+            st.subheader("🧠 專案靈魂萃取器 (20 MC)")
+            if st.button("🪄 生成 20 條 MC 題目 (繁體中文)"):
+                with st.spinner("AI 出題中..."):
+                    prompt = f"Generate 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese..."
+                    res = call_gemini_sdk(prompt)
+                    if res: st.session_state.mc_questions = json.loads(res)
+            
+            if st.session_state.mc_questions:
+                for q in st.session_state.mc_questions:
+                    st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']} (可多選)</div>", unsafe_allow_html=True)
+                    st.session_state[f"ans_{q['id']}"] = st.multiselect("Options", q['options'], key=f"q_{q['id']}")
+                st.session_state.open_question_ans = st.text_area("覺得我哋嘅概念最特別是什麼？", st.session_state.open_question_ans)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with cr:
+            st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+            st.subheader("📸 Gallery (Require 4+ Photos)")
+            files = st.file_uploader("Upload up to 8 Photos", accept_multiple_files=True, key="photo_up")
+            if files:
+                st.session_state.project_photos = files
+                hero_choice = st.radio("🌟 Select Hero Banner", [f"P{i+1}" for i in range(len(files))], horizontal=True)
+                st.session_state.hero_index = int(hero_choice[1:]) - 1
+                cols = st.columns(4)
+                for i, f in enumerate(files):
+                    with cols[i%4]:
+                        img = manna_ai_enhance(f)
+                        st.image(img, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        if percent == 100:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🚀 資料已齊全！進入 Review & Multi-Sync", use_container_width=True, type="primary"):
+                st.session_state.active_tab = "📋 Review & Multi-Sync"
+                st.rerun()
+
+    # --- TAB 2: REVIEW & SYNC ---
+    elif st.session_state.active_tab == "📋 Review & Multi-Sync":
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.header("📋 Platform Sync")
+        if st.button("🪄 一鍵生成六大平台文案"):
+            if not st.session_state.logo_white and not st.session_state.logo_black:
+                st.error("🚨 阻截：請先上傳 Logo")
+            elif len(st.session_state.project_photos) < 4:
+                st.error("🚨 阻截：請至少上傳 4 張相片")
+            else:
+                with st.spinner("AI 根據 PDF 指引生成中 (IG 字數限制中)..."):
+                    prompt = f"Analyze project {st.session_state.project_name}... Generate JSON for 6 platforms. IMPORTANT: Instagram must be Traditional Chinese and <150 words."
+                    res = call_gemini_sdk(prompt)
+                    if res:
+                        st.session_state.ai_content = json.loads(res)
+                        st.session_state.challenge = st.session_state.ai_content.get("challenge_summary", "")
+                        st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
+                        st.success("✅ 文案已生成！")
+        
+        if st.session_state.ai_content:
+            st.json(st.session_state.ai_content)
+            if st.button("🚀 Confirm & Sync (Sheet + Slide + Drive)"):
+                with st.spinner("🔄 多軌同步中..."):
+                    try:
+                        payload = {
+                            "action": "sync_project",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "client_name": st.session_state.client_name,
+                            "project_name": st.session_state.project_name,
+                            "event_date": f"{st.session_state.event_year} {st.session_state.event_month}",
+                            "venue": st.session_state.venue,
+                            "youtube_link": st.session_state.youtube_link,
+                            "category_who": ", ".join(st.session_state.who_we_help),
+                            "category_what": ", ".join(st.session_state.what_we_do),
+                            "scope_of_work": ", ".join(st.session_state.scope_of_word),
+                            "challenge": st.session_state.challenge,
+                            "solution": st.session_state.solution,
+                            "open_question": st.session_state.open_question_ans,
+                            "ai_content": st.session_state.ai_content,
+                            "logo_black": st.session_state.logo_black,
+                            "logo_white": st.session_state.logo_white,
+                            "images": [base64.b64encode(f.getvalue()).decode() for f in st.session_state.project_photos]
+                        }
+                        r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
+                        r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
+                        log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
+                        st.balloons(); st.success("✅ Master DB & Google Slide 同步成功！")
+                    except Exception as e:
+                        log_debug(f"Sync Error: {str(e)}", "error")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- TAB 3: CRM ---
+    elif st.session_state.active_tab == "👥 CRM & Contacts":
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.header("👥 CRM 聯絡人管理")
+        col_em, col_name = st.columns(2)
+        with col_em: new_email = st.text_input("Customer Email", key="crm_email")
+        with col_name: new_name = st.text_input("Customer Name (Optional)", key="crm_name")
+        if st.button("📥 手動新增至 CRM 名單"):
+            if "@" in new_email:
+                res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
+                if res.status_code == 200: st.success(f"✅ {new_email} 已加入 Contacts Tab！")
+            else: st.error("請輸入有效的電郵。")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- 5. 永久除錯終端 ---
+    st.markdown("---")
+    with st.expander("🛠️ Firebean Brain Debug Terminal (Permanent)", expanded=False):
+        col_t, _ = st.columns([1, 4])
+        with col_t:
+            if st.button("🔍 Test API Connection"): test_api_connection()
+        if st.session_state.debug_logs:
+            logs_html = "".join([f"<div class='debug-{l['type']}'>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.debug_logs)])
+            st.markdown(f"<div class='debug-terminal'>{logs_html}</div>", unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
