@@ -13,7 +13,7 @@ from datetime import datetime
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 🚀 使用最新 2.5 模型 (根據您的權限截圖)
+# 🚀 鎖定最新 2.5 模型
 STABLE_MODEL_ID = "gemini-2.5-flash"
 
 API_KEYS_POOL = [
@@ -42,7 +42,7 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """Gemini 2.5 多模態分析 + 高強度圖片壓縮優化"""
+    """Gemini 2.5 多模態分析 + 圖像壓縮優化"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
 
@@ -58,7 +58,6 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             contents = [prompt]
             if image_files:
                 for img_file in image_files:
-                    # 🖼️ 壓縮相片至 800px 以內以加快 Loading
                     img = Image.open(img_file)
                     img.thumbnail((800, 800))
                     contents.append(img)
@@ -77,15 +76,14 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def test_api_connection():
-    """消失的 Check Key Function 正式回歸"""
+    """Check Key 功能"""
     log_debug("🚀 開始連線測試...", "info")
-    res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online'.")
+    res = call_gemini_sdk("Ping test. Please respond with: 'Firebean Online'.")
     if res:
         st.toast("✅ SDK 連線成功！Gemini 2.5 已 Ready。")
-        log_debug("系統連線正常，可執行 AI 診斷。", "success")
+        log_debug("API 測試正常。", "success")
     else:
-        st.toast("❌ 連線失敗，請檢查 Key 是否過期。")
-        log_debug("API 沒反應，請更換密鑰或檢查 Secrets。", "error")
+        st.toast("❌ 連線失敗，請更換有效密鑰。", icon="🔥")
 
 def standardize_logo(logo_file):
     try:
@@ -118,11 +116,11 @@ def init_session_state():
 
 def get_animated_bar_html(percent, status_text):
     return f"""
-    <div style="padding: 30px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0; border: 1px solid rgba(255,0,0,0.1);">
+    <div style="padding: 30px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0;">
         <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 18px; text-align: center; margin-bottom: 15px;">{status_text}</div>
         <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 26px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
             <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s;">
-                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 12px; line-height: 26px;">{percent}%</div>
+                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 12px; line-height: 24px;">{percent}%</div>
             </div>
         </div>
     </div>
@@ -234,7 +232,6 @@ def main():
                         loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                         time.sleep(0.04)
                     
-                    # 視覺事實提取
                     vision_prompt = """
                     Analyze these event photos. Strictly list visual facts in Traditional Chinese: 
                     Colors, branding, equipment, audience activities, service flow. 
@@ -244,11 +241,12 @@ def main():
                     
                     loader.markdown(get_animated_bar_html(90, "🧠 正在基於視覺證據生成繁中題目..."), unsafe_allow_html=True)
                     
+                    # 🚀 修復：使用雙括號 {{}} 以防止 f-string ValueError
                     prompt = f"""
                     你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
-                    以及資料：Client: {st.session_state.client_name}, Cat: {st.session_state.who_we_help[0]}
-                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足。
-                    全部使用「繁體中文」。Output STRICTLY JSON Array: [{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}]
+                    以及項目資料：Client: {st.session_state.client_name}, Cat: {st.session_state.who_we_help[0]}
+                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足問題。
+                    全部使用「繁體中文」。Output STRICTLY JSON Array: [{{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
@@ -257,7 +255,7 @@ def main():
                         try: 
                             parsed = json.loads(res)
                             if isinstance(parsed, list):
-                                # 🛡️ 防彈邏輯：確保每一項都是 Dictionary，修復 AttributeError
+                                # 🛡️ 防彈邏輯：修復 AttributeError
                                 st.session_state.mc_questions = [q for q in parsed if isinstance(q, dict)]
                                 st.success("✅ 活動回顧題目已生成！")
                         except: st.error("JSON 解析失敗。")
@@ -265,10 +263,9 @@ def main():
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
-                    # 🛡️ 再次防護，確保 q 是字典
                     if isinstance(q, dict):
                         q_id = q.get('id', i + 1)
-                        q_text = q.get('question', '回顧問題')
+                        q_text = q.get('question', '問題')
                         q_opts = q.get('options', [])
                         st.markdown(f"<div class='mc-question'>Q{q_id}. {q_text}</div>", unsafe_allow_html=True)
                         sel = []
@@ -316,9 +313,10 @@ def main():
                     ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                     sum_ans_text.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
             
+            # 🚀 修復：大括號轉義
             prompt = f"""
-            作為 Strategist，根據事實：{st.session_state.visual_facts}
-            執行數據：{chr(10).join(sum_ans_text)} | 概念：{st.session_state.open_question_ans}
+            作為 Strategist，根據視覺事實：{st.session_state.visual_facts}
+            執行數據：{chr(10).join(sum_ans_text)} | 靈魂概念：{st.session_state.open_question_ans}
             Output STRICTLY RAW JSON with these numbered keys for Google API Sync:
             - "品牌痛點分析": text (繁中)
             - "活動方案核心": text (繁中)
@@ -345,7 +343,6 @@ def main():
             if st.button("🚀 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
                 with st.spinner("🔄 正在多軌同步..."):
                     try:
-                        # 🚀 整合 MC 題目與答案到 mc_summary，射入 Google Sheet
                         final_mc_summary = []
                         for i, q in enumerate(st.session_state.mc_questions):
                             if isinstance(q, dict):
@@ -372,7 +369,7 @@ def main():
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 同步成功！數據已射入 Master DB 同 Slide。")
+                        st.balloons(); st.success("✅ 同步成功！請檢查 Google Sheet & Slide。")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -389,7 +386,7 @@ def main():
             else: st.error("Email 格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 5. 永久除錯終端 ---
+    # --- 5. Debug 終端 ---
     with st.expander("🛠️ Firebean Brain Debug Terminal", expanded=False):
         if st.button("🔍 測試 API 連線"): test_api_connection()
         if st.session_state.debug_logs:
