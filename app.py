@@ -26,13 +26,12 @@ YEARS = [str(y) for y in range(2015, 2031)]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 FIREBEAN_SYSTEM_PROMPT = """
-You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website: Trilingual.
-Motto: 'Turn Policy into Play'.
+You are 'Firebean Brain', the Architect of Public Engagement and Lead Project Soul Diagnostician. 
+Your specialty is 'Institutional Cool'. You don't just ask what the client wants; you diagnose what the 'End Users' (target audience) desire or fear.
+Strategy: Bridge Structure (End User Pain Point -> Firebean's Creative Solution -> Impact).
 """
 
-# --- 2. 核心邏輯 (包含 Debug 與 API 引擎) ---
+# --- 2. 核心邏輯 (Debug, API, Image) ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -65,18 +64,12 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             continue
     return None
 
-def test_api_connection():
-    log_debug("🚀 Starting SDK Connection Test...", "info")
-    res = call_gemini_sdk("Ping test. Respond exactly: 'Firebean 2.5 Online.'")
-    if res: st.toast("✅ SDK 連線成功！")
-    else: st.toast("❌ 連線失敗")
-
 def standardize_logo(logo_file):
     try:
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         buf = io.BytesIO(); img.save(buf, format="PNG")
-        log_debug(f"Logo '{logo_file.name}' encoded to Base64 PNG.", "success")
+        log_debug(f"Logo '{logo_file.name}' normalized & converted to Base64 PNG.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
@@ -101,12 +94,12 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與動畫 ---
+# --- 3. UI 樣式與動畫修復 ---
 
 def get_custom_loader_html(animation_type="brain", status_text="AI Processing..."):
-    """生成自定義 SVG 動畫 HTML"""
+    """修復 SVG 動畫外洩問題：使用封裝容器與強制渲染"""
     if animation_type == "brain":
-        svg_content = """
+        svg_code = """
         <svg viewBox="0 0 100 100" width="80" height="80">
             <path d="M50 20C35 20 25 30 25 45C25 55 30 65 50 80C70 65 75 55 75 45C75 30 65 20 50 20Z" fill="none" stroke="#FF0000" stroke-width="2">
                 <animate attributeName="stroke-dasharray" from="0,200" to="200,0" dur="2s" repeatCount="indefinite" />
@@ -115,10 +108,9 @@ def get_custom_loader_html(animation_type="brain", status_text="AI Processing...
                 <animate attributeName="r" values="8;12;8" dur="1.5s" repeatCount="indefinite" />
                 <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite" />
             </circle>
-        </svg>
-        """
-    else: # book flipping
-        svg_content = """
+        </svg>"""
+    else:
+        svg_code = """
         <svg viewBox="0 0 100 100" width="80" height="80">
             <rect x="30" y="30" width="40" height="50" rx="2" fill="none" stroke="#2D3436" stroke-width="2" />
             <line x1="50" y1="30" x2="50" y2="80" stroke="#2D3436" stroke-width="2" />
@@ -128,18 +120,13 @@ def get_custom_loader_html(animation_type="brain", status_text="AI Processing...
             <path d="M50 50 L70 50" stroke="#FF0000" stroke-width="2">
                 <animate attributeName="d" values="M50 50 L70 50; M50 50 L50 50; M50 50 L30 50; M50 50 L50 50" dur="1s" begin="0.2s" repeatCount="indefinite" />
             </path>
-            <path d="M50 65 L70 65" stroke="#FF0000" stroke-width="2">
-                <animate attributeName="d" values="M50 65 L70 65; M50 65 L50 65; M50 65 L30 65; M50 65 L50 65" dur="1s" begin="0.4s" repeatCount="indefinite" />
-            </path>
-        </svg>
-        """
+        </svg>"""
     
     return f"""
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin-top: 20px;">
-        {svg_content}
-        <div style="margin-top: 20px; font-weight: 800; color: #2D3436; font-family: 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase;">{status_text}</div>
-    </div>
-    """
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin: 20px 0;">
+        {svg_code}
+        <div style="margin-top: 15px; font-weight: 800; color: #FF0000; text-transform: uppercase; font-size: 14px;">{status_text}</div>
+    </div>"""
 
 def get_circle_progress_html(percent):
     circum = 439.8
@@ -150,8 +137,7 @@ def get_circle_progress_html(percent):
             <svg width="110" height="110"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="45" cx="55" cy="55" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
             <div style="position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;">{percent}%</div>
         </div>
-    </div>
-    """
+    </div>"""
 
 def apply_styles():
     st.markdown("""
@@ -161,7 +147,7 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; color: #2D3436; }
         h1, h2, h3, label, p { color: #2D3436 !important; font-weight: 700 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #2D3436 !important; }
-        .mc-question { font-weight: 600; color: #d32f2f !important; margin-top: 15px; }
+        .mc-question { font-weight: 600; color: #FF0000 !important; margin-top: 15px; }
         .mc-container { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #FF0000; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px 10px 0 0; max-height: 250px; overflow-y: auto; margin-top: 30px; }
         .debug-success { color: #00FF00 !important; font-weight: bold; }
@@ -192,7 +178,6 @@ def main():
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
     # 全闊度導航按鈕
-    st.markdown("<br>", unsafe_allow_html=True)
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -240,22 +225,33 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🧠 專案靈魂萃取器 (20 MC Checkbox)")
+            st.subheader("🧠 專案靈魂萃取器 (6-7-7 診斷矩陣)")
             
-            # --- 動畫觸發點：生成 MC ---
-            if st.button("🪄 生成 20 條 MC 題目"):
+            if st.button("🪄 生成 20 條受眾心理診斷題"):
                 loader = st.empty()
-                loader.markdown(get_custom_loader_html("book", "正在翻閱資料並分析 DNA..."), unsafe_allow_html=True)
+                loader.markdown(get_custom_loader_html("book", "正在翻閱資料並分析受眾 DNA..."), unsafe_allow_html=True)
                 
-                prompt = f"Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. Output strictly as JSON array of objects: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]"
+                # 核心 Prompt：6-7-7 心理診斷邏輯
+                prompt = f"""
+                根據以下專案設定，生成 20 條針對「End Users (受眾)」的 MC 心理診斷題目 (分配比例 6:7:7)。
+                [Category]: {st.session_state.who_we_help}
+                [What We Do]: {st.session_state.what_we_do}
+                [Scope]: {st.session_state.scope_of_word}
+                
+                題目規範：
+                1. 維度一：Client Category (6題) - 診斷受眾對該行業的原始慾望或焦慮。
+                2. 維度二：What We Do (7題) - 診斷受眾在該活動形式下的互動偏好。
+                3. 維度三：Scope of Work (7題) - 診斷傳播手段對受眾的有效打擊點。
+                
+                Output 必須是 JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
+                """
                 res = call_gemini_sdk(prompt, is_json=True)
-                
-                loader.empty() # 移除動畫
+                loader.empty()
                 if res:
                     try:
                         st.session_state.mc_questions = json.loads(res)
-                        st.success("✅ 題目已生成！")
-                    except: st.error("JSON 格式出錯，請重試。")
+                        st.success("✅ 靈魂診斷題目已生成！")
+                    except: st.error("JSON 格式毀損，請重試。")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -272,7 +268,7 @@ def main():
 
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("📸 Gallery (Require 4+)")
+            st.subheader("📸 Gallery (Require 4+ Photos)")
             files = st.file_uploader("Upload up to 8 Photos", accept_multiple_files=True, key="photo_up")
             if files:
                 st.session_state.project_photos = files
@@ -287,42 +283,48 @@ def main():
 
         if percent == 100:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🚀 資料已齊全！進入 Review & Multi-Sync", use_container_width=True, type="primary"):
+            if st.button("🚀 診斷完成！進入策略 Review", use_container_width=True, type="primary"):
                 st.session_state.active_tab = "📋 Review & Multi-Sync"
                 st.rerun()
 
     # --- TAB 2: REVIEW & SYNC ---
     elif st.session_state.active_tab == "📋 Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        st.header("📋 Platform Sync")
+        st.header("📋 2026 社交平台策略發布")
         
-        # --- 動畫觸發點：生成平台文案 ---
-        if st.button("🪄 一鍵生成六大平台文案"):
-            if not st.session_state.logo_white and not st.session_state.logo_black:
-                st.error("🚨 阻截：請先上傳 Logo")
-            elif len(st.session_state.project_photos) < 4:
+        if st.button("🪄 一鍵生成所有平台策略文案"):
+            if len(st.session_state.project_photos) < 4:
                 st.error("🚨 阻截：請至少上傳 4 張相片")
             else:
                 loader = st.empty()
-                loader.markdown(get_custom_loader_html("brain", "Firebean Brain 正在同步 6 大平台邏輯..."), unsafe_allow_html=True)
+                loader.markdown(get_custom_loader_html("brain", "Firebean Brain 正在將診斷結果轉化為靈魂文案..."), unsafe_allow_html=True)
                 
-                prompt = f"Analyze project {st.session_state.project_name}... Generate JSON for 6 platforms. IG must be Traditional Chinese and <150 words."
+                prompt = f"""
+                作為 Firebean 專案靈魂診斷官，根據診斷題目答案及 Open Question: {st.session_state.open_question_ans} 生成報告。
+                
+                規範：
+                1. 品牌痛點分析 (<100字)：受眾心理缺口。
+                2. 活動方案核心 (<100字)：Firebean 如何填補。
+                3. 社交平台策略 (JSON 格式)：
+                   - LinkedIn: Professional Business English, 150-300字, 行業洞察。
+                   - Threads: 極度口語化 Canto-slang, 50字內精警短句, 反傳統觀點。
+                   - Instagram: 首兩行 125 字內亮點, 繁中, 總數 150 字內。
+                   - Facebook: 資訊大本營, 「痛點→方案→行動」漏斗, 含清晰 CTA。
+                """
                 res = call_gemini_sdk(prompt, is_json=True)
-                
-                loader.empty() # 移除動畫
+                loader.empty()
                 if res:
                     try:
                         st.session_state.ai_content = json.loads(res)
-                        st.session_state.challenge = st.session_state.ai_content.get("challenge_summary", "")
-                        st.session_state.solution = st.session_state.ai_content.get("solution_summary", "")
-                        st.success("✅ 文案已完美生成！")
-                    except: st.error("文案 JSON 格式出錯")
+                        st.session_state.challenge = st.session_state.ai_content.get("品牌痛點分析", "")
+                        st.session_state.solution = st.session_state.ai_content.get("活動方案核心", "")
+                        st.success("✅ 靈魂文案已完美對位！")
+                    except: st.error("JSON 格式出錯")
         
         if st.session_state.ai_content:
-            st.subheader("✨ AI 生成預覽")
             st.json(st.session_state.ai_content)
-            if st.button("🔥 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
-                with st.spinner("🔄 多軌同步中..."):
+            if st.button("🔥 Confirm & Sync to Master DB", use_container_width=True, type="primary"):
+                with st.spinner("🔄 同步中..."):
                     try:
                         sum_ans = []
                         if st.session_state.mc_questions:
@@ -363,13 +365,13 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("👥 CRM 聯絡人管理")
         col_em, col_name = st.columns(2)
-        with col_em: new_email = st.text_input("Customer Email", key="crm_em")
-        with col_name: new_name = st.text_input("Customer Name", key="crm_na")
-        if st.button("📥 手動新增至 CRM"):
+        with col_em: new_email = st.text_input("Email", key="crm_em")
+        with col_name: new_name = st.text_input("Name", key="crm_na")
+        if st.button("📥 加入 Contacts"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success("✅ 已加入 Contacts！")
-            else: st.error("電郵格式錯誤")
+                if res.status_code == 200: st.success("✅ 已同步至 Contacts Tab！")
+            else: st.error("格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 5. 永久除錯終端 ---
