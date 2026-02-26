@@ -69,6 +69,7 @@ def standardize_logo(logo_file):
         raw = Image.open(logo_file)
         img = ImageOps.exif_transpose(raw).convert("RGBA")
         buf = io.BytesIO(); img.save(buf, format="PNG")
+        log_debug(f"Logo '{logo_file.name}' encoded to Base64.", "success")
         return base64.b64encode(buf.getvalue()).decode()
     except Exception as e:
         log_debug(f"Logo Fix Error: {str(e)}", "error")
@@ -96,6 +97,7 @@ def init_session_state():
 # --- 3. UI 樣式與 % Progress Bar ---
 
 def get_animated_bar_html(percent, status_text):
+    """生成自定義 Neumorphic 進度條與大字體狀態"""
     return f"""
     <div style="padding: 40px; background: #E0E5EC; border-radius: 25px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 30px 0; border: 1px solid rgba(255,0,0,0.1);">
         <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 28px; text-align: center; margin-bottom: 25px; letter-spacing: 1px;">
@@ -163,7 +165,7 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent_total), unsafe_allow_html=True)
 
-    # 全闊度導航
+    # 全闊度導航按鈕 (顯眼全畫面)
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -215,38 +217,33 @@ def main():
             
             if st.button("🪄 生成 20 條 MC 題目"):
                 loader = st.empty()
-                status_msg = "📖 正在根據專案基本資料分析執行細節..."
+                status_msg = "📖 正在根據專案事實數據診斷執行 DNA..."
                 for p in range(0, 96, 4):
                     loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
                     time.sleep(0.05)
                 
-                # --- 重大更新：根據活動資料生成實務 MC ---
+                # 強化版出題 Prompt
                 prompt = f"""
-                你是一位專業的公關活動分析師。請根據以下已執行的專案基本資料，生成 20 條多選題 (MC)，引導員工記錄專案中的執行細節、困難及創新點。
-                專案: {st.session_state.project_name} | 客戶類別: {st.session_state.who_we_help}
-                活動形式: {st.session_state.what_we_do} | 服務範疇: {st.session_state.scope_of_word} | 地點: {st.session_state.venue}
-
+                你是一位專業活動公關。根據以下事實數據，生成 20 條 MC 題目，引導記錄執行細節、困難及創新點：
+                專案: {st.session_state.project_name} | 客戶: {st.session_state.client_name}
+                形式: {st.session_state.what_we_do} | 服務: {st.session_state.scope_of_word} | 地點: {st.session_state.venue}
+                
                 題目比例 (6-7-7 矩陣):
-                1. 執行困難與挑戰 (6題): 針對該地點、客戶類別或形式，執行上最棘手的環節 (如人流、場地限制、對接流程)。
-                2. 創意與創新點 (7題): 針對該專案，我們在設計、科技應用或傳播上有何獨特之處。
-                3. 成果與未來洞察 (7題): 活動帶來的實際影響，以及如果下次再做，可以優化的方向。
-
-                要求：必須使用繁體中文。選項要專業且具體。
-                Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
+                1. 挑戰題 (6題): 針對地點、物流或場地限制的執行困難。
+                2. 創新題 (7題): 針對該形式，我們的設計或科技創新點。
+                3. 洞察題 (7題): 受眾反應及未來優化方向。
+                
+                要求：繁體中文。Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]
                 """
                 res = call_gemini_sdk(prompt, is_json=True)
-                
                 if res:
-                    loader.markdown(get_animated_bar_html(100, "✅ 題目已根據專案背景生成"), unsafe_allow_html=True)
-                    time.sleep(0.5)
-                    loader.empty()
+                    loader.markdown(get_animated_bar_html(100, "✅ 診斷題目已精準生成！"), unsafe_allow_html=True)
+                    time.sleep(0.5); loader.empty()
                     try:
                         st.session_state.mc_questions = json.loads(res)
                         st.success("✅ 活動回顧題目已生成！")
                     except: st.error("JSON 格式毀損")
-                else:
-                    loader.empty()
-                    st.error("API 失敗")
+                else: loader.empty(); st.error("API 調用失敗")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -292,7 +289,7 @@ def main():
                 st.error("🚨 阻截：請至少上傳 4 張相片")
             else:
                 loader = st.empty()
-                status_msg = "🧠 FIREBEAN BRAIN 正在將回顧內容轉化為文案策略..."
+                status_msg = f"🧠 FIREBEAN BRAIN 正在分析 {st.session_state.client_name} 的完整數據鏈..."
                 for p in range(0, 96, 3): 
                     loader.markdown(get_animated_bar_html(p, status_msg), unsafe_allow_html=True)
                     time.sleep(0.04)
@@ -302,44 +299,43 @@ def main():
                     ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                     sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
                 
-                prompt = f"""
-                作為 Firebean Strategist，根據診斷題目答案：{chr(10).join(sum_ans)} 
-                以及 Open Question: {st.session_state.open_question_ans} 生成報告。
+                full_facts = f"Client: {st.session_state.client_name}, Project: {st.session_state.project_name}, Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}"
                 
-                規範：
-                1. 品牌痛點分析 (<100字)：總結執行的難處。
-                2. 活動方案核心 (<100字)：總結我們的創新點。
-                3. 社交平台策略 (JSON)：
-                   - LinkedIn: Professional Business English, 150-300字, 行業洞察。
-                   - Threads: 極度口語化 Canto-slang, 50字內, 反傳統觀點。
-                   - Instagram: 首兩行亮點, 繁中, 總數 150 字內。
-                   - Facebook: 「痛點→方案→行動」漏斗, 含清晰 CTA。
+                prompt = f"""
+                作為 Firebean Strategist，根據事實數據：{full_facts}
+                執行洞察：{chr(10).join(sum_ans)} 
+                靈魂概念：{st.session_state.open_question_ans}
+                
+                生成 JSON 報告：
+                1. 品牌痛點分析 (<100字): 針對執行事實。
+                2. 活動方案核心 (<100字): 針對創新點。
+                3. 策略文案:
+                   - LinkedIn: 專業商務英文, 150-300字, 思想領導力。
+                   - Threads: 口語化廣東話, 50字內精警句。
+                   - Instagram: 繁中, 150字內, 前兩行亮點。
+                   - Facebook: 痛點-方案-行動漏斗, 含 CTA。
                 """
                 res = call_gemini_sdk(prompt, is_json=True)
-                
                 if res:
                     loader.markdown(get_animated_bar_html(100, "✅ 靈魂文案已完美對位！"), unsafe_allow_html=True)
-                    time.sleep(0.5)
-                    loader.empty()
+                    time.sleep(0.5); loader.empty()
                     try:
                         st.session_state.ai_content = json.loads(res)
                         st.success("✅ 策略報告生成成功！")
-                    except: st.error("JSON 錯誤")
-                else:
-                    loader.empty()
-                    st.error("API 失敗")
+                    except: st.error("JSON 格式錯誤")
+                else: loader.empty(); st.error("API 失敗")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🔥 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
-                with st.spinner("🔄 多軌同步中 (Sheet + Slide + Drive)..."):
+                with st.spinner("🔄 多軌同步中 (DB + Slide + Drive)..."):
                     try:
-                        sum_ans = []
+                        sum_ans_sync = []
                         if st.session_state.mc_questions:
                             for i, q in enumerate(st.session_state.mc_questions):
                                 q_id = q.get('id', i+1)
                                 ans = st.session_state.get(f"ans_{q_id}", [])
-                                sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
+                                sum_ans_sync.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
                         
                         payload = {
                             "action": "sync_project",
@@ -355,7 +351,7 @@ def main():
                             "challenge": st.session_state.ai_content.get("品牌痛點分析", ""),
                             "solution": st.session_state.ai_content.get("活動方案核心", ""),
                             "open_question": st.session_state.open_question_ans,
-                            "mc_summary": "\n".join(sum_ans),
+                            "mc_summary": "\n".join(sum_ans_sync),
                             "ai_content": st.session_state.ai_content,
                             "logo_black": st.session_state.logo_black,
                             "logo_white": st.session_state.logo_white,
@@ -364,7 +360,7 @@ def main():
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 全部數據已成功同步！")
+                        st.balloons(); st.success("✅ Master Ecosystem 同步成功！")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -375,10 +371,10 @@ def main():
         col_em, col_name = st.columns(2)
         with col_em: new_email = st.text_input("Email", key="crm_em")
         with col_name: new_name = st.text_input("Name", key="crm_na")
-        if st.button("📥 加入 Contacts"):
+        if st.button("📥 加入 CRM 名單"):
             if "@" in new_email:
                 res = requests.post(SHEET_SCRIPT_URL, json={"action": "add_contact", "email": new_email, "name": new_name})
-                if res.status_code == 200: st.success("✅ 已同步至 CRM！")
+                if res.status_code == 200: st.success("✅ 已分流至 Contacts Tab！")
             else: st.error("格式錯誤")
         st.markdown('</div>', unsafe_allow_html=True)
 
