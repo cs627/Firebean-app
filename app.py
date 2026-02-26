@@ -9,7 +9,7 @@ import re
 from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
-# --- 1. 核心配置與 Webhook URL (確保與你的 App Script 吻合) ---
+# --- 1. 核心配置與 Webhook URL ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
@@ -28,11 +28,11 @@ MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Strategy: Use 'Bridge Structure' (Boring Challenge -> Creative Translation -> Data Result).
-Professional English for Slides/LinkedIn. Canto-slang for IG/Threads. Trilingual for Website.
+LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website: Trilingual.
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心邏輯 ---
+# --- 2. 核心邏輯 (包含 Debug 與 API 引擎) ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -51,16 +51,13 @@ def call_gemini_sdk(prompt, image_file=None, is_json=False):
             genai.configure(api_key=key)
             config = genai.types.GenerationConfig(response_mime_type="application/json" if is_json else "text/plain")
             model = genai.GenerativeModel(model_name=model_name, system_instruction=FIREBEAN_SYSTEM_PROMPT)
-            
             contents = [prompt]
             if image_file: contents.append(image_file)
             response = model.generate_content(contents, generation_config=config)
-            
             if response and response.text:
                 log_debug(f"✅ Success with Key {is_secret}!", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
-                # JSON 提取防爆
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
@@ -104,7 +101,45 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式 ---
+# --- 3. UI 樣式與動畫 ---
+
+def get_custom_loader_html(animation_type="brain", status_text="AI Processing..."):
+    """生成自定義 SVG 動畫 HTML"""
+    if animation_type == "brain":
+        svg_content = """
+        <svg viewBox="0 0 100 100" width="80" height="80">
+            <path d="M50 20C35 20 25 30 25 45C25 55 30 65 50 80C70 65 75 55 75 45C75 30 65 20 50 20Z" fill="none" stroke="#FF0000" stroke-width="2">
+                <animate attributeName="stroke-dasharray" from="0,200" to="200,0" dur="2s" repeatCount="indefinite" />
+            </path>
+            <circle cx="50" cy="45" r="10" fill="#FF0000" opacity="0.6">
+                <animate attributeName="r" values="8;12;8" dur="1.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite" />
+            </circle>
+        </svg>
+        """
+    else: # book flipping
+        svg_content = """
+        <svg viewBox="0 0 100 100" width="80" height="80">
+            <rect x="30" y="30" width="40" height="50" rx="2" fill="none" stroke="#2D3436" stroke-width="2" />
+            <line x1="50" y1="30" x2="50" y2="80" stroke="#2D3436" stroke-width="2" />
+            <path d="M50 35 L70 35" stroke="#FF0000" stroke-width="2">
+                <animate attributeName="d" values="M50 35 L70 35; M50 35 L50 35; M50 35 L30 35; M50 35 L50 35" dur="1s" repeatCount="indefinite" />
+            </path>
+            <path d="M50 50 L70 50" stroke="#FF0000" stroke-width="2">
+                <animate attributeName="d" values="M50 50 L70 50; M50 50 L50 50; M50 50 L30 50; M50 50 L50 50" dur="1s" begin="0.2s" repeatCount="indefinite" />
+            </path>
+            <path d="M50 65 L70 65" stroke="#FF0000" stroke-width="2">
+                <animate attributeName="d" values="M50 65 L70 65; M50 65 L50 65; M50 65 L30 65; M50 65 L50 65" dur="1s" begin="0.4s" repeatCount="indefinite" />
+            </path>
+        </svg>
+        """
+    
+    return f"""
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin-top: 20px;">
+        {svg_content}
+        <div style="margin-top: 20px; font-weight: 800; color: #2D3436; font-family: 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase;">{status_text}</div>
+    </div>
+    """
 
 def get_circle_progress_html(percent):
     circum = 439.8
@@ -156,7 +191,8 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=180)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    # 全闊度顯眼導航
+    # 全闊度導航按鈕
+    st.markdown("<br>", unsafe_allow_html=True)
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -205,15 +241,21 @@ def main():
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("🧠 專案靈魂萃取器 (20 MC Checkbox)")
+            
+            # --- 動畫觸發點：生成 MC ---
             if st.button("🪄 生成 20 條 MC 題目"):
-                with st.spinner("AI 正在根據 DNA 分析出題..."):
-                    prompt = f"Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. Output strictly as JSON array of objects: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]"
-                    res = call_gemini_sdk(prompt, is_json=True)
-                    if res:
-                        try:
-                            st.session_state.mc_questions = json.loads(res)
-                            st.success("✅ 題目已生成！")
-                        except: st.error("JSON 格式出錯，請重試。")
+                loader = st.empty()
+                loader.markdown(get_custom_loader_html("book", "正在翻閱資料並分析 DNA..."), unsafe_allow_html=True)
+                
+                prompt = f"Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. Output strictly as JSON array of objects: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...', 'C...', 'D...']}}]"
+                res = call_gemini_sdk(prompt, is_json=True)
+                
+                loader.empty() # 移除動畫
+                if res:
+                    try:
+                        st.session_state.mc_questions = json.loads(res)
+                        st.success("✅ 題目已生成！")
+                    except: st.error("JSON 格式出錯，請重試。")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -253,10 +295,21 @@ def main():
     elif st.session_state.active_tab == "📋 Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 Platform Sync")
+        
+        # --- 動畫觸發點：生成平台文案 ---
         if st.button("🪄 一鍵生成六大平台文案"):
-            with st.spinner("AI 根據 PDF 指引生成中 (IG 字數及語言限制中)..."):
+            if not st.session_state.logo_white and not st.session_state.logo_black:
+                st.error("🚨 阻截：請先上傳 Logo")
+            elif len(st.session_state.project_photos) < 4:
+                st.error("🚨 阻截：請至少上傳 4 張相片")
+            else:
+                loader = st.empty()
+                loader.markdown(get_custom_loader_html("brain", "Firebean Brain 正在同步 6 大平台邏輯..."), unsafe_allow_html=True)
+                
                 prompt = f"Analyze project {st.session_state.project_name}... Generate JSON for 6 platforms. IG must be Traditional Chinese and <150 words."
                 res = call_gemini_sdk(prompt, is_json=True)
+                
+                loader.empty() # 移除動畫
                 if res:
                     try:
                         st.session_state.ai_content = json.loads(res)
@@ -271,7 +324,6 @@ def main():
             if st.button("🔥 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
                 with st.spinner("🔄 多軌同步中..."):
                     try:
-                        # 匯總 MC 答案
                         sum_ans = []
                         if st.session_state.mc_questions:
                             for i, q in enumerate(st.session_state.mc_questions):
