@@ -21,20 +21,10 @@ WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & T
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 
 FIREBEAN_SYSTEM_PROMPT = """
-You are 'Firebean Brain', the Architect of Public Engagement and Lead PR Strategist. 
-Identity: 'Institutional Cool'. Always output in Traditional Chinese (繁體中文).
-
-MC GENERATION DIRECTION (Diagnostic Logic):
-1. Gap Analysis: 診斷品牌訊息與受眾接收落差。
-2. Spatial Logic: 分析佈置與動線對情緒之心理影響。
-3. Conversion Intent: 評估互動設計之轉化效益。
-4. Tech-Fit: 確保技術服務於主題，而非噱頭。
-5. Operational ROI: 發現執行細節之潛在缺陷。
-
-LANGUAGE RULES:
-- Google Slide: 框架化、Hook/Shift/Proof。
-- Instagram: 嚴格少於 150 字, 多用 Emoji。
-- Website: 同時生成 EN (Fluent), TC (Formal), JP (Polite) 三語版本。
+You are 'Firebean Brain', the Lead PR Strategist. Identity: 'Institutional Cool'. 
+Language: Traditional Chinese.
+Focus: Transform diagnostic insights into a coherent, engaging cross-platform strategy.
+Ensure Instagram content is strictly < 150 chars.
 """
 
 # --- 2. 核心邏輯 ---
@@ -71,38 +61,41 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
 def create_dummy_image(color, label):
     img = Image.new('RGB', (800, 600), color=color)
     d = ImageDraw.Draw(img)
-    d.text((30, 30), label, fill=(255, 255, 255))
+    d.text((40, 40), label, fill=(255, 255, 255))
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     buf.seek(0)
     return buf
 
 def fill_dummy_data():
-    """🚀 老細一鍵填充：實現 100% 完成度測試"""
-    st.session_state.client_name = "Firebean Dummy"
-    st.session_state.project_name = "2026 全自動閉環測試"
+    """🚀 老細一鍵填充：實現深度 Dummy 內容及 8 張相片"""
+    st.session_state.client_name = "Firebean HQ"
+    st.session_state.project_name = "2026 全功能數據對齊測試"
     st.session_state.venue = "香港會議展覽中心"
-    st.session_state.youtube_link = "https://youtube.com/firebean"
+    st.session_state.youtube_link = "https://youtube.com/firebean_sync_demo"
     st.session_state.who_we_help = ["LIFESTYLE & CONSUMER"]
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
-    st.session_state.scope_of_word = ["Event Production", "Theme Design", "Concept Development"]
-    st.session_state.open_question_ans = "透過 AI 分析解決品牌與受眾之間的溝通斷層。"
+    st.session_state.scope_of_word = ["Theme Design", "Event Production", "Concept Development"]
+    st.session_state.open_question_ans = "將20個通用診斷問題及其抽象答案,轉化為一套連貫、引人入勝且可操作的跨平台溝通策略。"
     
-    # 生成 8 張測試相
-    colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#33FFF3", "#F3FF33", "#AABBCC", "#222222"]
+    # 生 8 張彩色圖片測試雙頁分流
+    colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#33FFF3", "#F3FF33", "#999999", "#222222"]
     st.session_state.project_photos = [create_dummy_image(c, f"Dummy Photo {i+1}") for i, c in enumerate(colors)]
     
-    # 填充 20 題 MC
-    st.session_state.mc_questions = [{"id": i+1, "question": f"診斷思維題目 {i+1}？", "options": ["選項 A", "選項 B"]} for i in range(20)]
+    # 填 20 題 MC
+    st.session_state.mc_questions = [{"id": i+1, "question": f"診斷指標 {i+1} 測試題目？", "options": ["選項 A", "選項 B"]} for i in range(20)]
     for i in range(1, 21):
         st.session_state[f"ans_{i}"] = ["選項 A"]
     
-    st.session_state.logo_black = "dummy_base64"
-    st.session_state.logo_white = "dummy_base64"
-    log_debug("🚀 一鍵填充完成，啟動 100% 自動導向。", "success")
+    # 繪製模擬 Logo
+    logo_buf = create_dummy_image("#FFFFFF", "FIREBEAN LOGO")
+    logo_b64 = base64.b64encode(logo_buf.getvalue()).decode()
+    st.session_state.logo_black = logo_b64
+    st.session_state.logo_white = logo_b64
+    log_debug("🚀 高質量數據填充完成，觸發自動導向。", "success")
 
 def init_session_state():
-    """初始化 Session State，確保不會發生 AttributeError"""
+    """修復 AttributeError：強制初始化所有關鍵變量"""
     fields = {
         "active_tab": "📝 Project Collector",
         "client_name": "", "project_name": "", "venue": "", "youtube_link": "",
@@ -120,13 +113,7 @@ def init_session_state():
 def get_circle_progress_html(percent):
     circum = 439.8
     offset = circum * (1 - percent/100)
-    return f"""
-    <div style="display: flex; justify-content: flex-end; align-items: center;">
-        <div style="position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="110" height="110"><circle stroke="#d1d9e6" stroke-width="8" fill="transparent" r="45" cx="55" cy="55"/><circle stroke="#FF0000" stroke-width="8" stroke-dasharray="{circum}" stroke-dashoffset="{offset}" stroke-linecap="round" fill="transparent" r="45" cx="55" cy="55" style="transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;"/></svg>
-            <div style="position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;">{percent}%</div>
-        </div>
-    </div>"""
+    return f"""<div style='display: flex; justify-content: flex-end;'><div style='position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;'><svg width='110' height='110'><circle stroke='#d1d9e6' stroke-width='8' fill='transparent' r='45' cx='55' cy='55'/><circle stroke='#FF0000' stroke-width='8' stroke-dasharray='{circum}' stroke-dashoffset='{offset}' stroke-linecap='round' fill='transparent' r='45' cx='55' cy='55' style='transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;'/></svg><div style='position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;'>{percent}%</div></div></div>"""
 
 def get_animated_bar_html(percent, status_text):
     return f"""
@@ -144,7 +131,6 @@ def apply_styles():
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
-        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; }
     </style>""", unsafe_allow_html=True)
 
 # --- 4. Main App ---
@@ -161,9 +147,8 @@ def main():
     filled += (1 if st.session_state.what_we_do else 0)
     filled += (1 if st.session_state.scope_of_word else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
-    # 檢查 20 題 MC 是否答完
-    mc_done = sum([1 for i in range(1, 21) if st.session_state.get(f"ans_{i}")])
-    filled += (1 if mc_done == 20 else 0)
+    mc_count = sum([1 for i in range(1, 21) if st.session_state.get(f"ans_{i}")])
+    filled += (1 if mc_count == 20 else 0)
     
     percent = min(100, int((filled / 10) * 100))
 
@@ -174,12 +159,12 @@ def main():
 
     # 🎯 自動導向邏輯 (100% Drive Logic)
     if percent == 100 and st.session_state.active_tab == "📝 Project Collector":
-        st.toast("🎯 100% 完成！正在自動導向至同步頁面...")
+        st.toast("🎯 100% 完成！正在自動跳轉至同步頁面...")
         time.sleep(1.2)
         st.session_state.active_tab = "📋 Review & Multi-Sync"
         st.rerun()
 
-    # 導航按鈕
+    # 導航
     st.markdown("<br>", unsafe_allow_html=True)
     n_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
@@ -200,10 +185,10 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             ub = st.file_uploader("Upload Black Logo", type=['png'], key="l_b")
-            if ub: st.session_state.logo_black = "data:image/png;base64," + base64.b64encode(ub.read()).decode()
+            if ub: st.session_state.logo_black = base64.b64encode(ub.read()).decode()
         with col2:
             uw = st.file_uploader("Upload White Logo", type=['png'], key="l_w")
-            if uw: st.session_state.logo_white = "data:image/png;base64," + base64.b64encode(uw.read()).decode()
+            if uw: st.session_state.logo_white = base64.b64encode(uw.read()).decode()
         
         b1, b2, b3, b4 = st.columns(4)
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
@@ -267,14 +252,14 @@ def main():
     # --- TAB 2: REVIEW & SYNC ---
     elif st.session_state.active_tab == "📋 Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        if st.button("🪄 生成六大平台文案 (Follow DNA)"):
+        if st.button("🪄 生成六大平台對接文案 (Follow PR DNA)"):
             loader = st.empty()
             for p in range(0, 96, 4):
                 loader.markdown(get_animated_bar_html(p, "🧠 AI Strategist 對位數據中..."), unsafe_allow_html=True)
                 time.sleep(0.04)
             
             mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
-            prompt = f"數據:{mc_sum}. Generate JSON numbering keys 1_google_slide to 6_website. IG < 150 chars. Website EN/TC/JP. Include 'challenge_summary' and 'solution_summary'."
+            prompt = f"數據:{mc_sum}. Generate JSON for 6 platforms. Website needs EN/TC/JP. IG strictly <150 chars. Include 'challenge_summary' and 'solution_summary'."
             res = call_gemini_sdk(prompt, is_json=True)
             if res:
                 st.session_state.ai_content = json.loads(res)
@@ -285,7 +270,7 @@ def main():
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync", type="primary", use_container_width=True):
+            if st.button("🚀 Confirm & Sync (Sheet + Slide Page 1 & 2)", type="primary", use_container_width=True):
                 with st.spinner("🔄 多軌同步中..."):
                     try:
                         imgs = []
@@ -294,16 +279,24 @@ def main():
                             imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
                         
                         payload = {
-                            "action": "sync_project", "client": st.session_state.client_name,
-                            "project": st.session_state.project_name, "venue": st.session_state.venue,
-                            "category": st.session_state.who_we_help[0], "scope": ", ".join(st.session_state.scope_of_word),
-                            "challenge": st.session_state.challenge, "solution": st.session_state.solution,
-                            "ai_content": st.session_state.ai_content, "images": imgs
+                            "action": "sync_project",
+                            "client_name": st.session_state.client_name,
+                            "project_name": st.session_state.project_name,
+                            "venue": st.session_state.venue,
+                            "date": datetime.now().strftime("%Y-%m-%d"),
+                            "category": st.session_state.who_we_help[0],
+                            "scope": ", ".join(st.session_state.scope_of_word),
+                            "challenge": st.session_state.challenge,
+                            "solution": st.session_state.solution,
+                            "logo_white": st.session_state.logo_white, # 同步白 Logo 到 Slide
+                            "logo_black": st.session_state.logo_black, # 同步黑 Logo 到 Folder
+                            "images": imgs,
+                            "ai_content": st.session_state.ai_content
                         }
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sync Result: Sheet {r1.status_code}, Slide {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 全部對位同步成功！")
+                        st.balloons(); st.success("✅ 全部數據同步成功！")
                     except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
