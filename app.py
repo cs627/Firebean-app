@@ -233,12 +233,31 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            if st.button("🪄 生成 20 題繁中診斷題目"):
+          if st.button("🪄 生成 20 題繁中診斷題目"):
                 if not st.session_state.project_photos: st.error("請先上傳相片。")
                 else:
-                    with st.spinner("AI 掃描相片 Facts 中..."):
+                    with st.spinner("AI 掃描相片 Facts 並綜合專案背景生成題目中..."):
+                        # 第一步：一樣先解析相片事實
                         facts = call_gemini_sdk("Identify branding and tech facts.", image_files=st.session_state.project_photos)
-                        res = call_gemini_sdk(f"基於事實 {facts} 生成 20 題 MC。格式: [{{\"id\":1,\"question\":\"...\",\"options\":[\"A\",\"B\"]}}]", is_json=True)
+                        
+                        # 第二步：組合所有專案變數與相片事實，餵給 AI
+                        mc_prompt = f"""
+請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
+【專案背景資料】
+- 客戶與專案名稱：{st.session_state.client_name} / {st.session_state.project_name}
+- 產業類別 (Category)：{st.session_state.category}
+- 活動時間與地點：{st.session_state.event_year} {st.session_state.event_month} 於 {st.session_state.venue}
+- 核心服務形式 (What we do)：{", ".join(st.session_state.what_we_do)}
+- 工作範圍 (Scope of Work)：{", ".join(st.session_state.scope)}
+
+【現場/視覺相片分析事實】
+{facts}
+
+請確保題目具備深度，能引導出具體的痛點。
+必須嚴格輸出為 JSON 陣列格式：[{{\"id\":1,\"question\":\"問題內容...\",\"options\":[\"選項A\",\"選項B\"]}}]
+"""
+                        # 第三步：呼叫 AI 生成完美對應的 20 題 JSON
+                        res = call_gemini_sdk(mc_prompt, is_json=True)
                         if res: st.session_state.mc_questions = json.loads(res); st.rerun()
 
             if st.session_state.mc_questions:
