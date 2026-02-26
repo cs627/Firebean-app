@@ -233,7 +233,7 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-          if st.button("🪄 生成 20 題繁中診斷題目"):
+            if st.button("🪄 生成 20 題繁中診斷題目"):
                 if not st.session_state.project_photos: st.error("請先上傳相片。")
                 else:
                     with st.spinner("AI 掃描相片 Facts 並綜合專案背景生成題目中..."):
