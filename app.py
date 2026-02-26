@@ -359,7 +359,7 @@ def main():
                 else:
                     try:
                         genai.configure(api_key=secret_key)
-                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        model = genai.GenerativeModel(STABLE_MODEL_ID)
                         res = model.generate_content("Reply only the word: SUCCESS")
                         if res and "SUCCESS" in res.text.upper():
                             st.success("✅ API Key 測試成功！Streamlit Secrets 運作正常。")
