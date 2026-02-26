@@ -13,8 +13,8 @@ from datetime import datetime
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 🚀 使用最穩定的多模態模型
-STABLE_MODEL_ID = "gemini-1.5-flash"
+# 🚀 根據老細提供的 Rate Limit 截圖，使用最新 2.5 模型
+STABLE_MODEL_ID = "gemini-2.5-flash"
 
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
@@ -28,10 +28,10 @@ SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Them
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Mission: PR Events bridge brands and audiences.
-Rule: Analyze ALL uploaded photos to extract REAL visual facts (decor, scale, tech, crowd).
-Strictly NO hallucinations. If Category is F&B, focus on food/hospitality seen in photos.
-Always output JSON keys as numbered strings (e.g., '1_google_slide') for API sync.
+Your philosophy: PR Events are the ultimate bridge between brands and people.
+You diagnose and solve 'lack of reach' through PR experiences seen in user data and photos.
+Rule: Analyze ALL uploaded photos. Be fact-strict. No hallucinations.
+Always output JSON in numbered keys (1_google_slide to 6_website) for API sync.
 """
 
 # --- 2. 核心邏輯 (Debug, API, Image) ---
@@ -42,9 +42,7 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """
-    支援多相片分析的 SDK 調用，內置圖片壓縮防止 400 錯誤。
-    """
+    """使用 Gemini 2.5 進行多模態分析，內置圖片壓縮優化 Loading 時間"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
 
@@ -60,34 +58,32 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             contents = [prompt]
             if image_files:
                 for img_file in image_files:
-                    # 🖼️ 智能壓縮：減輕 API 傳輸負擔
+                    # 🖼️ 優化：將相片長邊縮放至 800px 以加快分析速度
                     img = Image.open(img_file)
-                    img.thumbnail((800, 800)) 
+                    img.thumbnail((800, 800))
                     contents.append(img)
             
             response = model.generate_content(contents, generation_config=config)
             if response and response.text:
-                log_debug(f"✅ API Success (Key #{idx})", "success")
+                log_debug(f"✅ Gemini 2.5 Success (Key #{idx})", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
                 # JSON 提取防爆
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
-            log_debug(f"❌ Key #{idx} Fail: {str(e)[:50]}", "warning")
+            log_debug(f"❌ Key #{idx} Fail: {str(e)[:60]}", "warning")
             continue
     return None
 
 def test_api_connection():
-    """消失的 Check Key Function 回歸"""
-    log_debug("🚀 開始連線測試...", "info")
-    res = call_gemini_sdk("Ping. Please respond with: 'Firebean Online'.")
+    log_debug("🚀 開始 Gemini 2.5 連線測試...", "info")
+    res = call_gemini_sdk("Ping. Please respond with: 'Firebean 2.5 Online'.")
     if res:
-        st.toast("✅ SDK 連線成功！")
-        log_debug("系統連線正常，可執行 AI 診斷。", "success")
+        st.toast("✅ Gemini 2.5 連線成功！")
+        log_debug("API 正常，可執行全相片診斷。", "success")
     else:
         st.toast("❌ 連線失敗，請檢查 Key 是否過期。")
-        log_debug("API 沒反應，請檢查 Secrets 或金鑰池。", "error")
 
 def standardize_logo(logo_file):
     try:
@@ -101,7 +97,6 @@ def manna_ai_enhance(image_file):
     try:
         raw_img = Image.open(image_file)
         img = ImageOps.exif_transpose(raw_img).convert("RGB")
-        # AI Manna 強化
         return ImageEnhance.Contrast(img).enhance(1.15)
     except: return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
@@ -117,15 +112,15 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與進度顯示 ---
+# --- 3. UI 樣式與動畫 ---
 
 def get_animated_bar_html(percent, status_text):
     return f"""
-    <div style="padding: 35px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0; border: 1px solid rgba(255,0,0,0.1);">
-        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 22px; text-align: center; margin-bottom: 20px;">{status_text}</div>
-        <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 28px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
-            <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s ease-in-out;">
-                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 14px; line-height: 28px;">{percent}%</div>
+    <div style="padding: 35px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 8px 8px 16px #bec3c9, inset -8px -8px 16px #ffffff; margin: 25px 0;">
+        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 20px; text-align: center; margin-bottom: 20px;">{status_text}</div>
+        <div style="width: 100%; background: #d1d9e6; border-radius: 50px; height: 26px; position: relative; overflow: hidden; box-shadow: inset 4px 4px 8px #bec3c9;">
+            <div style="width: {percent}%; background: linear-gradient(90deg, #FF0000, #b30000); height: 100%; border-radius: 50px; transition: width 0.3s;">
+                <div style="position: absolute; width: 100%; text-align: center; color: white; font-weight: 900; font-size: 13px; line-height: 26px;">{percent}%</div>
             </div>
         </div>
     </div>
@@ -150,7 +145,7 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
         h1, h2, h3, label { color: #2D3436 !important; font-weight: 800 !important; }
         input, textarea, div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border-radius: 10px !important; }
-        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 20px; border-left: 4px solid #FF0000; padding-left: 10px; }
+        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 180px; overflow-y: auto; }
         </style>
     """, unsafe_allow_html=True)
@@ -162,7 +157,7 @@ def main():
     init_session_state()
     apply_styles()
 
-    # 10 維度進度計算
+    # Progress 計算
     score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -182,7 +177,7 @@ def main():
     n1, n2, n3 = st.columns(3)
     tabs = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tabs):
-        if [n1, n2, n3][i].button(t, use_container_width=True, type="primary" if st.session_state.active_tab == t else "secondary"):
+        if [n1, n2, n3][i].button(t, use_container_width=True, key=f"nav_{i}", type="primary" if st.session_state.active_tab == t else "secondary"):
             st.session_state.active_tab = t
             st.rerun()
     st.markdown("---")
@@ -211,7 +206,6 @@ def main():
             st.session_state.who_we_help = [st.radio("Cat", WHO_WE_HELP_OPTIONS, label_visibility="collapsed", index=WHO_WE_HELP_OPTIONS.index(st.session_state.who_we_help[0]) if st.session_state.who_we_help[0] in WHO_WE_HELP_OPTIONS else 0)]
         with c_b: 
             st.markdown("**🚀 What we do**")
-            # 穩定 Checkbox 邏輯
             curr_wwd = []
             for opt in WHAT_WE_DO_OPTIONS:
                 if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do)): curr_wwd.append(opt)
@@ -227,40 +221,41 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🧠 靈魂診斷官 (全相片分析 + 20 MC)")
+            st.subheader("🧠 靈魂診斷官 (Gemini 2.5 全相片掃描)")
             if st.button("🪄 執行全相片視覺分析並出題"):
                 if not st.session_state.project_photos:
-                    st.error("請先上傳活動相片作事實對位。")
+                    st.error("請上傳活動相片作事實對位。")
                 else:
                     loader = st.empty()
-                    status = "📸 正在掃描全相片細節並獲取視覺事實..."
+                    status = "📸 正在掃描全相片細節 (已優化尺寸)..."
                     for p in range(0, 80, 5):
                         loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                         time.sleep(0.04)
                     
-                    # 視覺分析提取事實
+                    # 視覺事實提取
                     vision_prompt = """
-                    Analyze these event photos collectively. Strictly report visual facts: 
-                    Identify Branding colors, Tech used, Crowd density, and Catering service details if F&B. 
-                    Be precise. Do not hallucinate historical heritage sites unless visible.
+                    Analyze these event photos. Strictly list visual facts: 
+                    Colors, branding, equipment, audience activities, food/products. 
+                    Be precise. If it's F&B, focus on catering service. 
+                    Do not hallucinate historical heritage sites unless clearly visible.
                     """
                     st.session_state.visual_facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                     
                     loader.markdown(get_animated_bar_html(90, "🧠 正在基於視覺證據生成題目..."), unsafe_allow_html=True)
                     
-                    # 基於影像事實出題
+                    # 生成 MC
                     prompt = f"""
                     你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
-                    以及資料：Client: {st.session_state.client_name}, Venue: {st.session_state.venue}
-                    生成 20 條 MC 題目。中心思想：透過 PR 體驗解決接觸不足問題。
+                    以及項目資料：Client: {st.session_state.client_name}, Category: {st.session_state.who_we_help[0]}
+                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足問題。
                     Output STRICTLY JSON Array: [{{'id': 1, 'question': '...', 'options': ['A...', 'B...']}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
-                        loader.markdown(get_animated_bar_html(100, "✅ 診斷題目已精準生成！"), unsafe_allow_html=True)
+                        loader.markdown(get_animated_bar_html(100, "✅ 診斷完成！"), unsafe_allow_html=True)
                         time.sleep(0.5); loader.empty()
                         try: st.session_state.mc_questions = json.loads(res)
-                        except: st.error("JSON 解析錯誤")
+                        except: st.error("JSON Error")
                     else: loader.empty(); st.error("API 失敗，請重試或測試金鑰。")
             
             if st.session_state.mc_questions:
@@ -299,9 +294,9 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         st.header("📋 2026 社交平台策略發布")
         
-        if st.button("🪄 一鍵生成六大平台文案 (對接編號版)"):
+        if st.button("🪄 一鍵生成文案 (編號對接專用版)"):
             loader = st.empty()
-            status = f"🧠 FIREBEAN BRAIN 正在分析全事實數據鏈..."
+            status = f"🧠 FIREBEAN BRAIN 正在分析全相片數據鏈..."
             for p in range(0, 96, 3): 
                 loader.markdown(get_animated_bar_html(p, status), unsafe_allow_html=True)
                 time.sleep(0.04)
@@ -311,13 +306,12 @@ def main():
                 ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                 sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
             
-            # 🚀 關鍵：編號型 Key 確保與 Apps Script 100% 對接
             prompt = f"""
             作為 Strategist，根據事實：{st.session_state.visual_facts}
-            執行數據：{chr(10).join(sum_ans)} | 概念：{st.session_state.open_question_ans}
-            客戶: {st.session_state.client_name} | 項目: {st.session_state.project_name} | 地點: {st.session_state.venue}
+            以及執行數據：{chr(10).join(sum_ans)} | 靈魂概念：{st.session_state.open_question_ans}
+            客戶: {st.session_state.client_name} | 項目: {st.session_state.project_name}
             
-            Output STRICTLY RAW JSON with these numbered keys:
+            Output STRICTLY RAW JSON with these numbered keys for Google Sync:
             - "品牌痛點分析": text
             - "活動方案核心": text
             - "1_google_slide": {{ "hook": "...", "shift": "...", "proof": "..." }}
@@ -341,13 +335,12 @@ def main():
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🚀 Confirm & Sync to Master Ecosystem", use_container_width=True, type="primary"):
-                with st.spinner("🔄 正在多軌同步..."):
+                with st.spinner("🔄 正在同步至 Google..."):
                     try:
                         ans_sync = []
-                        if st.session_state.mc_questions:
-                            for i, q in enumerate(st.session_state.mc_questions):
-                                ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
-                                ans_sync.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
+                        for i, q in enumerate(st.session_state.mc_questions):
+                            ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
+                            ans_sync.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
                         
                         payload = {
                             "action": "sync_project",
