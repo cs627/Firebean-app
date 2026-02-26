@@ -94,38 +94,16 @@ def init_session_state():
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. UI 樣式與動畫修復 ---
+# --- 3. UI 樣式與大字體狀態交代 ---
 
-def get_custom_loader_html(animation_type="brain", status_text="AI Processing..."):
-    """修復 SVG 動畫外洩問題：使用封裝容器與強制渲染"""
-    if animation_type == "brain":
-        svg_code = """
-        <svg viewBox="0 0 100 100" width="80" height="80">
-            <path d="M50 20C35 20 25 30 25 45C25 55 30 65 50 80C70 65 75 55 75 45C75 30 65 20 50 20Z" fill="none" stroke="#FF0000" stroke-width="2">
-                <animate attributeName="stroke-dasharray" from="0,200" to="200,0" dur="2s" repeatCount="indefinite" />
-            </path>
-            <circle cx="50" cy="45" r="10" fill="#FF0000" opacity="0.6">
-                <animate attributeName="r" values="8;12;8" dur="1.5s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite" />
-            </circle>
-        </svg>"""
-    else:
-        svg_code = """
-        <svg viewBox="0 0 100 100" width="80" height="80">
-            <rect x="30" y="30" width="40" height="50" rx="2" fill="none" stroke="#2D3436" stroke-width="2" />
-            <line x1="50" y1="30" x2="50" y2="80" stroke="#2D3436" stroke-width="2" />
-            <path d="M50 35 L70 35" stroke="#FF0000" stroke-width="2">
-                <animate attributeName="d" values="M50 35 L70 35; M50 35 L50 35; M50 35 L30 35; M50 35 L50 35" dur="1s" repeatCount="indefinite" />
-            </path>
-            <path d="M50 50 L70 50" stroke="#FF0000" stroke-width="2">
-                <animate attributeName="d" values="M50 50 L70 50; M50 50 L50 50; M50 50 L30 50; M50 50 L50 50" dur="1s" begin="0.2s" repeatCount="indefinite" />
-            </path>
-        </svg>"""
-    
+def get_text_status_html(status_text="AI Processing..."):
+    """取代 SVG 動畫：使用大字體純文字交代狀態"""
     return f"""
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin: 20px 0;">
-        {svg_code}
-        <div style="margin-top: 15px; font-weight: 800; color: #FF0000; text-transform: uppercase; font-size: 14px;">{status_text}</div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; background: #E0E5EC; border-radius: 20px; box-shadow: inset 6px 6px 12px #bec3c9, inset -6px -6px 12px #ffffff; margin: 20px 0; border: 2px solid #FF0000;">
+        <div style="font-weight: 900; color: #FF0000; text-transform: uppercase; font-size: 32px; text-align: center; line-height: 1.4; letter-spacing: 2px;">
+            {status_text}
+        </div>
+        <div style="margin-top: 15px; color: #2D3436; font-size: 14px; font-weight: 600;">System is calculating project DNA...</div>
     </div>"""
 
 def get_circle_progress_html(percent):
@@ -208,12 +186,14 @@ def main():
         with c_a: 
             st.markdown("**👥 Category**")
             st.session_state.who_we_help = [st.radio("Category", WHO_WE_HELP_OPTIONS, label_visibility="collapsed")]
+        
         with c_b: 
             st.markdown("**🚀 What we do**")
             new_wwd = []
             for opt in WHAT_WE_DO_OPTIONS:
                 if st.checkbox(opt, key=f"w_{opt}", value=(opt in st.session_state.what_we_do)): new_wwd.append(opt)
             st.session_state.what_we_do = new_wwd
+            
         with c_c:
             st.markdown("**🛠️ Scope**")
             new_sow = []
@@ -228,10 +208,10 @@ def main():
             st.subheader("🧠 專案靈魂萃取器 (6-7-7 診斷矩陣)")
             
             if st.button("🪄 生成 20 條受眾心理診斷題"):
+                # 顯示大字體文字狀態
                 loader = st.empty()
-                loader.markdown(get_custom_loader_html("book", "正在翻閱資料並分析受眾 DNA..."), unsafe_allow_html=True)
+                loader.markdown(get_text_status_html("📖 正在翻閱資料及診斷受眾 DNA..."), unsafe_allow_html=True)
                 
-                # 核心 Prompt：6-7-7 心理診斷邏輯
                 prompt = f"""
                 根據以下專案設定，生成 20 條針對「End Users (受眾)」的 MC 心理診斷題目 (分配比例 6:7:7)。
                 [Category]: {st.session_state.who_we_help}
@@ -296,8 +276,9 @@ def main():
             if len(st.session_state.project_photos) < 4:
                 st.error("🚨 阻截：請至少上傳 4 張相片")
             else:
+                # 顯示大字體文字狀態
                 loader = st.empty()
-                loader.markdown(get_custom_loader_html("brain", "Firebean Brain 正在將診斷結果轉化為靈魂文案..."), unsafe_allow_html=True)
+                loader.markdown(get_text_status_html("🧠 Firebean Brain 正在將診斷結果轉化為靈魂文案..."), unsafe_allow_html=True)
                 
                 prompt = f"""
                 作為 Firebean 專案靈魂診斷官，根據診斷題目答案及 Open Question: {st.session_state.open_question_ans} 生成報告。
@@ -324,7 +305,7 @@ def main():
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🔥 Confirm & Sync to Master DB", use_container_width=True, type="primary"):
-                with st.spinner("🔄 同步中..."):
+                with st.spinner("🔄 多軌同步中..."):
                     try:
                         sum_ans = []
                         if st.session_state.mc_questions:
