@@ -10,11 +10,12 @@ from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
 # --- 1. 核心配置與 Webhook URL ---
+# 這些是您提供給我的 Google Apps Script 部署 URL
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
-# 🚀 鎖定最新 2.5 模型
-STABLE_MODEL_ID = "gemini-2.5-flash"
+# 使用目前最穩定的模型名，若 2.5 flash 報 404 請嘗試改回 gemini-1.5-flash
+MODEL_ID = "gemini-1.5-flash"
 
 API_KEYS_POOL = [
     "AIzaSyA-5qXWjtzlUWP0IDMVUByMXdbylt8rTSA",
@@ -28,10 +29,9 @@ SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Them
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
-Core Philosophy: PR Events solve brand-audience gaps through high-end experiences.
-Language Rule: Always output in Traditional Chinese (繁體中文).
-Sync Rule: Always output JSON using numbered keys (1_google_slide to 6_website) for Google API compatibility.
-Fact Rule: Analyze all photos provided. No hallucinations.
+Mission: Analyze PR activities through visual and factual data.
+Language Rule: Output everything in Traditional Chinese (繁體中文).
+Sync Rule: Always output JSON using numbered keys (1_google_slide to 6_website) for API compatibility.
 """
 
 # --- 2. 核心邏輯 (Debug, API, Image) ---
@@ -42,7 +42,7 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """Gemini 2.5 多模態分析 + 圖像壓縮優化"""
+    """具備重試機制與圖片壓縮的 SDK 調用"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     all_keys = ([secret_key] if secret_key else []) + API_KEYS_POOL
 
@@ -53,7 +53,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 response_mime_type="application/json" if is_json else "text/plain",
                 temperature=0.3
             )
-            model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
+            model = genai.GenerativeModel(model_name=MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
             
             contents = [prompt]
             if image_files:
@@ -67,7 +67,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 log_debug(f"✅ API Success (Key #{idx})", "success")
                 raw_text = response.text.strip()
                 if not is_json: return raw_text
-                # JSON 提取與防爆邏輯
+                # 提取 JSON 的 Regex 確保安全
                 json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
                 return json_match.group(1) if json_match else raw_text
         except Exception as e:
@@ -76,14 +76,14 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def test_api_connection():
-    """Check Key 功能"""
+    """連線測試按鈕"""
     log_debug("🚀 開始連線測試...", "info")
-    res = call_gemini_sdk("Ping test. Please respond with: 'Firebean Online'.")
+    res = call_gemini_sdk("Ping. Please respond with: 'Online'.")
     if res:
-        st.toast("✅ SDK 連線成功！Gemini 2.5 已 Ready。")
-        log_debug("API 測試正常。", "success")
+        st.toast("✅ SDK 連線成功！")
+        log_debug("系統連線正常，可執行分析。", "success")
     else:
-        st.toast("❌ 連線失敗，請更換有效密鑰。", icon="🔥")
+        st.toast("❌ 連線失敗，請檢查 Key 是否過期。", icon="🔥")
 
 def standardize_logo(logo_file):
     try:
@@ -172,7 +172,7 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
     with c2: st.markdown(get_circle_progress_html(total_pct), unsafe_allow_html=True)
 
-    # 導航
+    # 導航按鈕
     st.markdown("<br>", unsafe_allow_html=True)
     n1, n2, n3 = st.columns(3)
     tabs_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
@@ -221,7 +221,7 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            st.subheader("🧠 靈魂診斷官 (Gemini 2.5 全相片掃描)")
+            st.subheader("🧠 靈魂診斷官 (全相片掃描)")
             if st.button("🪄 執行全相片視覺分析並出題"):
                 if not st.session_state.project_photos:
                     st.error("請上傳活動相片作事實對位。")
@@ -234,19 +234,19 @@ def main():
                     
                     vision_prompt = """
                     Analyze these event photos. Strictly list visual facts in Traditional Chinese: 
-                    Colors, branding, equipment, audience activities, service flow. 
-                    Be precise. No hallucinations.
+                    Identify branding, décor, tech equipment, scale, and food service. 
+                    No hallucinations.
                     """
                     st.session_state.visual_facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                     
                     loader.markdown(get_animated_bar_html(90, "🧠 正在基於視覺證據生成繁中題目..."), unsafe_allow_html=True)
                     
-                    # 🚀 修復：使用雙括號 {{}} 以防止 f-string ValueError
+                    # 🚀 修復：使用雙括號 {{}} 防止 ValueError
                     prompt = f"""
                     你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
                     以及項目資料：Client: {st.session_state.client_name}, Cat: {st.session_state.who_we_help[0]}
-                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足問題。
-                    全部使用「繁體中文」。Output STRICTLY JSON Array: [{{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}}]
+                    生成 20 條 MC 題目。中心思想：透過 PR 活動體驗解決接觸與理解不足。
+                    [指令]：全部使用「繁體中文」。Output STRICTLY JSON Array: [{{"id": 1, "question": "...", "options": ["A", "B", "C", "D"]}}]
                     """
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
@@ -254,22 +254,20 @@ def main():
                         time.sleep(0.5); loader.empty()
                         try: 
                             parsed = json.loads(res)
+                            # 🛡️ 類型檢查防禦：修復 AttributeError
                             if isinstance(parsed, list):
-                                # 🛡️ 防彈邏輯：修復 AttributeError
                                 st.session_state.mc_questions = [q for q in parsed if isinstance(q, dict)]
                                 st.success("✅ 活動回顧題目已生成！")
                         except: st.error("JSON 解析失敗。")
-                    else: loader.empty(); st.error("API 失敗，請重試或測試金鑰。")
+                    else: loader.empty(); st.error("API 失敗，請更換有效金鑰。")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
                     if isinstance(q, dict):
                         q_id = q.get('id', i + 1)
-                        q_text = q.get('question', '問題')
-                        q_opts = q.get('options', [])
-                        st.markdown(f"<div class='mc-question'>Q{q_id}. {q_text}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='mc-question'>Q{q_id}. {q.get('question')}</div>", unsafe_allow_html=True)
                         sel = []
-                        for opt_idx, opt_text in enumerate(q_opts):
+                        for opt_idx, opt_text in enumerate(q.get('options', [])):
                             if st.checkbox(opt_text, key=f"mc_cb_{q_id}_{opt_idx}"): sel.append(opt_text)
                         st.session_state[f"ans_{q_id}"] = sel
                 st.session_state.open_question_ans = st.text_area("覺得我哋嘅概念最特別是什麼？", st.session_state.open_question_ans)
@@ -313,9 +311,9 @@ def main():
                     ans = st.session_state.get(f"ans_{q.get('id', i+1)}", [])
                     sum_ans_text.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
             
-            # 🚀 修復：大括號轉義
+            # 🚀 關鍵：編號型 Key 確保 Apps Script 對接
             prompt = f"""
-            作為 Strategist，根據視覺事實：{st.session_state.visual_facts}
+            作為 Strategist，根據事實：{st.session_state.visual_facts}
             執行數據：{chr(10).join(sum_ans_text)} | 靈魂概念：{st.session_state.open_question_ans}
             Output STRICTLY RAW JSON with these numbered keys for Google API Sync:
             - "品牌痛點分析": text (繁中)
@@ -333,10 +331,8 @@ def main():
                 time.sleep(0.5); loader.empty()
                 try: 
                     st.session_state.ai_content = json.loads(res)
-                    st.session_state.challenge = st.session_state.ai_content.get("品牌痛點分析", "")
-                    st.session_state.solution = st.session_state.ai_content.get("活動方案核心", "")
                 except: st.error("JSON 解析失敗。")
-            else: loader.empty(); st.error("API 失敗，請更換密鑰。")
+            else: loader.empty(); st.error("API 失敗，請更換有效金鑰。")
         
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
@@ -359,7 +355,8 @@ def main():
                             "category_who": st.session_state.who_we_help[0],
                             "category_what": ", ".join(st.session_state.what_we_do),
                             "scope_of_work": ", ".join(st.session_state.scope_of_word),
-                            "challenge": st.session_state.challenge, "solution": st.session_state.solution,
+                            "challenge": st.session_state.ai_content.get("品牌痛點分析", ""),
+                            "solution": st.session_state.ai_content.get("活動方案核心", ""),
                             "open_question": st.session_state.open_question_ans,
                             "mc_summary": "\n".join(final_mc_summary),
                             "ai_content": st.session_state.ai_content,
@@ -368,8 +365,8 @@ def main():
                         }
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
-                        log_debug(f"Sheet: {r1.status_code}, Slide: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 同步成功！請檢查 Google Sheet & Slide。")
+                        log_debug(f"Sheet Response: {r1.status_code}", "success")
+                        st.balloons(); st.success("✅ 全部數據已成功射入 Master DB 及 Slide！")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
