@@ -9,7 +9,7 @@ import re
 from PIL import Image, ImageEnhance, ImageOps
 from datetime import datetime
 
-# --- 1. 核心配置與 Webhook URL (已修復 URL 格式) ---
+# --- 1. 核心配置與 Webhook URL ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
 
@@ -32,7 +32,7 @@ LinkedIn/Slides: Professional Business English. IG/Threads: Canto-slang. Website
 Motto: 'Turn Policy into Play'.
 """
 
-# --- 2. 核心邏輯 (包含防爆 JSON 解析) ---
+# --- 2. 核心邏輯 ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -171,7 +171,6 @@ def main():
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
     # 全闊度導航按鈕
-    st.markdown("<br>", unsafe_allow_html=True)
     nav_cols = st.columns(3)
     tab_list = ["📝 Project Collector", "📋 Review & Multi-Sync", "👥 CRM & Contacts"]
     for i, t in enumerate(tab_list):
@@ -216,7 +215,10 @@ def main():
             st.subheader("🧠 專案靈魂萃取器 (20 MC)")
             if st.button("🪄 生成 20 條 MC 題目 (繁體中文)"):
                 with st.spinner("AI 正在分析並生成 JSON..."):
-                    prompt = f"Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. Output ONLY a raw JSON array."
+                    # 強化 Prompt，明確要求 JSON 結構
+                    prompt = f"""Generate exactly 20 MC questions for project: {st.session_state.project_name} in Traditional Chinese. 
+                    Output strictly as a raw JSON array of objects with the following schema:
+                    [{{ "id": 1, "question": "...", "options": ["A...", "B...", "C...", "D..."] }}]"""
                     res = call_gemini_sdk(prompt, is_json=True)
                     if res:
                         try:
@@ -227,9 +229,15 @@ def main():
                             st.error("JSON 格式毀損，請重試。")
             
             if st.session_state.mc_questions:
-                for q in st.session_state.mc_questions:
-                    st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']} (可多選)</div>", unsafe_allow_html=True)
-                    st.session_state[f"ans_{q['id']}"] = st.multiselect("Options", q['options'], key=f"q_{q['id']}")
+                for i, q in enumerate(st.session_state.mc_questions):
+                    # 修復 KeyError: 用 get() 並提供 fallback i+1
+                    q_id = q.get('id', i + 1)
+                    q_text = q.get('question', '未知問題')
+                    q_opts = q.get('options', [])
+                    
+                    st.markdown(f"<div class='mc-question'>Q{q_id}. {q_text} (可多選)</div>", unsafe_allow_html=True)
+                    st.session_state[f"ans_{q_id}"] = st.multiselect("Options", q_opts, key=f"q_ui_{q_id}_{i}")
+                
                 st.session_state.open_question_ans = st.text_area("覺得我哋嘅概念最特別是什麼？", st.session_state.open_question_ans)
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -285,9 +293,10 @@ def main():
                         # 整理回答數據
                         collected_answers = []
                         if st.session_state.mc_questions:
-                            for q in st.session_state.mc_questions:
-                                ans = st.session_state.get(f"ans_{q['id']}", [])
-                                collected_answers.append(f"Q: {q['question']} | A: {', '.join(ans)}")
+                            for i, q in enumerate(st.session_state.mc_questions):
+                                q_id = q.get('id', i + 1)
+                                ans = st.session_state.get(f"ans_{q_id}", [])
+                                collected_answers.append(f"Q: {q.get('question','')} | A: {', '.join(ans)}")
                         
                         payload = {
                             "action": "sync_project",
