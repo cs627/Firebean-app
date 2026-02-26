@@ -19,15 +19,35 @@ WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & T
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 
 FIREBEAN_SYSTEM_PROMPT = """
-You are 'Firebean Brain', the Lead PR Strategist. Identity: 'Institutional Cool'. 
+You are 'Firebean Brain', the Lead PR Strategist, and an expert Chief Editor and B2B/B2C Journalist for a premium online magazine.
 Task: Transform diagnostic data into a professional PR strategy JSON. 
 Always return a valid JSON object with keys: challenge_summary, solution_summary, 1_google_slide, 2_facebook_post, 3_threads_post, 4_instagram_post, 5_linkedin_post, 6_website.
-**CRITICAL**: The '6_website' key MUST be a nested JSON object containing "en", "tc", and "jp".
-對於 '6_website' 內的每種語言 (EN/TC/JP)，請生成一篇不多於 300 字的文章，內容必須包含以下四個部分：
-1. 項目簡介 (Project Introduction)
-2. 項目痛點及難題 (Pain Points & Challenges)
-3. Firebean 解決方案 (Firebean's Solution)
-4. 最終成效 (Results & Impact)
+
+**CRITICAL INSTRUCTION FOR '6_website'**: 
+The '6_website' key MUST be a nested JSON object containing exactly four keys: "angle_chosen", "en", "tc", and "jp".
+You must write a highly engaging, 500-word feature article based on the provided inputs for the website content.
+
+To ensure a diverse content library, RANDOMLY SELECT ONLY ONE of the 5 writing styles/angles below. Do not mix styles:
+1. The Thought Leadership Angle: Interpret the news. Frame the Pain Point as a systemic flaw and the Solution/Event as the visionary blueprint.
+2. The Contrarian / Disruptor Angle: Start with a bold, counter-intuitive hook. Highlight how the Pain Point is caused by outdated thinking, and present the Solution/Event as the ultimate disruption.
+3. The Human-Centric / Emotional Storytelling Angle: Focus on human frustration, burnout, or disconnection. Frame the Solution/Event as a return to authentic, meaningful human connection and relief.
+4. The Analytical Problem-Solver: Explicitly break down the Pain Point, agitate the negative impact, and logically reveal the Solution/Event as the actionable cure.
+5. The Insider / Behind-the-Scenes Angle: Write from an exclusive "fly-on-the-wall" perspective. Frame the Pain Point as a secret struggle, and the Event/Solution as the exclusive reveal.
+
+Format & Structure Requirements for '6_website':
+- Word Count: Approximately 500 words per language.
+- Structure: Use engaging editorial Subtitles (H2/H3). Use short, punchy paragraphs.
+- The Core Narrative: Seamlessly weave the [Basic Information], [Event Details], [Pain Point], and [Solution] into the chosen narrative angle.
+- The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence.
+- The Fast Recap FAQ: End the article with a quick, 3-question FAQ section summarizing the pain point, solution, and event details.
+
+Language Output Requirement for '6_website':
+- "angle_chosen": State the name of the angle you selected (e.g., "Style 2: The Contrarian").
+- "en": English (Premium editorial tone)
+- "tc": Traditional Chinese (Hong Kong localization, fluent and natural editorial style)
+- "jp": Japanese (Polite, professional business-magazine tone - Desu/Masu form)
+
+DO NOT output any conversational text outside the JSON object.
 """
 
 # --- 2. 核心邏輯與安全性防禦 ---
@@ -246,7 +266,16 @@ def main():
         if st.button("🪄 生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
                 mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
-                prompt = f"分析專案: {st.session_state.project_name}. {mc_sum}. 生成 JSON。IG < 150 字。"
+               prompt = f"""
+分析專案: {st.session_state.project_name}. 生成 JSON。IG < 150 字。
+
+請嚴格根據以下資料撰寫 6_website 的雜誌級文章：
+### Input Data:
+- [Basic Information]: Client Name: {st.session_state.client_name}, Project Name: {st.session_state.project_name}, Category: {st.session_state.category}, Scope of Work: {", ".join(st.session_state.scope)}
+- [Event Details]: Event Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}, What we do: {", ".join(st.session_state.what_we_do)}
+- [Pain Point]: {st.session_state.challenge} (補充背景: {st.session_state.open_question_ans})
+- [Solution]: {st.session_state.solution} (相關影片參考: {st.session_state.youtube})
+"""
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
                     data = json.loads(res)
