@@ -344,34 +344,31 @@ def main():
                     except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 🎯 Debug Terminal 移至底部 (使用 expander 收納，保持畫面乾淨)
+  # 🎯 Debug Terminal 移至底部 (使用 expander 收納，保持畫面乾淨)
     st.markdown("<br><br>", unsafe_allow_html=True)
-    with st.expander("🛠️ Debug Terminal & API Settings", expanded=False):
-        st.markdown("### 🔑 API Key 測試工具")
+    with st.expander("🛠️ Debug Terminal & System Logs", expanded=False):
+        st.markdown("### 🔑 API Key 連線測試 (讀取 Streamlit Secrets)")
         
-        # API Key 測試功能
-        col_api, col_btn = st.columns([3, 1])
-        with col_api:
-            test_key = st.text_input("輸入 Gemini API Key 進行連線測試 (不會覆蓋 Secret)", type="password")
-        with col_btn:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("連線測試", use_container_width=True):
-                if test_key:
-                    with st.spinner("連線中..."):
-                        try:
-                            genai.configure(api_key=test_key)
-                            model = genai.GenerativeModel("gemini-1.5-flash")
-                            res = model.generate_content("Reply only the word: SUCCESS")
-                            if res and "SUCCESS" in res.text.upper():
-                                st.success("✅ API Key 測試成功！連線正常。")
-                                log_debug("API Key 手動連線測試成功。", "success")
-                            else:
-                                st.error("❌ 連線異常，請檢查 Key。")
-                        except Exception as e:
-                            st.error(f"❌ 錯誤: {e}")
-                            log_debug(f"API Key 手動測試失敗: {e}", "error")
+        # 直接使用 Secrets 進行測試
+        if st.button("執行連線測試", use_container_width=True):
+            with st.spinner("正在讀取系統 Secrets 並連線中..."):
+                secret_key = st.secrets.get("GEMINI_API_KEY", "")
+                if not secret_key:
+                    st.error("❌ 找不到 API Key！請檢查 Streamlit Cloud 的 Advanced Settings > Secrets 裡面是否有設定 `GEMINI_API_KEY`。")
+                    log_debug("API Key 測試失敗：找不到 Secret。", "error")
                 else:
-                    st.warning("請先輸入 API Key。")
+                    try:
+                        genai.configure(api_key=secret_key)
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        res = model.generate_content("Reply only the word: SUCCESS")
+                        if res and "SUCCESS" in res.text.upper():
+                            st.success("✅ API Key 測試成功！Streamlit Secrets 運作正常。")
+                            log_debug("系統 API Key (Secrets) 連線測試成功。", "success")
+                        else:
+                            st.error("❌ 連線異常，請確認 API Key 的權限或額度。")
+                    except Exception as e:
+                        st.error(f"❌ 錯誤: {e}")
+                        log_debug(f"系統 API Key 測試失敗: {e}", "error")
 
         st.markdown("### 📝 System Logs")
         logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
