@@ -9,15 +9,12 @@ import re
 from PIL import Image, ImageEnhance, ImageOps, ImageDraw
 from datetime import datetime
 
-# --- 1. 核心配置與 Webhook URL ---
-SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb6YNAjNNndamdkcULS71Q_qkkbclBViLlx9B8e7LaaxyapMc7jsgdvhMHZ3d_wLzXw/exec"
-SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya_pl6h99zY_LrURojCL86c20NwxdeW6V9bhCXqgPjJdz2NVPgeFThthcR6gfw0d1P/exec"
+# --- 1. 核心配置與 Webhook URL (已更新為老細提供之最新網址) ---
+SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaQu2KpJ06I0yWL4dEwk0naB1FOlHkt7Ta340xH84IDwQI7jQNUI3eSmxrwKyQHNj5/exec"
+SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZvtm8M8a5sLYF3vz9kLyAdimzzwpSlnTkzIeQ3DJxkklNYNlwSoJc5j5CkorM6w5V/exec"
 
-# 🚀 鎖定模型 ID
+# 🚀 鎖定 Gemini 2.5 Flash
 STABLE_MODEL_ID = "gemini-2.5-flash"
-
-# 只使用老細 Secrets 中的 Key
-API_KEYS_POOL = [] 
 
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
@@ -27,7 +24,7 @@ FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Architect of Public Engagement. Identity: 'Institutional Cool'.
 Philosophy: PR Events solve brand-audience gaps through high-end experiences.
 Language Rule: Always output in Traditional Chinese (繁體中文).
-Sync Rule: Always output JSON using numbered keys (1_google_slide to 6_website) for API sync.
+Sync Rule: Always output JSON using numbered keys (1_google_slide to 6_website) for API compatibility.
 Fact Rule: Analyze all photos provided strictly. No hallucinations.
 """
 
@@ -39,10 +36,10 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """Gemini 2.5 SDK 調用，內置高強度壓縮防超時"""
+    """Gemini 2.5 SDK 調用，具備圖片壓縮與 JSON 提取防爆"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
-        log_debug("🚨 錯誤：找不到 Secret Key！請在 Secrets 設定 GEMINI_API_KEY。", "error")
+        log_debug("🚨 錯誤：找不到 Secret Key！", "error")
         return None
 
     try:
@@ -65,6 +62,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             log_debug(f"✅ Gemini 2.5 調用成功", "success")
             raw_text = response.text.strip()
             if not is_json: return raw_text
+            # 解決 JSON 提取問題
             json_match = re.search(r'(\[.*\]|\{.*\})', raw_text, re.DOTALL)
             return json_match.group(1) if json_match else raw_text
     except Exception as e:
@@ -72,13 +70,14 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def test_api_connection():
+    """Check Key 功能：測試 API 金鑰是否存活"""
     log_debug("🚀 開始連線測試...", "info")
-    res = call_gemini_sdk("Ping test. Please respond exactly with: 'Firebean 2.5 Online'.")
+    res = call_gemini_sdk("Ping test. Please respond with: 'Firebean 2.5 Online'.")
     if res:
         st.toast("✅ SDK 連線成功！Gemini 2.5 已 Ready。")
-        log_debug("系統連線正常，可執行全功能同步。", "success")
+        log_debug("系統連線正常。", "success")
     else:
-        st.toast("❌ 連線失敗，請檢查 Secrets 中的 Key。", icon="🔥")
+        st.toast("❌ 連線失敗，請更換有效密鑰。", icon="🔥")
 
 def create_dummy_image(color, label):
     img = Image.new('RGB', (800, 600), color=color)
@@ -87,39 +86,41 @@ def create_dummy_image(color, label):
     buf = io.BytesIO(); img.save(buf, format="JPEG"); buf.seek(0)
     return buf
 
-def create_dummy_logo_b64(bg_color):
+def create_dummy_logo_b64(bg_color, text):
     img = Image.new('RGBA', (400, 400), color=bg_color)
+    d = ImageDraw.Draw(img)
+    d.text((120, 180), text, fill=(255,255,255,255))
     buf = io.BytesIO(); img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
 
 def fill_dummy_data():
-    """老細專屬：全自動填寫測試數據 (文字 + 相片 + Logo + MC)"""
-    st.session_state.client_name = "Firebean 測試機構"
-    st.session_state.project_name = "2026 全自動同步展覽"
+    """🚀 老細測試神器：一鍵生成所有數據 (含相片、Logo、SOW、MC)"""
+    st.session_state.client_name = "Firebean Dummy Client"
+    st.session_state.project_name = "2026 同步連線測試項目"
     st.session_state.venue = "香港會議展覽中心"
-    st.session_state.youtube_link = "https://youtube.com/firebean-test"
+    st.session_state.youtube_link = "https://youtube.com/firebean"
     st.session_state.who_we_help = ["LIFESTYLE & CONSUMER"]
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
     st.session_state.scope_of_word = ["Theme Design", "Concept Development", "Event Production"]
-    st.session_state.open_question_ans = "測試核心概念：透過一鍵自動化填充達成秒速測試同步邏輯。"
-    st.session_state.visual_facts = "Dummy 分析：現場有大型互動幕牆、鮮豔紅色品牌調性。"
+    st.session_state.open_question_ans = "測試概念：透過 Gemini 2.5 達成全自動同步與視覺分析。"
+    st.session_state.visual_facts = "Dummy 分析：現場有大型 LED 幕、鮮艷品牌色調及互動展位。"
     
-    # 生成 4 張相片
-    colors = [(255,0,0), (0,255,0), (0,0,255), (255,255,0)]
-    st.session_state.project_photos = [create_dummy_image(c, f"Photo {i+1}") for i, c in enumerate(colors)]
+    # 生成 4 張相
+    colors = [(200,0,0), (0,200,0), (0,0,200), (150,150,0)]
+    st.session_state.project_photos = [create_dummy_image(c, f"Dummy Test {i+1}") for i, c in enumerate(colors)]
     
     # 生成 Logo
-    st.session_state.logo_black = create_dummy_logo_b64((0,0,0,255))
-    st.session_state.logo_white = create_dummy_logo_b64((255,255,255,255))
+    st.session_state.logo_black = create_dummy_logo_b64((0,0,0,255), "BLACK LOGO")
+    st.session_state.logo_white = create_dummy_logo_b64((100,100,100,255), "WHITE LOGO")
     
-    # 生成 Dummy MC
+    # 生成 MC
     st.session_state.mc_questions = [
-        {"id": 1, "question": "測試：系統同步是否正常？", "options": ["正常", "異常"]},
-        {"id": 2, "question": "測試：文案是否準確？", "options": ["準確", "一般"]}
+        {"id": 1, "question": "測試題目：Google API 連線是否正常？", "options": ["正常", "異常"]},
+        {"id": 2, "question": "測試題目：視覺分析是否精準？", "options": ["是", "否"]}
     ]
     st.session_state["ans_1"] = ["正常"]
-    st.session_state["ans_2"] = ["準確"]
-    log_debug("🚀 已自動填充文字、Dummy 相片及測試 Logo！", "success")
+    st.session_state["ans_2"] = ["是"]
+    log_debug("🚀 一鍵自動化填充完成！可以直接試同步。", "success")
 
 def init_session_state():
     fields = {
@@ -132,6 +133,13 @@ def init_session_state():
     }
     for k, v in fields.items():
         if k not in st.session_state: st.session_state[k] = v
+
+def manna_ai_enhance(image_file):
+    try:
+        raw_img = Image.open(image_file)
+        img = ImageOps.exif_transpose(raw_img).convert("RGB")
+        return ImageEnhance.Contrast(img).enhance(1.15)
+    except: return ImageOps.exif_transpose(Image.open(image_file)).convert("RGB")
 
 # --- 3. UI 樣式 ---
 
@@ -166,7 +174,7 @@ def main():
     init_session_state()
     apply_styles()
 
-    # Progress
+    # Progress 計算
     score_items = ["client_name", "project_name", "venue", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.who_we_help else 0) + (1 if st.session_state.what_we_do else 0) + (1 if st.session_state.scope_of_word else 0)
@@ -190,7 +198,7 @@ def main():
     st.markdown("---")
 
     if st.session_state.active_tab == "📝 Project Collector":
-        if st.button("🧪 老細專用：一鍵填充測試數據 (文字 + 相片 + Logo)", use_container_width=True):
+        if st.button("🧪 老細專用：一鍵填充測試數據 (含圖片、Logo、SOW 及 MC)", use_container_width=True):
             fill_dummy_data(); st.rerun()
         
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
@@ -199,15 +207,11 @@ def main():
         with col1:
             if st.session_state.logo_black: st.success("✅ Black Logo Ready")
             ub = st.file_uploader("Upload Black Logo", type=['png'], key="logo_b")
-            if ub:
-                img_data = ub.read()
-                st.session_state.logo_black = base64.b64encode(img_data).decode()
+            if ub: st.session_state.logo_black = base64.b64encode(ub.read()).decode()
         with col2:
             if st.session_state.logo_white: st.success("✅ White Logo Ready")
             uw = st.file_uploader("Upload White Logo", type=['png'], key="logo_w")
-            if uw:
-                img_data = uw.read()
-                st.session_state.logo_white = base64.b64encode(img_data).decode()
+            if uw: st.session_state.logo_white = base64.b64encode(uw.read()).decode()
         
         b1, b2, b3, b4 = st.columns(4)
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
@@ -234,11 +238,11 @@ def main():
             if st.button("🪄 生成 20 條繁中 MC 題目 (全相片分析)"):
                 if not st.session_state.project_photos: st.error("請上傳或生成相片。")
                 else:
-                    with st.spinner("Gemini 2.5 掃描中..."):
-                        vision_p = "Collectively analyze event photos. List visual facts (branding, crowd, tech) in Traditional Chinese."
+                    with st.spinner("Gemini 2.5 掃描分析中..."):
+                        vision_p = "Analyze event photos. List visual facts (branding, crowd, tech) in Traditional Chinese."
                         st.session_state.visual_facts = call_gemini_sdk(vision_p, image_files=st.session_state.project_photos)
                         
-                        # 🚀 雙括號防止 ValueError
+                        # 🚀 使用雙括號 {{ }} 避開 ValueError
                         prompt = f"""
                         你是 Firebean 診斷官。根據視覺實況：{st.session_state.visual_facts}
                         生成 20 條繁中 MC 題目。中心思想：透過 PR 體驗解決接觸不足。
@@ -249,6 +253,7 @@ def main():
                             parsed = json.loads(res)
                             if isinstance(parsed, list):
                                 st.session_state.mc_questions = [q for q in parsed if isinstance(q, dict)]
+                                st.success("✅ 題目已根據影像事實生成！")
             
             if st.session_state.mc_questions:
                 for i, q in enumerate(st.session_state.mc_questions):
@@ -267,14 +272,14 @@ def main():
         with cr:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             st.subheader("📸 Gallery")
-            files = st.file_uploader("Upload Photos", accept_multiple_files=True)
+            files = st.file_uploader("Upload Photos (min 4)", accept_multiple_files=True)
             if files: st.session_state.project_photos = files
             if st.session_state.project_photos:
                 cols = st.columns(4)
                 for i, f in enumerate(st.session_state.project_photos):
                     with cols[i%4]:
-                        img = Image.open(f)
-                        st.image(img, use_container_width=True)
+                        try: st.image(Image.open(f), use_container_width=True)
+                        except: st.image(f, use_container_width=True) 
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state.active_tab == "📋 Review & Multi-Sync":
@@ -288,10 +293,9 @@ def main():
                         sum_ans.append(f"Q: {q.get('question')} | A: {', '.join(ans)}")
                 
                 prompt = f"""
-                Strategist 分析事實執行數據：{chr(10).join(sum_ans)}
-                以及視覺事實：{st.session_state.visual_facts}
-                以及概念：{st.session_state.open_question_ans}
-                Output STRICTLY RAW JSON with numbering keys for API sync:
+                Strategist 分析事實數據：{chr(10).join(sum_ans)}
+                以及視覺事實：{st.session_state.visual_facts} | 概念：{st.session_state.open_question_ans}
+                Output STRICTLY RAW JSON:
                 - "1_google_slide": {{ "hook": "...", "shift": "...", "proof": "..." }}
                 - "2_facebook_post": text
                 - "3_threads_post": text
@@ -309,7 +313,7 @@ def main():
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
             if st.button("🚀 Confirm & Sync (Sheet + Slide + Drive)", use_container_width=True, type="primary"):
-                with st.spinner("🔄 多軌同步中..."):
+                with st.spinner("🔄 同步中..."):
                     try:
                         mc_summary_text = []
                         for i, q in enumerate(st.session_state.mc_questions):
@@ -320,12 +324,13 @@ def main():
                         
                         sync_imgs = []
                         for f in st.session_state.project_photos:
-                            f.seek(0); sync_imgs.append(base64.b64encode(f.read()).decode())
+                            if hasattr(f, "seek"): f.seek(0)
+                            sync_imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
                         
                         payload = {
                             "action": "sync_project", "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "client_name": st.session_state.client_name, "project_name": st.session_state.project_name,
-                            "venue": st.session_state.venue, "category_who": st.session_state.who_we_help[0],
+                            "venue": st.session_state.venue, "category_who": ", ".join(st.session_state.who_we_help),
                             "category_what": ", ".join(st.session_state.what_we_do),
                             "scope_of_work": ", ".join(st.session_state.scope_of_word),
                             "mc_summary": "\n".join(mc_summary_text),
@@ -333,12 +338,10 @@ def main():
                             "challenge": st.session_state.challenge, "solution": st.session_state.solution,
                             "logo_black": st.session_state.logo_black, "logo_white": st.session_state.logo_white, "images": sync_imgs
                         }
-                        # 🚀 送出前打印 Payload 狀態
-                        log_debug(f"Payload Size: {len(str(payload))} bytes", "info")
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sheet Response: {r1.status_code}, Slide Response: {r2.status_code}", "success")
-                        st.balloons(); st.success("✅ 全部數據同步成功！")
+                        st.balloons(); st.success("✅ 全部同步成功！")
                     except Exception as e: log_debug(f"Sync Error: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
