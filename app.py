@@ -86,6 +86,7 @@ def log_debug(msg, type="info"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
+# 🎯 更新：加入 AI 運算監控機制的 call_gemini_sdk
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
@@ -96,7 +97,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
         contents = [prompt]
         
-        # 🌟 監控升級 1：記錄正在呼叫 AI (文字與格式)
+        # 🌟 監控日誌 1：記錄開始呼叫
         log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
         
         if image_files:
@@ -104,10 +105,9 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
-            # 🌟 監控升級 2：記錄有沒有成功把相片餵給 AI
+            # 🌟 監控日誌 2：記錄圖片傳送數量
             log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
         
-        # 紀錄開始運算的時間
         start_time = time.time()
         
         response = model.generate_content(contents, generation_config={
@@ -115,13 +115,11 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             "temperature": 0.2
         })
         
-        # 計算 AI 思考了幾秒
         calc_time = round(time.time() - start_time, 2)
         
         if response and response.text:
             text = response.text.strip()
-            
-            # 🌟 監控升級 3：記錄 AI 成功回覆，花費時間，並印出前 80 個字的原始內容
+            # 🌟 監控日誌 3：記錄成功耗時與輸出預覽
             log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
             
             if not is_json: return text
@@ -135,7 +133,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                     if isinstance(data[0], dict): return json.dumps(data[0])
                 return json_str
             except:
-                # 🌟 監控升級 4：如果 AI 突然沒按格式輸出 JSON，這裡會記錄下來
+                # 🌟 監控日誌 4：記錄 JSON 格式錯誤警告
                 log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
                 return json_str
     except Exception as e:
@@ -143,7 +141,6 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def init_session_state():
-    # 🎯 移除預設選項中的 Emoji
     fields = {
         "active_tab": "Project Collector",
         "client_name": "", "project_name": "", "venue": "", "youtube": "",
@@ -232,7 +229,6 @@ def main():
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    # 🎯 更新：移除 Emoji 判斷
     if percent == 100 and st.session_state.active_tab == "Project Collector":
         st.toast("🎯 100% 完成！正在自動跳轉...")
         time.sleep(1.2)
@@ -241,7 +237,7 @@ def main():
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 🎯 更新：乾淨無 Icon 的導航按鈕
+    # 乾淨無 Icon 的導航按鈕
     nav_cols = st.columns(3)
     
     if nav_cols[0].button("Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "Project Collector" else "secondary"):
@@ -259,7 +255,6 @@ def main():
     st.markdown("<hr style='margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
     # --- TAB 分頁內容 ---
-    # 🎯 更新：使用無 Icon 的名稱判斷
     if st.session_state.active_tab == "Project Collector":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
@@ -304,7 +299,7 @@ def main():
                         facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                         
                         mc_prompt = f"""
-請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
+請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛針對挑戰與優化空間。
 【專案背景資料】
 - 客戶與專案名稱：{st.session_state.client_name} / {st.session_state.project_name}
 - 產業類別 (Category)：{st.session_state.category}
@@ -341,7 +336,6 @@ def main():
                         except: st.image(f, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # 🎯 更新：使用無 Icon 的名稱判斷
     elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         if st.button("生成六大平台對接文案"):
