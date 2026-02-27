@@ -35,7 +35,7 @@ To ensure a diverse content library, RANDOMLY SELECT ONLY ONE of the 5 writing s
 5. The Insider / Behind-the-Scenes Angle: Write from an exclusive "fly-on-the-wall" perspective. Frame the Pain Point as a secret struggle, and the Event/Solution as the exclusive reveal.
 
 Format & Structure Requirements for '6_website':
-- Word Count: Approximately 500 words per language.
+- Word Count: Approximately 300 words per language.
 - Structure: Use engaging editorial Subtitles (H2/H3). Use short, punchy paragraphs.
 - The Core Narrative: Seamlessly weave the [Basic Information], [Event Details], [Pain Point], and [Solution] into the chosen narrative angle.
 - The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence (e.g., "**Algorithms may earn you attention, but real-world connection earns you loyalty.**").
@@ -71,7 +71,7 @@ You must strictly follow these platform-specific guidelines to create synergisti
    - Language: 最地道的廣東話/網絡用語，語氣要 casual。
 
 4. '5_linkedin_post' (B2B 價值與思想領導力):
-   - Word Count: 300 - 500 words. 段落必須分明。
+   - Word Count: 200 - 300 words. 段落必須分明。
    - Tone: 權威 B2B、專業顧問風格。強調數據、ROI 與行業領導地位。
    - Content: 思想領導力 (Thought Leadership)。由創辦人或高層分享舉辦項目的初衷、克服的商業挑戰，解釋「為何這項目對行業發展至關重要」及「大眾的誤解」。突顯活動的 Networking 價值。
    - Language: 雙語並行 (English first, followed by Traditional Chinese)。
