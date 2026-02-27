@@ -86,7 +86,6 @@ def log_debug(msg, type="info"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-# 🎯 更新：加入 st.toast 即時提示機制，讓 AI 運算過程視覺化
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
@@ -99,7 +98,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         contents = [prompt]
         
         log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
-        st.toast("🤖 系統連線成功，AI 正在分析資料...") # 即時 UI 提示
+        st.toast("🤖 系統連線成功，AI 正在分析資料...") 
         
         if image_files:
             for f in image_files:
@@ -107,7 +106,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 img.thumbnail((800, 800))
                 contents.append(img)
             log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
-            st.toast(f"📸 正在載入並掃描 {len(image_files)} 張相片...") # 即時 UI 提示
+            st.toast(f"📸 正在載入並掃描 {len(image_files)} 張相片...") 
         
         start_time = time.time()
         
@@ -121,7 +120,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         if response and response.text:
             text = response.text.strip()
             log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
-            st.toast(f"✅ AI 生成完成！(耗時 {calc_time} 秒)") # 即時 UI 提示
+            st.toast(f"✅ AI 生成完成！(耗時 {calc_time} 秒)") 
             
             if not is_json: return text
             
@@ -135,7 +134,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 return json_str
             except:
                 log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
-                st.toast("⚠️ 正在優化輸出格式...") # 即時 UI 提示
+                st.toast("⚠️ 正在優化輸出格式...") 
                 return json_str
     except Exception as e:
         log_debug(f"❌ AI 運算發生錯誤: {str(e)[:100]}", "error")
@@ -207,7 +206,7 @@ def apply_styles():
             font-weight: 700 !important;
         }
 
-        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo */
+        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo (放大三倍) */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
@@ -217,8 +216,8 @@ def apply_styles():
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            min-height: 60px !important;
-            width: 180px !important;
+            min-height: 180px !important; /* 放大三倍：從 60px 變成 180px */
+            width: 540px !important;      /* 放大三倍：從 180px 變成 540px */
             padding: 0 !important;
             margin-top: -10px;
         }
@@ -252,7 +251,6 @@ def main():
     filled += (1 if mc_done == 20 else 0)
     percent = min(100, int((filled / 11) * 100))
 
-    # 🎯 更新：將原本純顯示的 Logo 變成「隱形的回到主頁按鈕」
     c1, c2 = st.columns([1, 1])
     with c1: 
         st.markdown('<span id="logo-anchor"></span>', unsafe_allow_html=True)
@@ -370,7 +368,6 @@ def main():
 
     elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        # 🎯 更新：第二版生成完畢後加入 st.rerun() 來確保 Debug Terminal 刷新
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
                 mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
@@ -396,7 +393,7 @@ def main():
                         st.session_state.solution = data.get("solution_summary", "尚未生成")
                         st.toast("✅ 策略與文案已成功生成！")
                         time.sleep(1)
-                        st.rerun() # 強制刷新畫面，讓下方 Debug 終端機能立即顯示最新日誌
+                        st.rerun() 
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
