@@ -86,27 +86,28 @@ def log_debug(msg, type="info"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-# 🎯 更新：加入 AI 運算監控機制的 call_gemini_sdk
+# 🎯 更新：加入 st.toast 即時提示機制，讓 AI 運算過程視覺化
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
         log_debug("🚨 找不到 API Key", "error")
+        st.error("🚨 找不到 API Key")
         return None
     try:
         genai.configure(api_key=secret_key)
         model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
         contents = [prompt]
         
-        # 🌟 監控日誌 1：記錄開始呼叫
         log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
+        st.toast("🤖 系統連線成功，AI 正在分析資料...") # 即時 UI 提示
         
         if image_files:
             for f in image_files:
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
-            # 🌟 監控日誌 2：記錄圖片傳送數量
             log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
+            st.toast(f"📸 正在載入並掃描 {len(image_files)} 張相片...") # 即時 UI 提示
         
         start_time = time.time()
         
@@ -119,8 +120,8 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         
         if response and response.text:
             text = response.text.strip()
-            # 🌟 監控日誌 3：記錄成功耗時與輸出預覽
             log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
+            st.toast(f"✅ AI 生成完成！(耗時 {calc_time} 秒)") # 即時 UI 提示
             
             if not is_json: return text
             
@@ -133,11 +134,12 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                     if isinstance(data[0], dict): return json.dumps(data[0])
                 return json_str
             except:
-                # 🌟 監控日誌 4：記錄 JSON 格式錯誤警告
                 log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
+                st.toast("⚠️ 正在優化輸出格式...") # 即時 UI 提示
                 return json_str
     except Exception as e:
         log_debug(f"❌ AI 運算發生錯誤: {str(e)[:100]}", "error")
+        st.error("❌ AI 運算發生錯誤，請查看 Debug Terminal 日誌。")
     return None
 
 def init_session_state():
@@ -199,11 +201,36 @@ def apply_styles():
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
         
-        /* 🚀 核心更新：將系統內所有按鈕放大、加高、字體加粗，提升點擊手感 */
         .stButton > button {
             min-height: 55px !important;
             font-size: 18px !important;
             font-weight: 700 !important;
+        }
+
+        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo */
+        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
+        div.element-container:has(#logo-anchor) + div.element-container button {
+            background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: left center;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            min-height: 60px !important;
+            width: 180px !important;
+            padding: 0 !important;
+            margin-top: -10px;
+        }
+        div.element-container:has(#logo-anchor) + div.element-container button:hover,
+        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button:hover {
+            transform: scale(1.03);
+            background-color: transparent !important;
+        }
+        /* 隱藏按鈕原本的文字 */
+        div.element-container:has(#logo-anchor) + div.element-container button p,
+        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {
+            display: none !important;
         }
     </style>""", unsafe_allow_html=True)
 
@@ -225,9 +252,15 @@ def main():
     filled += (1 if mc_done == 20 else 0)
     percent = min(100, int((filled / 11) * 100))
 
+    # 🎯 更新：將原本純顯示的 Logo 變成「隱形的回到主頁按鈕」
     c1, c2 = st.columns([1, 1])
-    with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
-    with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
+    with c1: 
+        st.markdown('<span id="logo-anchor"></span>', unsafe_allow_html=True)
+        if st.button("HOME", key="logo_btn", help="點擊返回 Project Collector 主頁"):
+            st.session_state.active_tab = "Project Collector"
+            st.rerun()
+    with c2: 
+        st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
     if percent == 100 and st.session_state.active_tab == "Project Collector":
         st.toast("🎯 100% 完成！正在自動跳轉...")
@@ -237,7 +270,6 @@ def main():
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 乾淨無 Icon 的導航按鈕
     nav_cols = st.columns(3)
     
     if nav_cols[0].button("Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "Project Collector" else "secondary"):
@@ -299,7 +331,7 @@ def main():
                         facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                         
                         mc_prompt = f"""
-請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛針對挑戰與優化空間。
+請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
 - 客戶與專案名稱：{st.session_state.client_name} / {st.session_state.project_name}
 - 產業類別 (Category)：{st.session_state.category}
@@ -338,6 +370,7 @@ def main():
 
     elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        # 🎯 更新：第二版生成完畢後加入 st.rerun() 來確保 Debug Terminal 刷新
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
                 mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
@@ -361,7 +394,9 @@ def main():
                         st.session_state.ai_content = data
                         st.session_state.challenge = data.get("challenge_summary", "尚未生成")
                         st.session_state.solution = data.get("solution_summary", "尚未生成")
-                        st.success("✅ 策略生成完成")
+                        st.toast("✅ 策略與文案已成功生成！")
+                        time.sleep(1)
+                        st.rerun() # 強制刷新畫面，讓下方 Debug 終端機能立即顯示最新日誌
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
