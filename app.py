@@ -128,9 +128,8 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             json_str = match.group(0) if match else text
             
             try:
+                # 🌟 修復核心：單純驗證 JSON，不強制解構，保留原始 List 以供 MC Questions 使用
                 data = json.loads(json_str)
-                if isinstance(data, list) and len(data) > 0:
-                    if isinstance(data[0], dict): return json.dumps(data[0])
                 return json_str
             except:
                 log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
@@ -150,7 +149,7 @@ def init_session_state():
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
-        "has_auto_jumped": False  # 🌟 核心防彈跳機制：記錄是否已經自動跳轉過了
+        "has_auto_jumped": False 
     }
     for k, v in fields.items():
         if k not in st.session_state:
@@ -217,8 +216,8 @@ def apply_styles():
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            min-height: 180px !important; /* 放大三倍：從 60px 變成 180px */
-            width: 540px !important;      /* 放大三倍：從 180px 變成 540px */
+            min-height: 180px !important; 
+            width: 540px !important;      
             padding: 0 !important;
             margin-top: -10px;
         }
@@ -261,9 +260,8 @@ def main():
     with c2: 
         st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    # 🌟 防彈跳邏輯：只有在「第一次達到 100% 時」才會自動跳轉
     if percent == 100 and st.session_state.active_tab == "Project Collector" and not st.session_state.get("has_auto_jumped", False):
-        st.session_state.has_auto_jumped = True  # 標記為「已跳轉過」，不再觸發
+        st.session_state.has_auto_jumped = True  
         st.toast("🎯 100% 完成！正在自動跳轉...")
         time.sleep(1.2)
         st.session_state.active_tab = "Review & Multi-Sync"
@@ -350,10 +348,13 @@ def main():
                         if res: st.session_state.mc_questions = json.loads(res); st.rerun()
 
             if st.session_state.mc_questions:
-                for q in st.session_state.mc_questions:
-                    st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']}</div>", unsafe_allow_html=True)
-                    ans_key = f"ans_{q['id']}"
-                    st.session_state[ans_key] = st.multiselect("答案", q['options'], key=f"sel_{q['id']}", default=st.session_state.get(ans_key, []))
+                # 🌟 修復核心：加入防呆保險，確保 mc_questions 是一個陣列 (List) 且裡面的物件是字典 (Dict)
+                if isinstance(st.session_state.mc_questions, list):
+                    for q in st.session_state.mc_questions:
+                        if isinstance(q, dict) and 'id' in q:
+                            st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']}</div>", unsafe_allow_html=True)
+                            ans_key = f"ans_{q['id']}"
+                            st.session_state[ans_key] = st.multiselect("答案", q['options'], key=f"sel_{q['id']}", default=st.session_state.get(ans_key, []))
                 st.session_state.open_question_ans = st.text_area("最核心的概念？", st.session_state.open_question_ans)
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -373,7 +374,8 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
-                mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
+                # 確保只有合法的問題會被擷取
+                mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions if isinstance(q, dict)]
                 prompt = f"""
 分析專案: {st.session_state.project_name}. 生成 JSON。IG < 150 字。
 
@@ -390,6 +392,11 @@ def main():
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
                     data = json.loads(res)
+                    
+                    # 🌟 修復核心：如果 AI 不小心把策略包在陣列 (List) 裡，自動解開拿第一個
+                    if isinstance(data, list) and len(data) > 0:
+                        data = data[0]
+                        
                     if isinstance(data, dict):
                         st.session_state.ai_content = data
                         st.session_state.challenge = data.get("challenge_summary", "尚未生成")
