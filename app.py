@@ -71,7 +71,7 @@ You must strictly follow these platform-specific guidelines to create synergisti
    - Language: 最地道的廣東話/網絡用語，語氣要 casual。
 
 4. '5_linkedin_post' (B2B 價值與思想領導力):
-   - Word Count: 150 - 300 words. 段落必須分明。
+   - Word Count: 300 - 500 words. 段落必須分明。
    - Tone: 權威 B2B、專業顧問風格。強調數據、ROI 與行業領導地位。
    - Content: 思想領導力 (Thought Leadership)。由創辦人或高層分享舉辦項目的初衷、克服的商業挑戰，解釋「為何這項目對行業發展至關重要」及「大眾的誤解」。突顯活動的 Networking 價值。
    - Language: 雙語並行 (English first, followed by Traditional Chinese)。
