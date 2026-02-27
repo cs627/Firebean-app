@@ -149,7 +149,8 @@ def init_session_state():
         "category": WHO_WE_HELP_OPTIONS[0], "what_we_do": [], "scope": [],
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
-        "challenge": "", "solution": "", "visual_facts": ""
+        "challenge": "", "solution": "", "visual_facts": "",
+        "has_auto_jumped": False  # 🌟 核心防彈跳機制：記錄是否已經自動跳轉過了
     }
     for k, v in fields.items():
         if k not in st.session_state:
@@ -260,7 +261,9 @@ def main():
     with c2: 
         st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    if percent == 100 and st.session_state.active_tab == "Project Collector":
+    # 🌟 防彈跳邏輯：只有在「第一次達到 100% 時」才會自動跳轉
+    if percent == 100 and st.session_state.active_tab == "Project Collector" and not st.session_state.get("has_auto_jumped", False):
+        st.session_state.has_auto_jumped = True  # 標記為「已跳轉過」，不再觸發
         st.toast("🎯 100% 完成！正在自動跳轉...")
         time.sleep(1.2)
         st.session_state.active_tab = "Review & Multi-Sync"
