@@ -35,10 +35,10 @@ To ensure a diverse content library, RANDOMLY SELECT ONLY ONE of the 5 writing s
 5. The Insider / Behind-the-Scenes Angle: Write from an exclusive "fly-on-the-wall" perspective. Frame the Pain Point as a secret struggle, and the Event/Solution as the exclusive reveal.
 
 Format & Structure Requirements for '6_website':
-- Word Count: Approximately 300 words per language.
+- Word Count: Approximately 500 words per language.
 - Structure: Use engaging editorial Subtitles (H2/H3). Use short, punchy paragraphs.
 - The Core Narrative: Seamlessly weave the [Basic Information], [Event Details], [Pain Point], and [Solution] into the chosen narrative angle.
-- The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence (e.g., "**Algorithms may earn you attention, but real-world connection earns you loyalty.**").
+- The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence.
 - The Fast Recap FAQ: End the article with a quick, 3-question FAQ section summarizing the pain point, solution, and event details.
 
 Language Output Requirement for '6_website':
@@ -71,7 +71,7 @@ You must strictly follow these platform-specific guidelines to create synergisti
    - Language: 最地道的廣東話/網絡用語，語氣要 casual。
 
 4. '5_linkedin_post' (B2B 價值與思想領導力):
-   - Word Count: 200 - 300 words. 段落必須分明。
+   - Word Count: 150 - 300 words. 段落必須分明。
    - Tone: 權威 B2B、專業顧問風格。強調數據、ROI 與行業領導地位。
    - Content: 思想領導力 (Thought Leadership)。由創辦人或高層分享舉辦項目的初衷、克服的商業挑戰，解釋「為何這項目對行業發展至關重要」及「大眾的誤解」。突顯活動的 Networking 價值。
    - Language: 雙語並行 (English first, followed by Traditional Chinese)。
@@ -87,7 +87,6 @@ def log_debug(msg, type="info"):
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
-    """規格書 5.1 節格式自動修復機制 (Format Fixer)"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
         log_debug("🚨 找不到 API Key", "error")
@@ -111,11 +110,9 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             text = response.text.strip()
             if not is_json: return text
             
-            # 正則提取 JSON
             match = re.search(r'(\{.*\})|(\[.*\])', text, re.DOTALL)
             json_str = match.group(0) if match else text
             
-            # 🚀 v2.6 格式修復：如果是 List 則提取第一個 Dict
             try:
                 data = json.loads(json_str)
                 if isinstance(data, list) and len(data) > 0:
@@ -128,9 +125,9 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
     return None
 
 def init_session_state():
-    """規格書 5.2 節：強制初始化所有變量"""
+    # 🎯 移除預設選項中的 Emoji
     fields = {
-        "active_tab": "📝 Project Collector",
+        "active_tab": "Project Collector",
         "client_name": "", "project_name": "", "venue": "", "youtube": "",
         "event_year": "2026", "event_month": "FEB",
         "category": WHO_WE_HELP_OPTIONS[0], "what_we_do": [], "scope": [],
@@ -152,7 +149,6 @@ def create_dummy_image(color, label):
     return buf
 
 def fill_dummy_data():
-    """🚀 老細一鍵填充：帶入規格書第 6 節高品質文案"""
     st.session_state.client_name = "Firebean HQ"
     st.session_state.project_name = "2026 旗艦同步測試"
     st.session_state.venue = "香港會議展覽中心"
@@ -162,16 +158,13 @@ def fill_dummy_data():
     st.session_state.scope = ["Theme Design", "Event Production", "Concept Development"]
     st.session_state.open_question_ans = "將 20 個通用診斷問題轉化為一套連貫、引人入勝且可操作的跨平台策略。"
     
-    # 生成 8 張測試相
     colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#33FFF3", "#F3FF33", "#999999", "#222222"]
     st.session_state.project_photos = [create_dummy_image(c, f"P{i+1}") for i, c in enumerate(colors)]
     
-    # 填充 20 題 MC
     st.session_state.mc_questions = [{"id": i+1, "question": f"診斷指標 {i+1}？", "options": ["戰略優化", "維持"]} for i in range(20)]
     for i in range(1, 21): st.session_state[f"ans_{i}"] = ["戰略優化"]
     
-    # 模擬 Logo
-    dummy_logo = base64.b64encode(create_dummy_image("#FFFFFF", "LOGO").getvalue()).decode()
+    dummy_logo = base64.b64encode(create_dummy_image("#000000", "LOGO").getvalue()).decode()
     st.session_state.logo_black = dummy_logo
     st.session_state.logo_white = dummy_logo
     log_debug("🚀 高質量測試數據填充完成，進度將達 100%。", "success")
@@ -190,6 +183,13 @@ def apply_styles():
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
+        
+        /* 🚀 核心更新：將系統內所有按鈕放大、加高、字體加粗，提升點擊手感 */
+        .stButton > button {
+            min-height: 55px !important;
+            font-size: 18px !important;
+            font-weight: 700 !important;
+        }
     </style>""", unsafe_allow_html=True)
 
 # --- 4. Main App ---
@@ -199,7 +199,6 @@ def main():
     init_session_state()
     apply_styles()
 
-    # 11 維度進度計算 (規格書 5.3)
     score_items = ["client_name", "project_name", "venue", "youtube", "open_question_ans"]
     filled = sum([1 for f in score_items if st.session_state.get(f)])
     filled += (1 if st.session_state.category else 0)
@@ -211,40 +210,39 @@ def main():
     filled += (1 if mc_done == 20 else 0)
     percent = min(100, int((filled / 11) * 100))
 
-    # Header
     c1, c2 = st.columns([1, 1])
     with c1: st.image("https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png", width=160)
     with c2: st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    # 🎯 規格書 5.3：100% 自動跳轉至 Review 頁
-    if percent == 100 and st.session_state.active_tab == "📝 Project Collector":
+    # 🎯 更新：移除 Emoji 判斷
+    if percent == 100 and st.session_state.active_tab == "Project Collector":
         st.toast("🎯 100% 完成！正在自動跳轉...")
         time.sleep(1.2)
-        st.session_state.active_tab = "📋 Review & Multi-Sync"
+        st.session_state.active_tab = "Review & Multi-Sync"
         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 🎯 UI 佈局更新：將三個按鈕排成一排 (2個分頁導航 + 1個測試按鈕)
+    # 🎯 更新：乾淨無 Icon 的導航按鈕
     nav_cols = st.columns(3)
     
-    if nav_cols[0].button("📝 Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "📝 Project Collector" else "secondary"):
-        st.session_state.active_tab = "📝 Project Collector"
+    if nav_cols[0].button("Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "Project Collector" else "secondary"):
+        st.session_state.active_tab = "Project Collector"
         st.rerun()
         
-    if nav_cols[1].button("📋 Review & Multi-Sync", use_container_width=True, type="primary" if st.session_state.active_tab == "📋 Review & Multi-Sync" else "secondary"):
-        st.session_state.active_tab = "📋 Review & Multi-Sync"
+    if nav_cols[1].button("Review & Multi-Sync", use_container_width=True, type="primary" if st.session_state.active_tab == "Review & Multi-Sync" else "secondary"):
+        st.session_state.active_tab = "Review & Multi-Sync"
         st.rerun()
         
-    # 老細測試按鈕移至右上角
-    if nav_cols[2].button("🧪 老細一鍵填充 (深度內容測試)", use_container_width=True):
+    if nav_cols[2].button("老細一鍵填充 (深度內容測試)", use_container_width=True):
         fill_dummy_data()
         st.rerun()
 
     st.markdown("<hr style='margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
     # --- TAB 分頁內容 ---
-    if st.session_state.active_tab == "📝 Project Collector":
+    # 🎯 更新：使用無 Icon 的名稱判斷
+    if st.session_state.active_tab == "Project Collector":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -272,11 +270,21 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            if st.button("🪄 生成 20 題繁中診斷題目"):
+            if st.button("生成 20 題繁中診斷題目"):
                 if not st.session_state.project_photos: st.error("請先上傳相片。")
                 else:
                     with st.spinner("AI 掃描相片 Facts 並綜合專案背景生成題目中..."):
-                        facts = call_gemini_sdk("Identify branding and tech facts.", image_files=st.session_state.project_photos)
+                        vision_prompt = """
+                        請使用繁體中文 (Traditional Chinese)，詳細掃描並提取這些活動相片中的實體事實 (Facts)。
+                        請務必精準識別並描述以下五大細節，作為後續 PR 診斷之客觀依據：
+                        1. Branding (品牌識別與曝光程度)
+                        2. 現場佈置 (Decor & 氛圍)
+                        3. 科技設備 (Tech & 互動裝置)
+                        4. 人流規模 (Crowd & 參與度)
+                        5. 餐飲細節 (F&B 服務水準)
+                        """
+                        facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
+                        
                         mc_prompt = f"""
 請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
@@ -315,9 +323,10 @@ def main():
                         except: st.image(f, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    elif st.session_state.active_tab == "📋 Review & Multi-Sync":
+    # 🎯 更新：使用無 Icon 的名稱判斷
+    elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-        if st.button("🪄 生成六大平台對接文案"):
+        if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
                 mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions]
                 prompt = f"""
@@ -344,7 +353,7 @@ def main():
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
-            if st.button("🚀 Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
+            if st.button("Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
                 with st.spinner("🔄 同步中..."):
                     try:
                         imgs = [base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode() for f in st.session_state.project_photos]
@@ -373,12 +382,10 @@ def main():
                     except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
-  # 🎯 Debug Terminal 移至底部 (使用 expander 收納，保持畫面乾淨)
     st.markdown("<br><br>", unsafe_allow_html=True)
     with st.expander("🛠️ Debug Terminal & System Logs", expanded=False):
         st.markdown("### 🔑 API Key 連線測試 (讀取 Streamlit Secrets)")
         
-        # 直接使用 Secrets 進行測試
         if st.button("執行連線測試", use_container_width=True):
             with st.spinner("正在讀取系統 Secrets 並連線中..."):
                 secret_key = st.secrets.get("GEMINI_API_KEY", "")
