@@ -95,19 +95,35 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         genai.configure(api_key=secret_key)
         model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
         contents = [prompt]
+        
+        # 🌟 監控升級 1：記錄正在呼叫 AI (文字與格式)
+        log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
+        
         if image_files:
             for f in image_files:
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
+            # 🌟 監控升級 2：記錄有沒有成功把相片餵給 AI
+            log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
+        
+        # 紀錄開始運算的時間
+        start_time = time.time()
         
         response = model.generate_content(contents, generation_config={
             "response_mime_type": "application/json" if is_json else "text/plain",
             "temperature": 0.2
         })
         
+        # 計算 AI 思考了幾秒
+        calc_time = round(time.time() - start_time, 2)
+        
         if response and response.text:
             text = response.text.strip()
+            
+            # 🌟 監控升級 3：記錄 AI 成功回覆，花費時間，並印出前 80 個字的原始內容
+            log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
+            
             if not is_json: return text
             
             match = re.search(r'(\{.*\})|(\[.*\])', text, re.DOTALL)
@@ -119,9 +135,11 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                     if isinstance(data[0], dict): return json.dumps(data[0])
                 return json_str
             except:
+                # 🌟 監控升級 4：如果 AI 突然沒按格式輸出 JSON，這裡會記錄下來
+                log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
                 return json_str
     except Exception as e:
-        log_debug(f"AI SDK 錯誤: {str(e)[:50]}", "warning")
+        log_debug(f"❌ AI 運算發生錯誤: {str(e)[:100]}", "error")
     return None
 
 def init_session_state():
