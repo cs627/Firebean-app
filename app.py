@@ -18,7 +18,6 @@ WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
 
-# 🚀 動態年份設定：自動抓取今年，並倒數至 2012 年
 CURRENT_YEAR = datetime.now().year
 YEAR_OPTIONS = [str(y) for y in range(CURRENT_YEAR, 2011, -1)]
 MONTH_OPTIONS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -135,7 +134,7 @@ def init_session_state():
     fields = {
         "active_tab": "Project Collector",
         "client_name": "", "project_name": "", "venue": "", "youtube": "",
-        "event_year": str(CURRENT_YEAR), # 🚀 預設綁定今年
+        "event_year": str(CURRENT_YEAR), 
         "event_month": "FEB",
         "category": WHO_WE_HELP_OPTIONS[0], "what_we_do": [], "scope": [],
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
@@ -158,10 +157,10 @@ def create_dummy_image(color, label):
 
 def fill_dummy_data():
     st.session_state.client_name = "Firebean HQ"
-    st.session_state.project_name = f"{CURRENT_YEAR} 旗艦同步測試" # 🚀 測試名稱也帶入今年
+    st.session_state.project_name = f"{CURRENT_YEAR} 旗艦同步測試" 
     st.session_state.venue = "香港會議展覽中心"
     st.session_state.youtube = "https://youtube.com/firebean_sync_demo"
-    st.session_state.event_year = str(CURRENT_YEAR) # 🚀 一鍵填充時填寫今年
+    st.session_state.event_year = str(CURRENT_YEAR) 
     st.session_state.event_month = "FEB"
     st.session_state.category = "LIFESTYLE & CONSUMER"
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
@@ -196,7 +195,6 @@ def apply_styles():
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
         .stButton > button { min-height: 55px !important; font-size: 18px !important; font-weight: 700 !important; }
 
-        /* 左上角 Logo 隱藏按鈕 */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
@@ -213,7 +211,6 @@ def apply_styles():
             display: none !important;
         }
 
-        /* 強制讓 Type Primary (下一頁過渡按鈕) 變成超級醒目的 Firebean 紅色 */
         button[kind="primary"] {
             background-color: #FF2A2A !important;
             color: white !important;
@@ -266,10 +263,31 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             ub = st.file_uploader("Black Logo (Optional)", type=['png'], key="l_b")
-            if ub: st.session_state.logo_black = base64.b64encode(ub.read()).decode()
+            if ub is not None: 
+                st.session_state.logo_black = base64.b64encode(ub.read()).decode()
+            
+            # 🚀 新增：Black Logo 預覽縮圖 (淺色背景)
+            if st.session_state.logo_black:
+                st.markdown(f'''
+                    <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: #f9f9f9; text-align: center;">
+                        <span style="font-size: 10px; color: #888; display: block; margin-bottom: 5px;">Preview</span>
+                        <img src="data:image/png;base64,{st.session_state.logo_black}" style="max-height: 60px; max-width: 150px; object-fit: contain;">
+                    </div>
+                ''', unsafe_allow_html=True)
+
         with col2:
             uw = st.file_uploader("White Logo (Optional)", type=['png'], key="l_w")
-            if uw: st.session_state.logo_white = base64.b64encode(uw.read()).decode()
+            if uw is not None: 
+                st.session_state.logo_white = base64.b64encode(uw.read()).decode()
+                
+            # 🚀 新增：White Logo 預覽縮圖 (深色背景，確保白色 Logo 可見)
+            if st.session_state.logo_white:
+                st.markdown(f'''
+                    <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: #2D3436; text-align: center;">
+                        <span style="font-size: 10px; color: #aaa; display: block; margin-bottom: 5px;">Preview</span>
+                        <img src="data:image/png;base64,{st.session_state.logo_white}" style="max-height: 60px; max-width: 150px; object-fit: contain;">
+                    </div>
+                ''', unsafe_allow_html=True)
 
         b1, b2, b3 = st.columns(3)
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
