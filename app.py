@@ -505,4 +505,19 @@ def main():
                 else:
                     try:
                         genai.configure(api_key=secret_key)
-                        model
+                        model = genai.GenerativeModel(STABLE_MODEL_ID)
+                        res = model.generate_content("Reply only the word: SUCCESS")
+                        if res and "SUCCESS" in res.text.upper():
+                            st.success("✅ API Key 測試成功！Streamlit Secrets 運作正常。")
+                            log_debug("系統 API Key (Secrets) 連線測試成功。", "success")
+                        else:
+                            st.error("❌ 連線異常，請確認 API Key 的權限或額度。")
+                    except Exception as e:
+                        st.error(f"❌ 錯誤: {e}")
+                        log_debug(f"系統 API Key 測試失敗: {e}", "error")
+
+        st.markdown("### 📝 System Logs")
+        logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
+        st.markdown(f"<div class='debug-terminal'>{logs}</div>", unsafe_allow_html=True)
+
+if __name__ == "__main__": main()
