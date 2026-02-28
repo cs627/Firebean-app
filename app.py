@@ -317,7 +317,26 @@ def main():
             if st.button("生成 20 題繁中診斷題目"):
                 if not st.session_state.project_photos: st.error("請先上傳相片。")
                 else:
-                    with st.spinner("AI 掃描相片 Facts 並綜合專案背景生成題目中..."):
+                   with st.status("🧠 AI 大腦啟動中...", expanded=True) as status:
+    # 步驟 1
+    st.write("📸 正在提取並分析活動相片的視覺細節...")
+    vision_prompt = """... (保留你原本的 prompt) ..."""
+    facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
+    
+    # 步驟 2
+    st.write("📊 視覺分析完成！正在消化 SOW 與客戶背景資料...")
+    time.sleep(1) # 稍微停頓增加真實感
+    
+    # 步驟 3
+    st.write("📝 開始構思 20 條專業 PR 診斷題目...")
+    mc_prompt = f"""... (保留你原本的 prompt) ..."""
+    res = call_gemini_sdk(mc_prompt, is_json=True)
+    
+    if res: 
+        st.session_state.mc_questions = json.loads(res)
+        status.update(label="✅ 分析與題目生成完畢！", state="complete", expanded=False)
+        time.sleep(1)
+        st.rerun()
                         vision_prompt = """
                         請使用繁體中文 (Traditional Chinese)，詳細掃描並提取這些活動相片中的實體事實 (Facts)。
                         請務必精準識別並描述以下五大細節，作為後續 PR 診斷之客觀依據：
@@ -410,7 +429,7 @@ def main():
             if st.button("Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
                 with st.spinner("🔄 同步中..."):
                     try:
-                        imgs = [base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode() for f in st.session_state.project_photos]
+                        imgs = [] for f in st.session_state.project_photos:     # 關鍵 1：重置檔案讀取指標，避免讀到空資料     if hasattr(f, "seek"):          f.seek(0)          # 關鍵 2：統一轉換為 RGB 格式 (避免 PNG 透明底出錯)     img = Image.open(f).convert("RGB")          # 關鍵 3：尺寸壓縮 (等比例縮小至最長邊 1600px 內，避免塞爆 Google API)     img.thumbnail((1600, 1600))          # 轉為 JPEG 格式再進行 Base64 編碼     buf = io.BytesIO()     img.save(buf, format="JPEG", quality=85)     imgs.append(base64.b64encode(buf.getvalue()).decode())  # (同樣的邏輯也建議套用到 Logo 處理，確保指標重置) if hasattr(st.session_state.logo_white, "seek"): st.session_state.logo_white.seek(0) if hasattr(st.session_state.logo_black, "seek"): st.session_state.logo_black.seek(0)
                         payload = {
                             "action": "sync_project",
                             "client_name": st.session_state.client_name,
