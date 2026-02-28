@@ -23,6 +23,9 @@ You are 'Firebean Brain', the Lead PR Strategist, and an expert Chief Editor and
 Task: Transform diagnostic data into a professional PR strategy JSON. 
 Always return a valid JSON object with keys: challenge_summary, solution_summary, 1_google_slide, 2_facebook_post, 3_threads_post, 4_instagram_post, 5_linkedin_post, 6_website.
 
+**CRITICAL INSTRUCTION FOR 'challenge_summary'**: 
+You MUST keep the client's pain points and challenges extremely concise. Reduce the problem description to exactly HALF of its usual length. Use only 1 to 2 short, punchy sentences (maximum 50 words) to define the "Boring Challenge". Do not elaborate excessively on the negative impacts.
+
 **CRITICAL INSTRUCTION FOR '6_website' (Magazine Feature Article)**: 
 The '6_website' key MUST be a nested JSON object containing exactly four keys: "angle_chosen", "en", "tc", and "jp".
 You must write a highly engaging, 500-word feature article based on the provided inputs for the website content.
@@ -145,7 +148,7 @@ def init_session_state():
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
-        "hero_photo_index": 0, # 新增：記錄選擇的 Hero Photo Index
+        "hero_photo_index": 0, 
         "has_auto_jumped": False 
     }
     for k, v in fields.items():
@@ -169,13 +172,14 @@ def fill_dummy_data():
     st.session_state.category = "LIFESTYLE & CONSUMER"
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
     st.session_state.scope = ["Theme Design", "Event Production", "Concept Development"]
-    st.session_state.open_question_ans = "將 20 個通用診斷問題轉化為一套連貫、引人入勝且可操作的跨平台策略。"
+    st.session_state.open_question_ans = "將 15 個通用診斷問題轉化為一套連貫、引人入勝且可操作的跨平台策略。" # 🚀 修改為 15 個
     
     colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#33FFF3", "#F3FF33", "#999999", "#222222"]
     st.session_state.project_photos = [create_dummy_image(c, f"P{i+1}") for i, c in enumerate(colors)]
     
-    st.session_state.mc_questions = [{"id": i+1, "question": f"診斷指標 {i+1}？", "options": ["戰略優化", "維持"]} for i in range(20)]
-    for i in range(1, 21): st.session_state[f"ans_{i}"] = ["戰略優化"]
+    # 🚀 修改為 15 題
+    st.session_state.mc_questions = [{"id": i+1, "question": f"診斷指標 {i+1}？", "options": ["戰略優化", "維持"]} for i in range(15)]
+    for i in range(1, 16): st.session_state[f"ans_{i}"] = ["戰略優化"]
     
     dummy_logo = base64.b64encode(create_dummy_image("#000000", "LOGO").getvalue()).decode()
     st.session_state.logo_black = dummy_logo
@@ -244,8 +248,10 @@ def main():
     filled += (1 if st.session_state.scope else 0)
     filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
-    mc_done = sum([1 for i in range(1, 21) if st.session_state.get(f"ans_{i}")])
-    filled += (1 if mc_done == 20 else 0)
+    
+    # 🚀 修改進度條計算，總數改為 15
+    mc_done = sum([1 for i in range(1, 16) if st.session_state.get(f"ans_{i}")])
+    filled += (1 if mc_done == 15 else 0)
     percent = min(100, int((filled / 11) * 100))
 
     c1, c2 = st.columns([1, 1])
@@ -311,7 +317,8 @@ def main():
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            if st.button("生成 20 題繁中診斷題目"):
+            # 🚀 按鈕文案改為 15 題
+            if st.button("生成 15 題繁中診斷題目"):
                 if not st.session_state.project_photos: 
                     st.error("請先上傳相片。")
                 else:
@@ -331,9 +338,10 @@ def main():
                         st.write("📊 視覺分析完成！正在消化 SOW 與客戶背景資料...")
                         time.sleep(1)
                         
-                        st.write("📝 開始構思 20 條專業 PR 診斷題目...")
+                        st.write("📝 開始構思 15 條專業 PR 診斷題目...")
+                        # 🚀 Prompt 改為要求 15 題
                         mc_prompt = f"""
-請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
+請基於以下專案背景資料與相片分析事實，生成 15 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
 - 客戶與專案名稱：{st.session_state.client_name} / {st.session_state.project_name}
 - 產業類別 (Category)：{st.session_state.category}
@@ -358,7 +366,6 @@ def main():
                 if isinstance(st.session_state.mc_questions, list):
                     for q in st.session_state.mc_questions:
                         if isinstance(q, dict) and 'id' in q:
-                            # 🚀 修正 1：改用 Checkbox 顯示 20 題 MC 選項
                             st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']}</div>", unsafe_allow_html=True)
                             st.markdown("<div class='checkbox-group'>", unsafe_allow_html=True)
                             
@@ -385,7 +392,6 @@ def main():
             if st.session_state.project_photos:
                 st.markdown("##### 📸 Photo Preview & Select Hero Banner")
                 
-                # 🚀 修正 2：加入 Hero Banner 選擇器
                 photo_names = [f"Photo {i+1} ({f.name if hasattr(f, 'name') else 'Dummy'})" for i, f in enumerate(st.session_state.project_photos)]
                 st.session_state.hero_photo_index = st.radio(
                     "請選擇一張作為 Website 的 Hero Banner (這張將會被設定為 Hero Photo Link):",
@@ -423,7 +429,7 @@ def main():
 ### Input Data:
 - [Basic Information]: Client Name: {st.session_state.client_name}, Project Name: {st.session_state.project_name}, Category: {st.session_state.category}, Scope of Work: {", ".join(st.session_state.scope)}
 - [Event Details]: Event Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}, What we do: {", ".join(st.session_state.what_we_do)}
-- [Pain Point]: (請依據診斷數據總結) 補充背景: {st.session_state.open_question_ans}
+- [Pain Point]: (請依據診斷數據總結。注意：務必將痛點描述大幅刪減，只保留最核心的一句話即可，字數減半) 補充背景: {st.session_state.open_question_ans}
 - [Solution]: (請依據診斷數據與活動形式總結) 相關影片參考: {st.session_state.youtube}
 """
                 res = call_gemini_sdk(prompt, is_json=True)
@@ -444,7 +450,6 @@ def main():
             if st.button("Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
                 with st.spinner("🔄 同步中..."):
                     try:
-                        # 處理圖片轉換
                         processed_imgs = []
                         for f in st.session_state.project_photos:
                             if hasattr(f, "seek"): f.seek(0) 
@@ -459,11 +464,10 @@ def main():
                                 if hasattr(f, "seek"): f.seek(0)
                                 processed_imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
 
-                        # 🚀 修正 3：重新排序圖片，把選擇的 Hero Banner 拉到第一張 (index 0)
                         hero_index = st.session_state.get("hero_photo_index", 0)
                         if processed_imgs and hero_index < len(processed_imgs):
                             hero_img = processed_imgs.pop(hero_index)
-                            processed_imgs.insert(0, hero_img) # 移至第一張
+                            processed_imgs.insert(0, hero_img) 
 
                         payload = {
                             "action": "sync_project",
@@ -480,7 +484,7 @@ def main():
                             "open_question": st.session_state.open_question_ans,
                             "logo_white": st.session_state.logo_white, 
                             "logo_black": st.session_state.logo_black,
-                            "images": processed_imgs, # 已經把 Hero Photo 放到 index 0 了
+                            "images": processed_imgs, 
                             "ai_content": st.session_state.ai_content
                         }
                         
