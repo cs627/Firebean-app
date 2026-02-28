@@ -212,20 +212,6 @@ def main():
     init_session_state()
     apply_styles()
 
-    # 🚀 修改 1：修正進度條計算，移除了非強制性的 youtube 和 logo，確保填完核心欄位就能達到 100%
-    score_items = ["client_name", "project_name", "venue", "open_question_ans"]
-    filled = sum([1 for f in score_items if st.session_state.get(f) and str(st.session_state.get(f)).strip() != ""])
-    filled += (1 if st.session_state.category else 0)
-    filled += (1 if st.session_state.what_we_do else 0)
-    filled += (1 if st.session_state.scope else 0)
-    filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
-    
-    mc_done = sum([1 for i in range(1, 16) if st.session_state.get(f"ans_{i}")])
-    filled += (1 if mc_done == 15 else 0)
-    
-    # 總核心項目為 9 項
-    percent = min(100, int((filled / 9) * 100))
-
     c1, c2 = st.columns([1, 1])
     with c1: 
         st.markdown('<span id="logo-anchor"></span>', unsafe_allow_html=True)
@@ -233,7 +219,8 @@ def main():
             st.session_state.active_tab = "Project Collector"
             st.rerun()
     with c2: 
-        st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
+        # 🚀 修改 1：建立進度條的「動態佔位符」，避免視覺延遲
+        progress_placeholder = st.empty()
 
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -269,15 +256,15 @@ def main():
 
         ca, cb, cc = st.columns(3)
         with ca:
-            st.markdown("**Who we help (Category)**")
+            st.markdown("##### Category")
             st.session_state.category = st.radio("Category", WHO_WE_HELP_OPTIONS, index=WHO_WE_HELP_OPTIONS.index(st.session_state.category) if st.session_state.category in WHO_WE_HELP_OPTIONS else 0, label_visibility="collapsed")
         with cb:
-            # 🚀 修改 3：加上 What we do 標題
-            st.markdown("**What we do**")
+            # 🚀 修改 2：清晰的 What we do 標題
+            st.markdown("##### What we do")
             st.session_state.what_we_do = [o for o in WHAT_WE_DO_OPTIONS if st.checkbox(o, key=f"w_{o}", value=(o in st.session_state.what_we_do))]
         with cc:
-            # 🚀 修改 3：加上 Scope of work 標題
-            st.markdown("**Scope of work**")
+            # 🚀 修改 2：清晰的 Scope of work 標題
+            st.markdown("##### Scope of work")
             st.session_state.scope = [o for o in SOW_OPTIONS if st.checkbox(o, key=f"s_{o}", value=(o in st.session_state.scope))]
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -347,15 +334,6 @@ def main():
                             st.markdown("</div>", unsafe_allow_html=True)
 
                 st.session_state.open_question_ans = st.text_area("最核心的概念？", st.session_state.open_question_ans)
-                
-                # 🚀 修改 2：移除打字時自動跳轉的設計，改為在答完題後顯示一個巨大按鈕，手動進入下一步
-                if mc_done == 15 and st.session_state.open_question_ans:
-                    st.markdown("<hr style='margin-top: 20px; margin-bottom: 20px;'>", unsafe_allow_html=True)
-                    st.success("🎉 所有診斷資料已填寫完成！")
-                    if st.button("前往 Review & Multi-Sync 👉", type="primary", use_container_width=True):
-                        st.session_state.active_tab = "Review & Multi-Sync"
-                        st.rerun()
-
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
@@ -387,6 +365,33 @@ def main():
                             st.image(f, use_container_width=True)
                             
             st.markdown('</div>', unsafe_allow_html=True)
+
+        # 🚀 修改 3：進度條統一在這裡（所有輸入結束後）進行精準計算
+        filled_count = 0
+        if st.session_state.client_name.strip(): filled_count += 1
+        if st.session_state.project_name.strip(): filled_count += 1
+        if st.session_state.venue.strip(): filled_count += 1
+        if st.session_state.what_we_do: filled_count += 1
+        if st.session_state.scope: filled_count += 1
+        if len(st.session_state.project_photos) >= 4: filled_count += 1
+        if st.session_state.open_question_ans.strip(): filled_count += 1
+        
+        mc_answered_count = sum([1 for i in range(1, 16) if st.session_state.get(f"ans_{i}")])
+        if mc_answered_count == 15: filled_count += 1
+        
+        # 總共嚴格要求 8 個核心項目
+        final_percent = min(100, int((filled_count / 8) * 100))
+        
+        # 實時更新回最上方的圈圈 (無視覺延遲)
+        progress_placeholder.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
+
+        # 🚀 修改 4：當 100% 時，在頁面最底下展開滿寬的醒目紅色按鈕
+        if final_percent == 100:
+            st.markdown("<hr style='margin-top: 30px; margin-bottom: 30px; border: 2px solid #FF0000;'>", unsafe_allow_html=True)
+            st.success("🎉 完美！所有診斷與基本資料已填寫完成！進度達 100%！")
+            if st.button("準備就緒，前往 Review & Multi-Sync 👉", type="primary", use_container_width=True):
+                st.session_state.active_tab = "Review & Multi-Sync"
+                st.rerun()
 
     elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
