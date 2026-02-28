@@ -6,7 +6,7 @@ import time
 import json
 import requests
 import re
-from PIL import Image, ImageEnhance, ImageOps, ImageDraw
+from PIL import Image, ImageDraw
 from datetime import datetime
 
 # --- 1. 核心配置 ---
@@ -17,6 +17,8 @@ STABLE_MODEL_ID = "gemini-2.5-flash"
 WHO_WE_HELP_OPTIONS = ["GOVERNMENT & PUBLIC SECTOR", "LIFESTYLE & CONSUMER", "F&B & HOSPITALITY", "MALLS & VENUES"]
 WHAT_WE_DO_OPTIONS = ["ROVING EXHIBITIONS", "SOCIAL & CONTENT", "INTERACTIVE & TECH", "PR & MEDIA", "EVENTS & CEREMONIES"]
 SOW_OPTIONS = ["Event Planning", "Event Coordination", "Event Production", "Theme Design", "Concept Development", "Social Media Management", "KOL / MI Line up", "Artist Endorsement", "Media Pitching", "PR Consulting", "Souvenir Sourcing"]
+YEAR_OPTIONS = [str(y) for y in range(2025, 2031)]
+MONTH_OPTIONS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 FIREBEAN_SYSTEM_PROMPT = """
 You are 'Firebean Brain', the Lead PR Strategist, and an expert Chief Editor and B2B/B2C Journalist for a premium online magazine.
@@ -155,6 +157,8 @@ def fill_dummy_data():
     st.session_state.project_name = "2026 旗艦同步測試"
     st.session_state.venue = "香港會議展覽中心"
     st.session_state.youtube = "https://youtube.com/firebean_sync_demo"
+    st.session_state.event_year = "2026"
+    st.session_state.event_month = "FEB"
     st.session_state.category = "LIFESTYLE & CONSUMER"
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
     st.session_state.scope = ["Theme Design", "Event Production", "Concept Development"]
@@ -188,6 +192,7 @@ def apply_styles():
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
         .stButton > button { min-height: 55px !important; font-size: 18px !important; font-weight: 700 !important; }
 
+        /* 左上角 Logo 隱藏按鈕 */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
@@ -202,6 +207,21 @@ def apply_styles():
         div.element-container:has(#logo-anchor) + div.element-container button p,
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {
             display: none !important;
+        }
+
+        /* 🚀 強制讓 Type Primary (下一頁過渡按鈕) 變成超級醒目的 Firebean 紅色 */
+        button[kind="primary"] {
+            background-color: #FF2A2A !important;
+            color: white !important;
+            border: 2px solid #D00000 !important;
+            border-radius: 12px !important;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.3) !important;
+        }
+        button[kind="primary"]:hover {
+            background-color: #D00000 !important;
+            transform: scale(1.02);
+            box-shadow: 0px 6px 20px rgba(255, 0, 0, 0.5) !important;
         }
     </style>""", unsafe_allow_html=True)
 
@@ -219,7 +239,7 @@ def main():
             st.session_state.active_tab = "Project Collector"
             st.rerun()
     with c2: 
-        # 🚀 修改 1：建立進度條的「動態佔位符」，避免視覺延遲
+        # 使用動態 Placeholder 來確保圈圈不受畫面由上往下跑的延遲影響
         progress_placeholder = st.empty()
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -248,22 +268,28 @@ def main():
             uw = st.file_uploader("White Logo (Optional)", type=['png'], key="l_w")
             if uw: st.session_state.logo_white = base64.b64encode(uw.read()).decode()
 
-        b1, b2, b3, b4 = st.columns(4)
+        b1, b2, b3 = st.columns(3)
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
         st.session_state.venue = b3.text_input("Venue", st.session_state.venue)
-        st.session_state.youtube = b4.text_input("YouTube Link (Optional)", st.session_state.youtube)
+
+        b4, b5, b6 = st.columns(3)
+        y_idx = YEAR_OPTIONS.index(st.session_state.event_year) if st.session_state.event_year in YEAR_OPTIONS else 1
+        m_idx = MONTH_OPTIONS.index(st.session_state.event_month) if st.session_state.event_month in MONTH_OPTIONS else 1
+        st.session_state.event_year = b4.selectbox("Event Year", YEAR_OPTIONS, index=y_idx)
+        st.session_state.event_month = b5.selectbox("Event Month", MONTH_OPTIONS, index=m_idx)
+        st.session_state.youtube = b6.text_input("YouTube Link (Optional)", st.session_state.youtube)
+
+        st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
 
         ca, cb, cc = st.columns(3)
         with ca:
             st.markdown("##### Category")
             st.session_state.category = st.radio("Category", WHO_WE_HELP_OPTIONS, index=WHO_WE_HELP_OPTIONS.index(st.session_state.category) if st.session_state.category in WHO_WE_HELP_OPTIONS else 0, label_visibility="collapsed")
         with cb:
-            # 🚀 修改 2：清晰的 What we do 標題
             st.markdown("##### What we do")
             st.session_state.what_we_do = [o for o in WHAT_WE_DO_OPTIONS if st.checkbox(o, key=f"w_{o}", value=(o in st.session_state.what_we_do))]
         with cc:
-            # 🚀 修改 2：清晰的 Scope of work 標題
             st.markdown("##### Scope of work")
             st.session_state.scope = [o for o in SOW_OPTIONS if st.checkbox(o, key=f"s_{o}", value=(o in st.session_state.scope))]
         st.markdown('</div>', unsafe_allow_html=True)
@@ -366,29 +392,57 @@ def main():
                             
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # 🚀 修改 3：進度條統一在這裡（所有輸入結束後）進行精準計算
+        # =========================================================
+        # 🚀 全新設計：精準的進度條計算系統與底部動態 UI
+        # =========================================================
         filled_count = 0
+        missing_items = []
+
         if st.session_state.client_name.strip(): filled_count += 1
+        else: missing_items.append("Client")
+
         if st.session_state.project_name.strip(): filled_count += 1
+        else: missing_items.append("Project")
+
         if st.session_state.venue.strip(): filled_count += 1
-        if st.session_state.what_we_do: filled_count += 1
-        if st.session_state.scope: filled_count += 1
+        else: missing_items.append("Venue")
+
+        if st.session_state.event_year: filled_count += 1
+        if st.session_state.event_month: filled_count += 1
+        if st.session_state.category: filled_count += 1
+
+        if len(st.session_state.what_we_do) > 0: filled_count += 1
+        else: missing_items.append("What we do (最少選一項)")
+
+        if len(st.session_state.scope) > 0: filled_count += 1
+        else: missing_items.append("Scope of work (最少選一項)")
+
         if len(st.session_state.project_photos) >= 4: filled_count += 1
-        if st.session_state.open_question_ans.strip(): filled_count += 1
-        
+        else: missing_items.append("上傳活動相片 (最少 4 張)")
+
         mc_answered_count = sum([1 for i in range(1, 16) if st.session_state.get(f"ans_{i}")])
         if mc_answered_count == 15: filled_count += 1
-        
-        # 總共嚴格要求 8 個核心項目
-        final_percent = min(100, int((filled_count / 8) * 100))
-        
-        # 實時更新回最上方的圈圈 (無視覺延遲)
+        else: missing_items.append(f"完成所有 15 題診斷 (目前進度: {mc_answered_count}/15)")
+
+        if st.session_state.open_question_ans.strip(): filled_count += 1
+        else: missing_items.append("最核心的概念 (文字不可留白)")
+
+        # 總共 11 個強制檢查點
+        final_percent = min(100, int((filled_count / 11) * 100))
+
+        # 實時更新回最上方的圈圈（解決視覺延遲）
         progress_placeholder.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
 
-        # 🚀 修改 4：當 100% 時，在頁面最底下展開滿寬的醒目紅色按鈕
-        if final_percent == 100:
-            st.markdown("<hr style='margin-top: 30px; margin-bottom: 30px; border: 2px solid #FF0000;'>", unsafe_allow_html=True)
+        # 根據進度顯示對應的底部 UI
+        if final_percent < 100:
+            with st.expander("📌 還差一點點！點擊查看未完成項目", expanded=False):
+                for m in missing_items:
+                    st.markdown(f"❌ **{m}**")
+        else:
+            st.markdown("<hr style='margin-top: 30px; margin-bottom: 30px; border: 2px solid #FF2A2A;'>", unsafe_allow_html=True)
             st.success("🎉 完美！所有診斷與基本資料已填寫完成！進度達 100%！")
+            
+            # 超級醒目的紅色過渡按鈕
             if st.button("準備就緒，前往 Review & Multi-Sync 👉", type="primary", use_container_width=True):
                 st.session_state.active_tab = "Review & Multi-Sync"
                 st.rerun()
