@@ -98,15 +98,14 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         contents = [prompt]
         
         log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
-        st.toast("🤖 系統連線成功，AI 正在分析資料...") 
         
         if image_files:
             for f in image_files:
+                if hasattr(f, "seek"): f.seek(0) # 確保這裡也是從頭讀起
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
             log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
-            st.toast(f"📸 正在載入並掃描 {len(image_files)} 張相片...") 
         
         start_time = time.time()
         
@@ -120,7 +119,6 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         if response and response.text:
             text = response.text.strip()
             log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
-            st.toast(f"✅ AI 生成完成！(耗時 {calc_time} 秒)") 
             
             if not is_json: return text
             
@@ -128,12 +126,11 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             json_str = match.group(0) if match else text
             
             try:
-                # 🌟 修復核心：單純驗證 JSON，不強制解構，保留原始 List 以供 MC Questions 使用
+                # 🌟 修復核心：單純驗證 JSON，不強制解構
                 data = json.loads(json_str)
                 return json_str
             except:
                 log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
-                st.toast("⚠️ 正在優化輸出格式...") 
                 return json_str
     except Exception as e:
         log_debug(f"❌ AI 運算發生錯誤: {str(e)[:100]}", "error")
@@ -206,7 +203,7 @@ def apply_styles():
             font-weight: 700 !important;
         }
 
-        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo (放大三倍) */
+        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
@@ -226,7 +223,6 @@ def apply_styles():
             transform: scale(1.03);
             background-color: transparent !important;
         }
-        /* 隱藏按鈕原本的文字 */
         div.element-container:has(#logo-anchor) + div.element-container button p,
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {
             display: none !important;
@@ -315,28 +311,12 @@ def main():
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             if st.button("生成 20 題繁中診斷題目"):
-                if not st.session_state.project_photos: st.error("請先上傳相片。")
+                if not st.session_state.project_photos: 
+                    st.error("請先上傳相片。")
                 else:
-                   with st.status("🧠 AI 大腦啟動中...", expanded=True) as status:
-    # 步驟 1
-    st.write("📸 正在提取並分析活動相片的視覺細節...")
-    vision_prompt = """... (保留你原本的 prompt) ..."""
-    facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
-    
-    # 步驟 2
-    st.write("📊 視覺分析完成！正在消化 SOW 與客戶背景資料...")
-    time.sleep(1) # 稍微停頓增加真實感
-    
-    # 步驟 3
-    st.write("📝 開始構思 20 條專業 PR 診斷題目...")
-    mc_prompt = f"""... (保留你原本的 prompt) ..."""
-    res = call_gemini_sdk(mc_prompt, is_json=True)
-    
-    if res: 
-        st.session_state.mc_questions = json.loads(res)
-        status.update(label="✅ 分析與題目生成完畢！", state="complete", expanded=False)
-        time.sleep(1)
-        st.rerun()
+                    # 🚀 修正 1：加入狀態追蹤，增加載入體驗並修正縮排
+                    with st.status("🧠 AI 大腦啟動中...", expanded=True) as status:
+                        st.write("📸 正在提取並分析活動相片的視覺細節...")
                         vision_prompt = """
                         請使用繁體中文 (Traditional Chinese)，詳細掃描並提取這些活動相片中的實體事實 (Facts)。
                         請務必精準識別並描述以下五大細節，作為後續 PR 診斷之客觀依據：
@@ -348,6 +328,10 @@ def main():
                         """
                         facts = call_gemini_sdk(vision_prompt, image_files=st.session_state.project_photos)
                         
+                        st.write("📊 視覺分析完成！正在消化 SOW 與客戶背景資料...")
+                        time.sleep(1)
+                        
+                        st.write("📝 開始構思 20 條專業 PR 診斷題目...")
                         mc_prompt = f"""
 請基於以下專案背景資料與相片分析事實，生成 20 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
@@ -364,10 +348,13 @@ def main():
 必須嚴格輸出為 JSON 陣列格式：[{{\"id\":1,\"question\":\"問題內容...\",\"options\":[\"選項A\",\"選項B\"]}}]
 """
                         res = call_gemini_sdk(mc_prompt, is_json=True)
-                        if res: st.session_state.mc_questions = json.loads(res); st.rerun()
+                        if res: 
+                            st.session_state.mc_questions = json.loads(res)
+                            status.update(label="✅ 分析與題目生成完畢！", state="complete", expanded=False)
+                            time.sleep(1)
+                            st.rerun()
 
             if st.session_state.mc_questions:
-                # 🌟 修復核心：加入防呆保險，確保 mc_questions 是一個陣列 (List) 且裡面的物件是字典 (Dict)
                 if isinstance(st.session_state.mc_questions, list):
                     for q in st.session_state.mc_questions:
                         if isinstance(q, dict) and 'id' in q:
@@ -385,15 +372,17 @@ def main():
                 g_cols = st.columns(4)
                 for i, f in enumerate(st.session_state.project_photos):
                     with g_cols[i%4]:
-                        try: st.image(Image.open(f), use_container_width=True)
-                        except: st.image(f, use_container_width=True)
+                        try: 
+                            if hasattr(f, "seek"): f.seek(0)
+                            st.image(Image.open(f), use_container_width=True)
+                        except: 
+                            st.image(f, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state.active_tab == "Review & Multi-Sync":
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
-                # 確保只有合法的問題會被擷取
                 mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions if isinstance(q, dict)]
                 prompt = f"""
 分析專案: {st.session_state.project_name}. 生成 JSON。IG < 150 字。
@@ -411,11 +400,8 @@ def main():
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
                     data = json.loads(res)
-                    
-                    # 🌟 修復核心：如果 AI 不小心把策略包在陣列 (List) 裡，自動解開拿第一個
                     if isinstance(data, list) and len(data) > 0:
                         data = data[0]
-                        
                     if isinstance(data, dict):
                         st.session_state.ai_content = data
                         st.session_state.challenge = data.get("challenge_summary", "尚未生成")
@@ -429,7 +415,25 @@ def main():
             if st.button("Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
                 with st.spinner("🔄 同步中..."):
                     try:
-                        imgs = [] for f in st.session_state.project_photos:     # 關鍵 1：重置檔案讀取指標，避免讀到空資料     if hasattr(f, "seek"):          f.seek(0)          # 關鍵 2：統一轉換為 RGB 格式 (避免 PNG 透明底出錯)     img = Image.open(f).convert("RGB")          # 關鍵 3：尺寸壓縮 (等比例縮小至最長邊 1600px 內，避免塞爆 Google API)     img.thumbnail((1600, 1600))          # 轉為 JPEG 格式再進行 Base64 編碼     buf = io.BytesIO()     img.save(buf, format="JPEG", quality=85)     imgs.append(base64.b64encode(buf.getvalue()).decode())  # (同樣的邏輯也建議套用到 Logo 處理，確保指標重置) if hasattr(st.session_state.logo_white, "seek"): st.session_state.logo_white.seek(0) if hasattr(st.session_state.logo_black, "seek"): st.session_state.logo_black.seek(0)
+                        # 🚀 修正 2：指標重置與圖片格式壓縮標準化，解決 Drive 0 Byte 及 Slide 讀不到圖片的問題
+                        imgs = []
+                        for f in st.session_state.project_photos:
+                            if hasattr(f, "seek"): 
+                                f.seek(0) # 關鍵：將檔案讀取點重設回開頭
+                            
+                            try:
+                                # 將圖片轉換為統一的 RGB/JPEG 格式，並限制大小在 1600px 內，防止檔案過大
+                                img = Image.open(f).convert("RGB")
+                                img.thumbnail((1600, 1600))
+                                buf = io.BytesIO()
+                                img.save(buf, format="JPEG", quality=85)
+                                imgs.append(base64.b64encode(buf.getvalue()).decode())
+                            except Exception as e:
+                                log_debug(f"圖片轉換錯誤: {e}", "error")
+                                # 如果有例外狀況，就退回原本的讀取方式
+                                if hasattr(f, "seek"): f.seek(0)
+                                imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
+
                         payload = {
                             "action": "sync_project",
                             "client_name": st.session_state.client_name,
@@ -443,7 +447,7 @@ def main():
                             "challenge": st.session_state.challenge,
                             "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
-                            "logo_white": st.session_state.logo_white,
+                            "logo_white": st.session_state.logo_white, # Logo 上傳時已經是 base64 string
                             "logo_black": st.session_state.logo_black,
                             "images": imgs,
                             "ai_content": st.session_state.ai_content
@@ -452,7 +456,8 @@ def main():
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sync: Sheet {r1.status_code}, Slide {r2.status_code}", "success")
                         st.balloons(); st.success("✅ 全部數據同步對位成功！")
-                    except Exception as e: log_debug(f"Sync Fail: {str(e)}", "error")
+                    except Exception as e: 
+                        log_debug(f"Sync Fail: {str(e)}", "error")
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
