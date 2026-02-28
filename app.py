@@ -9,7 +9,7 @@ import re
 from PIL import Image, ImageEnhance, ImageOps, ImageDraw
 from datetime import datetime
 
-# --- 1. 核心配置 (根據規格說明書 v2.6) ---
+# --- 1. 核心配置 ---
 SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaQu2KpJ06I0yWL4dEwk0naB1FOlHkt7Ta340xH84IDwQI7jQNUI3eSmxrwKyQHNj5/exec"
 SLIDE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZvtm8M8a5sLYF3vz9kLyAdimzzwpSlnTkzIeQ3DJxkklNYNlwSoJc5j5CkorM6w5V/exec"
 STABLE_MODEL_ID = "gemini-2.5-flash"
@@ -101,7 +101,7 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         
         if image_files:
             for f in image_files:
-                if hasattr(f, "seek"): f.seek(0) # 確保這裡也是從頭讀起
+                if hasattr(f, "seek"): f.seek(0)
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
@@ -126,7 +126,6 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             json_str = match.group(0) if match else text
             
             try:
-                # 🌟 修復核心：單純驗證 JSON，不強制解構
                 data = json.loads(json_str)
                 return json_str
             except:
@@ -146,6 +145,7 @@ def init_session_state():
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
+        "hero_photo_index": 0, # 新增：記錄選擇的 Hero Photo Index
         "has_auto_jumped": False 
     }
     for k, v in fields.items():
@@ -194,7 +194,8 @@ def apply_styles():
         header {visibility: hidden;} footer {visibility: hidden;}
         .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
         .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
-        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; }
+        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; margin-bottom: 10px; }
+        .checkbox-group { padding-left: 20px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
         
         .stButton > button {
@@ -203,7 +204,7 @@ def apply_styles():
             font-weight: 700 !important;
         }
 
-        /* 🚀 核心更新：將左上角的按鈕偽裝成 Firebean Logo */
+        /* 將左上角的按鈕偽裝成 Firebean Logo */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
@@ -314,7 +315,6 @@ def main():
                 if not st.session_state.project_photos: 
                     st.error("請先上傳相片。")
                 else:
-                    # 🚀 修正 1：加入狀態追蹤，增加載入體驗並修正縮排
                     with st.status("🧠 AI 大腦啟動中...", expanded=True) as status:
                         st.write("📸 正在提取並分析活動相片的視覺細節...")
                         vision_prompt = """
@@ -358,9 +358,22 @@ def main():
                 if isinstance(st.session_state.mc_questions, list):
                     for q in st.session_state.mc_questions:
                         if isinstance(q, dict) and 'id' in q:
+                            # 🚀 修正 1：改用 Checkbox 顯示 20 題 MC 選項
                             st.markdown(f"<div class='mc-question'>Q{q['id']}. {q['question']}</div>", unsafe_allow_html=True)
+                            st.markdown("<div class='checkbox-group'>", unsafe_allow_html=True)
+                            
                             ans_key = f"ans_{q['id']}"
-                            st.session_state[ans_key] = st.multiselect("答案", q['options'], key=f"sel_{q['id']}", default=st.session_state.get(ans_key, []))
+                            current_selections = st.session_state.get(ans_key, [])
+                            new_selections = []
+                            
+                            for opt in q['options']:
+                                is_checked = opt in current_selections
+                                if st.checkbox(opt, value=is_checked, key=f"chk_{q['id']}_{opt}"):
+                                    new_selections.append(opt)
+                            
+                            st.session_state[ans_key] = new_selections
+                            st.markdown("</div>", unsafe_allow_html=True)
+
                 st.session_state.open_question_ans = st.text_area("最核心的概念？", st.session_state.open_question_ans)
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -368,15 +381,31 @@ def main():
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
             f_up = st.file_uploader("Upload 4-8 Photos", accept_multiple_files=True)
             if f_up: st.session_state.project_photos = f_up
+            
             if st.session_state.project_photos:
+                st.markdown("##### 📸 Photo Preview & Select Hero Banner")
+                
+                # 🚀 修正 2：加入 Hero Banner 選擇器
+                photo_names = [f"Photo {i+1} ({f.name if hasattr(f, 'name') else 'Dummy'})" for i, f in enumerate(st.session_state.project_photos)]
+                st.session_state.hero_photo_index = st.radio(
+                    "請選擇一張作為 Website 的 Hero Banner (這張將會被設定為 Hero Photo Link):",
+                    options=range(len(st.session_state.project_photos)),
+                    format_func=lambda x: photo_names[x],
+                    horizontal=True
+                )
+                
                 g_cols = st.columns(4)
                 for i, f in enumerate(st.session_state.project_photos):
                     with g_cols[i%4]:
                         try: 
                             if hasattr(f, "seek"): f.seek(0)
-                            st.image(Image.open(f), use_container_width=True)
+                            img = Image.open(f)
+                            st.image(img, use_container_width=True)
+                            if i == st.session_state.hero_photo_index:
+                                st.markdown("🌟 **Hero**")
                         except: 
                             st.image(f, use_container_width=True)
+                            
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state.active_tab == "Review & Multi-Sync":
@@ -415,24 +444,26 @@ def main():
             if st.button("Confirm & Sync (Sheet + Slide + Drive)", type="primary", use_container_width=True):
                 with st.spinner("🔄 同步中..."):
                     try:
-                        # 🚀 修正 2：指標重置與圖片格式壓縮標準化，解決 Drive 0 Byte 及 Slide 讀不到圖片的問題
-                        imgs = []
+                        # 處理圖片轉換
+                        processed_imgs = []
                         for f in st.session_state.project_photos:
-                            if hasattr(f, "seek"): 
-                                f.seek(0) # 關鍵：將檔案讀取點重設回開頭
-                            
+                            if hasattr(f, "seek"): f.seek(0) 
                             try:
-                                # 將圖片轉換為統一的 RGB/JPEG 格式，並限制大小在 1600px 內，防止檔案過大
                                 img = Image.open(f).convert("RGB")
                                 img.thumbnail((1600, 1600))
                                 buf = io.BytesIO()
                                 img.save(buf, format="JPEG", quality=85)
-                                imgs.append(base64.b64encode(buf.getvalue()).decode())
+                                processed_imgs.append(base64.b64encode(buf.getvalue()).decode())
                             except Exception as e:
                                 log_debug(f"圖片轉換錯誤: {e}", "error")
-                                # 如果有例外狀況，就退回原本的讀取方式
                                 if hasattr(f, "seek"): f.seek(0)
-                                imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
+                                processed_imgs.append(base64.b64encode(f.read() if hasattr(f, "read") else f.getvalue()).decode())
+
+                        # 🚀 修正 3：重新排序圖片，把選擇的 Hero Banner 拉到第一張 (index 0)
+                        hero_index = st.session_state.get("hero_photo_index", 0)
+                        if processed_imgs and hero_index < len(processed_imgs):
+                            hero_img = processed_imgs.pop(hero_index)
+                            processed_imgs.insert(0, hero_img) # 移至第一張
 
                         payload = {
                             "action": "sync_project",
@@ -447,11 +478,12 @@ def main():
                             "challenge": st.session_state.challenge,
                             "solution": st.session_state.solution,
                             "open_question": st.session_state.open_question_ans,
-                            "logo_white": st.session_state.logo_white, # Logo 上傳時已經是 base64 string
+                            "logo_white": st.session_state.logo_white, 
                             "logo_black": st.session_state.logo_black,
-                            "images": imgs,
+                            "images": processed_imgs, # 已經把 Hero Photo 放到 index 0 了
                             "ai_content": st.session_state.ai_content
                         }
+                        
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sync: Sheet {r1.status_code}, Slide {r2.status_code}", "success")
@@ -473,19 +505,4 @@ def main():
                 else:
                     try:
                         genai.configure(api_key=secret_key)
-                        model = genai.GenerativeModel(STABLE_MODEL_ID)
-                        res = model.generate_content("Reply only the word: SUCCESS")
-                        if res and "SUCCESS" in res.text.upper():
-                            st.success("✅ API Key 測試成功！Streamlit Secrets 運作正常。")
-                            log_debug("系統 API Key (Secrets) 連線測試成功。", "success")
-                        else:
-                            st.error("❌ 連線異常，請確認 API Key 的權限或額度。")
-                    except Exception as e:
-                        st.error(f"❌ 錯誤: {e}")
-                        log_debug(f"系統 API Key 測試失敗: {e}", "error")
-
-        st.markdown("### 📝 System Logs")
-        logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
-        st.markdown(f"<div class='debug-terminal'>{logs}</div>", unsafe_allow_html=True)
-
-if __name__ == "__main__": main()
+                        model
