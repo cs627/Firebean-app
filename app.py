@@ -6,7 +6,7 @@ import time
 import json
 import requests
 import re
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps # 確保匯入 ImageOps
 from datetime import datetime
 
 # --- 1. 核心配置 ---
@@ -107,6 +107,8 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
             for f in image_files:
                 if hasattr(f, "seek"): f.seek(0)
                 img = Image.open(f)
+                # 🚀 修復：將傳給 AI 的照片也轉正
+                img = ImageOps.exif_transpose(img)
                 img.thumbnail((800, 800))
                 contents.append(img)
         
@@ -266,7 +268,6 @@ def main():
             if ub is not None: 
                 st.session_state.logo_black = base64.b64encode(ub.read()).decode()
             
-            # 🚀 新增：Black Logo 預覽縮圖 (淺色背景)
             if st.session_state.logo_black:
                 st.markdown(f'''
                     <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: #f9f9f9; text-align: center;">
@@ -280,7 +281,6 @@ def main():
             if uw is not None: 
                 st.session_state.logo_white = base64.b64encode(uw.read()).decode()
                 
-            # 🚀 新增：White Logo 預覽縮圖 (深色背景，確保白色 Logo 可見)
             if st.session_state.logo_white:
                 st.markdown(f'''
                     <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: #2D3436; text-align: center;">
@@ -405,6 +405,8 @@ def main():
                         try: 
                             if hasattr(f, "seek"): f.seek(0)
                             img = Image.open(f)
+                            # 🚀 修復：在 UI 畫面上顯示前，先旋轉為正確方向
+                            img = ImageOps.exif_transpose(img)
                             st.image(img, use_container_width=True)
                             if i == st.session_state.hero_photo_index:
                                 st.markdown("🌟 **Hero**")
@@ -414,7 +416,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
         # =========================================================
-        # 🚀 精準進度條計算系統與底部動態 UI
+        # 精準進度條計算系統與底部動態 UI
         # =========================================================
         filled_count = 0
         missing_items = []
@@ -505,6 +507,8 @@ def main():
                             if hasattr(f, "seek"): f.seek(0) 
                             try:
                                 img = Image.open(f).convert("RGB")
+                                # 🚀 修復：在壓縮儲存前，先轉正
+                                img = ImageOps.exif_transpose(img)
                                 img.thumbnail((1600, 1600))
                                 buf = io.BytesIO()
                                 img.save(buf, format="JPEG", quality=85)
