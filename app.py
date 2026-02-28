@@ -82,7 +82,7 @@ You must strictly follow these platform-specific guidelines to create synergisti
 DO NOT output any conversational text outside the JSON object.
 """
 
-# --- 2. 核心邏輯與安全性防禦 ---
+# --- 2. 核心邏輯 ---
 
 def log_debug(msg, type="info"):
     if "debug_logs" not in st.session_state: st.session_state.debug_logs = []
@@ -92,7 +92,6 @@ def log_debug(msg, type="info"):
 def call_gemini_sdk(prompt, image_files=None, is_json=False):
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
-        log_debug("🚨 找不到 API Key", "error")
         st.error("🚨 找不到 API Key")
         return None
     try:
@@ -100,31 +99,21 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
         model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
         contents = [prompt]
         
-        log_debug(f"🤖 發送 AI 任務中... [目標格式: {'JSON' if is_json else 'Text'}]", "info")
-        
         if image_files:
             for f in image_files:
                 if hasattr(f, "seek"): f.seek(0)
                 img = Image.open(f)
                 img.thumbnail((800, 800))
                 contents.append(img)
-            log_debug(f"📸 已附加 {len(image_files)} 張相片給 AI 進行視覺掃描", "info")
-        
-        start_time = time.time()
         
         response = model.generate_content(contents, generation_config={
             "response_mime_type": "application/json" if is_json else "text/plain",
             "temperature": 0.2
         })
         
-        calc_time = round(time.time() - start_time, 2)
-        
         if response and response.text:
             text = response.text.strip()
-            log_debug(f"✅ AI 運算完成 (耗時 {calc_time} 秒)！原始輸出截取: {text[:80]}...", "success")
-            
             if not is_json: return text
-            
             match = re.search(r'(\{.*\})|(\[.*\])', text, re.DOTALL)
             json_str = match.group(0) if match else text
             
@@ -132,10 +121,8 @@ def call_gemini_sdk(prompt, image_files=None, is_json=False):
                 data = json.loads(json_str)
                 return json_str
             except:
-                log_debug("⚠️ AI 輸出的 JSON 格式有雜訊，系統嘗試自動修復中...", "warning")
                 return json_str
     except Exception as e:
-        log_debug(f"❌ AI 運算發生錯誤: {str(e)[:100]}", "error")
         st.error("❌ AI 運算發生錯誤，請查看 Debug Terminal 日誌。")
     return None
 
@@ -148,8 +135,7 @@ def init_session_state():
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
-        "hero_photo_index": 0, 
-        "has_auto_jumped": False 
+        "hero_photo_index": 0
     }
     for k, v in fields.items():
         if k not in st.session_state:
@@ -172,12 +158,11 @@ def fill_dummy_data():
     st.session_state.category = "LIFESTYLE & CONSUMER"
     st.session_state.what_we_do = ["INTERACTIVE & TECH", "PR & MEDIA"]
     st.session_state.scope = ["Theme Design", "Event Production", "Concept Development"]
-    st.session_state.open_question_ans = "將 15 個通用診斷問題轉化為一套連貫、引人入勝且可操作的跨平台策略。" # 🚀 修改為 15 個
+    st.session_state.open_question_ans = "將 15 個通用診斷問題轉化為一套連貫、引人入勝且可操作的跨平台策略。"
     
     colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#33FFF3", "#F3FF33", "#999999", "#222222"]
     st.session_state.project_photos = [create_dummy_image(c, f"P{i+1}") for i, c in enumerate(colors)]
     
-    # 🚀 修改為 15 題
     st.session_state.mc_questions = [{"id": i+1, "question": f"診斷指標 {i+1}？", "options": ["戰略優化", "維持"]} for i in range(15)]
     for i in range(1, 16): st.session_state[f"ans_{i}"] = ["戰略優化"]
     
@@ -201,32 +186,18 @@ def apply_styles():
         .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; margin-bottom: 10px; }
         .checkbox-group { padding-left: 20px; }
         .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
-        
-        .stButton > button {
-            min-height: 55px !important;
-            font-size: 18px !important;
-            font-weight: 700 !important;
-        }
+        .stButton > button { min-height: 55px !important; font-size: 18px !important; font-weight: 700 !important; }
 
-        /* 將左上角的按鈕偽裝成 Firebean Logo */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
         div.element-container:has(#logo-anchor) + div.element-container button {
             background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: left center;
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            min-height: 180px !important; 
-            width: 540px !important;      
-            padding: 0 !important;
-            margin-top: -10px;
+            background-size: contain; background-repeat: no-repeat; background-position: left center;
+            background-color: transparent !important; border: none !important; box-shadow: none !important;
+            min-height: 180px !important; width: 540px !important; padding: 0 !important; margin-top: -10px;
         }
         div.element-container:has(#logo-anchor) + div.element-container button:hover,
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button:hover {
-            transform: scale(1.03);
-            background-color: transparent !important;
+            transform: scale(1.03); background-color: transparent !important;
         }
         div.element-container:has(#logo-anchor) + div.element-container button p,
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {
@@ -241,18 +212,19 @@ def main():
     init_session_state()
     apply_styles()
 
-    score_items = ["client_name", "project_name", "venue", "youtube", "open_question_ans"]
-    filled = sum([1 for f in score_items if st.session_state.get(f)])
+    # 🚀 修改 1：修正進度條計算，移除了非強制性的 youtube 和 logo，確保填完核心欄位就能達到 100%
+    score_items = ["client_name", "project_name", "venue", "open_question_ans"]
+    filled = sum([1 for f in score_items if st.session_state.get(f) and str(st.session_state.get(f)).strip() != ""])
     filled += (1 if st.session_state.category else 0)
     filled += (1 if st.session_state.what_we_do else 0)
     filled += (1 if st.session_state.scope else 0)
-    filled += (1 if st.session_state.logo_white or st.session_state.logo_black else 0)
     filled += (1 if len(st.session_state.project_photos) >= 4 else 0)
     
-    # 🚀 修改進度條計算，總數改為 15
     mc_done = sum([1 for i in range(1, 16) if st.session_state.get(f"ans_{i}")])
     filled += (1 if mc_done == 15 else 0)
-    percent = min(100, int((filled / 11) * 100))
+    
+    # 總核心項目為 9 項
+    percent = min(100, int((filled / 9) * 100))
 
     c1, c2 = st.columns([1, 1])
     with c1: 
@@ -263,25 +235,15 @@ def main():
     with c2: 
         st.markdown(get_circle_progress_html(percent), unsafe_allow_html=True)
 
-    if percent == 100 and st.session_state.active_tab == "Project Collector" and not st.session_state.get("has_auto_jumped", False):
-        st.session_state.has_auto_jumped = True  
-        st.toast("🎯 100% 完成！正在自動跳轉...")
-        time.sleep(1.2)
-        st.session_state.active_tab = "Review & Multi-Sync"
-        st.rerun()
-
     st.markdown("<br>", unsafe_allow_html=True)
     
     nav_cols = st.columns(3)
-    
     if nav_cols[0].button("Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "Project Collector" else "secondary"):
         st.session_state.active_tab = "Project Collector"
         st.rerun()
-        
     if nav_cols[1].button("Review & Multi-Sync", use_container_width=True, type="primary" if st.session_state.active_tab == "Review & Multi-Sync" else "secondary"):
         st.session_state.active_tab = "Review & Multi-Sync"
         st.rerun()
-        
     if nav_cols[2].button("老細一鍵填充 (深度內容測試)", use_container_width=True):
         fill_dummy_data()
         st.rerun()
@@ -293,31 +255,35 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            ub = st.file_uploader("Black Logo", type=['png'], key="l_b")
+            ub = st.file_uploader("Black Logo (Optional)", type=['png'], key="l_b")
             if ub: st.session_state.logo_black = base64.b64encode(ub.read()).decode()
         with col2:
-            uw = st.file_uploader("White Logo", type=['png'], key="l_w")
+            uw = st.file_uploader("White Logo (Optional)", type=['png'], key="l_w")
             if uw: st.session_state.logo_white = base64.b64encode(uw.read()).decode()
 
         b1, b2, b3, b4 = st.columns(4)
         st.session_state.client_name = b1.text_input("Client", st.session_state.client_name)
         st.session_state.project_name = b2.text_input("Project", st.session_state.project_name)
         st.session_state.venue = b3.text_input("Venue", st.session_state.venue)
-        st.session_state.youtube = b4.text_input("YouTube Link", st.session_state.youtube)
+        st.session_state.youtube = b4.text_input("YouTube Link (Optional)", st.session_state.youtube)
 
         ca, cb, cc = st.columns(3)
         with ca:
-            st.session_state.category = st.radio("Who we help (Category)", WHO_WE_HELP_OPTIONS, index=WHO_WE_HELP_OPTIONS.index(st.session_state.category) if st.session_state.category in WHO_WE_HELP_OPTIONS else 0)
+            st.markdown("**Who we help (Category)**")
+            st.session_state.category = st.radio("Category", WHO_WE_HELP_OPTIONS, index=WHO_WE_HELP_OPTIONS.index(st.session_state.category) if st.session_state.category in WHO_WE_HELP_OPTIONS else 0, label_visibility="collapsed")
         with cb:
+            # 🚀 修改 3：加上 What we do 標題
+            st.markdown("**What we do**")
             st.session_state.what_we_do = [o for o in WHAT_WE_DO_OPTIONS if st.checkbox(o, key=f"w_{o}", value=(o in st.session_state.what_we_do))]
         with cc:
+            # 🚀 修改 3：加上 Scope of work 標題
+            st.markdown("**Scope of work**")
             st.session_state.scope = [o for o in SOW_OPTIONS if st.checkbox(o, key=f"s_{o}", value=(o in st.session_state.scope))]
         st.markdown('</div>', unsafe_allow_html=True)
 
         cl, cr = st.columns([1.2, 1])
         with cl:
             st.markdown('<div class="neu-card">', unsafe_allow_html=True)
-            # 🚀 按鈕文案改為 15 題
             if st.button("生成 15 題繁中診斷題目"):
                 if not st.session_state.project_photos: 
                     st.error("請先上傳相片。")
@@ -339,7 +305,6 @@ def main():
                         time.sleep(1)
                         
                         st.write("📝 開始構思 15 條專業 PR 診斷題目...")
-                        # 🚀 Prompt 改為要求 15 題
                         mc_prompt = f"""
 請基於以下專案背景資料與相片分析事實，生成 15 題繁體中文的專業 PR 診斷選擇題 (MC)，以評估此專案的潛在挑戰與優化空間。
 【專案背景資料】
@@ -382,6 +347,15 @@ def main():
                             st.markdown("</div>", unsafe_allow_html=True)
 
                 st.session_state.open_question_ans = st.text_area("最核心的概念？", st.session_state.open_question_ans)
+                
+                # 🚀 修改 2：移除打字時自動跳轉的設計，改為在答完題後顯示一個巨大按鈕，手動進入下一步
+                if mc_done == 15 and st.session_state.open_question_ans:
+                    st.markdown("<hr style='margin-top: 20px; margin-bottom: 20px;'>", unsafe_allow_html=True)
+                    st.success("🎉 所有診斷資料已填寫完成！")
+                    if st.button("前往 Review & Multi-Sync 👉", type="primary", use_container_width=True):
+                        st.session_state.active_tab = "Review & Multi-Sync"
+                        st.rerun()
+
             st.markdown('</div>', unsafe_allow_html=True)
 
         with cr:
@@ -498,27 +472,24 @@ def main():
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     with st.expander("🛠️ Debug Terminal & System Logs", expanded=False):
-        st.markdown("### 🔑 API Key 連線測試 (讀取 Streamlit Secrets)")
+        st.markdown("### 🔑 API Key 連線測試")
         
         if st.button("執行連線測試", use_container_width=True):
             with st.spinner("正在讀取系統 Secrets 並連線中..."):
                 secret_key = st.secrets.get("GEMINI_API_KEY", "")
                 if not secret_key:
-                    st.error("❌ 找不到 API Key！請檢查 Streamlit Cloud 的 Advanced Settings > Secrets 裡面是否有設定 `GEMINI_API_KEY`。")
-                    log_debug("API Key 測試失敗：找不到 Secret。", "error")
+                    st.error("❌ 找不到 API Key！")
                 else:
                     try:
                         genai.configure(api_key=secret_key)
                         model = genai.GenerativeModel(STABLE_MODEL_ID)
                         res = model.generate_content("Reply only the word: SUCCESS")
                         if res and "SUCCESS" in res.text.upper():
-                            st.success("✅ API Key 測試成功！Streamlit Secrets 運作正常。")
-                            log_debug("系統 API Key (Secrets) 連線測試成功。", "success")
+                            st.success("✅ API Key 測試成功！")
                         else:
                             st.error("❌ 連線異常，請確認 API Key 的權限或額度。")
                     except Exception as e:
                         st.error(f"❌ 錯誤: {e}")
-                        log_debug(f"系統 API Key 測試失敗: {e}", "error")
 
         st.markdown("### 📝 System Logs")
         logs = "".join([f"<div>[{l['time']}] {l['msg']}</div>" for l in reversed(st.session_state.get("debug_logs", []))])
