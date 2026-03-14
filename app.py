@@ -189,11 +189,40 @@ def init_session_state():
         "project_photos": [], "ai_content": {}, "logo_white": "", "logo_black": "", 
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
-        "hero_photo_index": 0
+        "hero_photo_index": 0,
+        "sync_success": False  # 記錄同步是否成功
     }
     for k, v in fields.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+def reset_for_new_case():
+    """完全清空所有資料，準備輸入下一個案例"""
+    keys_to_reset = [
+        "client_name", "project_name", "venue", "youtube",
+        "event_year", "event_month", "category", "what_we_do", "scope",
+        "project_photos", "ai_content", "logo_white", "logo_black",
+        "mc_questions", "open_question_ans", "challenge", "solution",
+        "visual_facts", "hero_photo_index", "sync_success"
+    ]
+    defaults = {
+        "event_year": str(CURRENT_YEAR), "event_month": "FEB",
+        "category": WHO_WE_HELP_OPTIONS[0], "what_we_do": [], "scope": [],
+        "project_photos": [], "ai_content": {}, "hero_photo_index": 0,
+        "sync_success": False
+    }
+    for k in keys_to_reset:
+        st.session_state[k] = defaults.get(k, "")
+    # 清除 15 題答案
+    for i in range(1, 16):
+        if f"ans_{i}" in st.session_state:
+            del st.session_state[f"ans_{i}"]
+    # 清除 logo uploader 的 widget key
+    for key in ["l_b", "l_w"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.session_state.active_tab = "Project Collector"
+    log_debug("🔄 已重置，準備輸入下一個案例。", "success")
 
 def create_dummy_image(color, label):
     img = Image.new('RGB', (800, 600), color=color)
@@ -490,8 +519,12 @@ def main():
     c1, c2 = st.columns([1, 1])
     with c1: 
         st.markdown('<span id="logo-anchor"></span>', unsafe_allow_html=True)
-        if st.button("HOME", key="logo_btn", help="點擊返回 Project Collector 主頁"):
-            st.session_state.active_tab = "Project Collector"
+        # ── HOME 按鈕：若已同步成功則完全重置；否則只切換回 Tab 1 ──
+        if st.button("🏠 HOME", key="logo_btn", help="返回主頁 / 同步後點擊可重置輸入下一個案例"):
+            if st.session_state.get("sync_success", False):
+                reset_for_new_case()
+            else:
+                st.session_state.active_tab = "Project Collector"
             st.rerun()
     with c2: 
         progress_placeholder = st.empty()
@@ -672,6 +705,9 @@ def main():
         # 進度計算
         filled_count = 0
         missing_items = []
+        # ── 修復：Logo 加入必填檢查（至少上傳其中一個）──
+        if st.session_state.logo_black or st.session_state.logo_white: filled_count += 1
+        else: missing_items.append("上傳 Logo（Black 或 White 至少一個）")
         if st.session_state.client_name.strip(): filled_count += 1
         else: missing_items.append("Client")
         if st.session_state.project_name.strip(): filled_count += 1
@@ -693,7 +729,7 @@ def main():
         if st.session_state.open_question_ans.strip(): filled_count += 1
         else: missing_items.append("最核心的概念 (文字不可留白)")
 
-        final_percent = min(100, int((filled_count / 11) * 100))
+        final_percent = min(100, int((filled_count / 12) * 100))  # 總項目由 11 改為 12
         progress_placeholder.markdown(get_circle_progress_html(final_percent, is_dark), unsafe_allow_html=True)
 
         if final_percent < 100:
@@ -816,10 +852,28 @@ def main():
                         r1 = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
                         r2 = requests.post(SLIDE_SCRIPT_URL, json=payload, timeout=60)
                         log_debug(f"Sync: {project_id}, Sheet {r1.status_code}, Slide {r2.status_code}", "success")
-                        st.balloons(); st.success(f"✅ 全部數據同步對位成功！(編號: {project_id})")
+                        st.balloons()
+                        st.success(f"✅ 全部數據同步對位成功！(編號: {project_id})")
+                        st.session_state.sync_success = True
+                        st.rerun()
                     except Exception as e: 
                         log_debug(f"Sync Fail: {str(e)}", "error")
                         st.error(f"同步失敗: {e}")
+
+        # ── 同步成功後顯示「準備輸入下一個案例」按鈕 ──
+        if st.session_state.get("sync_success", False):
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.success("✅ 資料已成功同步至 Google Sheet！")
+            st.markdown("""
+                <div style='text-align:center; padding: 20px 0;'>
+                    <p style='font-size: 16px; font-weight: 600; margin-bottom: 12px;'>🎉 案例已存檔完畢！</p>
+                    <p style='font-size: 13px; color: #888;'>點擊下方按鈕開始輸入下一個案例，所有欄位將會清空重置。</p>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("➕ 準備輸入下一個案例", type="primary", use_container_width=True):
+                reset_for_new_case()
+                st.rerun()
+
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Debug Terminal
