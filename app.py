@@ -197,50 +197,252 @@ def fill_dummy_data():
 
 # --- 3. UI 元件 ---
 
-def get_circle_progress_html(percent):
+def get_is_dark_mode():
+    """根據香港時間判斷是否為夜間模式 (20:00 - 07:59 為深色模式)"""
+    # 使用 UTC+8 (香港時間)
+    from datetime import timezone, timedelta
+    hk_tz = timezone(timedelta(hours=8))
+    hk_hour = datetime.now(hk_tz).hour
+    # 晚上 8 點 (20:00) 至 早上 7 點 (07:59) 為 Dark Mode
+    return hk_hour >= 20 or hk_hour < 8
+
+def get_circle_progress_html(percent, is_dark):
     circum = 439.8
     offset = circum * (1 - percent/100)
-    return f"""<div style='display: flex; justify-content: flex-end;'><div style='position: relative; width: 110px; height: 110px; border-radius: 50%; background: #E0E5EC; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; display: flex; align-items: center; justify-content: center;'><svg width='110' height='110'><circle stroke='#d1d9e6' stroke-width='8' fill='transparent' r='45' cx='55' cy='55'/><circle stroke='#FF0000' stroke-width='8' stroke-dasharray='{circum}' stroke-dashoffset='{offset}' stroke-linecap='round' fill='transparent' r='45' cx='55' cy='55' style='transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;'/></svg><div style='position: absolute; font-size: 20px; font-weight: 900; color: #2D3436;'>{percent}%</div></div></div>"""
+    if is_dark:
+        bg = "#2A2D35"
+        shadow_dark = "#1a1d23"
+        shadow_light = "#3a3f4d"
+        text_color = "#E0E5EC"
+        track_color = "#1E2128"
+    else:
+        bg = "#E0E5EC"
+        shadow_dark = "#bec3c9"
+        shadow_light = "#ffffff"
+        text_color = "#2D3436"
+        track_color = "#d1d9e6"
+    return f"""<div style='display: flex; justify-content: flex-end;'><div style='position: relative; width: 110px; height: 110px; border-radius: 50%; background: {bg}; box-shadow: 9px 9px 16px {shadow_dark}, -9px -9px 16px {shadow_light}; display: flex; align-items: center; justify-content: center;'><svg width='110' height='110'><circle stroke='{track_color}' stroke-width='8' fill='transparent' r='45' cx='55' cy='55'/><circle stroke='#FF0000' stroke-width='8' stroke-dasharray='{circum}' stroke-dashoffset='{offset}' stroke-linecap='round' fill='transparent' r='45' cx='55' cy='55' style='transition: all 0.8s; transform: rotate(-90deg); transform-origin: center;'/></svg><div style='position: absolute; font-size: 20px; font-weight: 900; color: {text_color};'>{percent}%</div></div></div>"""
 
-def apply_styles():
-    st.markdown("""<style>
-        header {visibility: hidden;} footer {visibility: hidden;}
-        .stApp { background-color: #E0E5EC; color: #2D3436; font-family: 'Inter', sans-serif; }
-        .neu-card { background: #E0E5EC; border-radius: 20px; box-shadow: 9px 9px 16px #bec3c9, -9px -9px 16px #ffffff; padding: 25px; margin-bottom: 20px; }
-        .mc-question { font-weight: 700; color: #FF0000 !important; margin-top: 15px; border-left: 4px solid #FF0000; padding-left: 10px; margin-bottom: 10px; }
-        .checkbox-group { padding-left: 20px; }
-        .debug-terminal { background: #1E1E1E !important; color: #00FF00 !important; padding: 15px; font-size: 11px; border-top: 4px solid #FF0000; border-radius: 10px; height: 300px; overflow-y: scroll; }
-        .stButton > button { min-height: 55px !important; font-size: 18px !important; font-weight: 700 !important; }
+def apply_styles(is_dark):
+    if is_dark:
+        # ── Dark Mode Neumorphism ──
+        # 底色：深灰藍 #1E2128
+        # 凸起陰影：更深 #14161C (暗面) + 稍亮 #282C38 (亮面)
+        # 凹陷陰影：反向
+        bg_color       = "#1E2128"
+        card_bg        = "#1E2128"
+        shadow_dark    = "#14161C"
+        shadow_light   = "#282C38"
+        text_color     = "#E0E5EC"
+        subtext_color  = "#A0A8B8"
+        hr_color       = "#3A3F4D"
+        input_bg       = "#252830"
+        input_border   = "#3A3F4D"
+        toggle_label   = "🌙 夜間模式"
+        toggle_bg      = "#252830"
+        toggle_border  = "#3A3F4D"
+    else:
+        # ── Light Mode Neumorphism ──
+        bg_color       = "#E0E5EC"
+        card_bg        = "#E0E5EC"
+        shadow_dark    = "#bec3c9"
+        shadow_light   = "#ffffff"
+        text_color     = "#2D3436"
+        subtext_color  = "#636e72"
+        hr_color       = "#c8cdd4"
+        input_bg       = "#e8ecf2"
+        input_border   = "#d0d5dc"
+        toggle_label   = "☀️ 日間模式"
+        toggle_bg      = "#E0E5EC"
+        toggle_border  = "#c8cdd4"
 
+    st.markdown(f"""<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+        header {{visibility: hidden;}} footer {{visibility: hidden;}}
+
+        /* ── 全域底色與字色 ── */
+        .stApp {{
+            background-color: {bg_color} !important;
+            color: {text_color} !important;
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.6s ease, color 0.6s ease;
+        }}
+
+        /* ── 所有文字元素 ── */
+        .stApp p, .stApp span, .stApp label, .stApp div,
+        .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+        .stMarkdown, .stText {{
+            color: {text_color} !important;
+        }}
+
+        /* ── Neumorphism 卡片（凸起效果） ── */
+        .neu-card {{
+            background: {card_bg};
+            border-radius: 20px;
+            box-shadow: 9px 9px 16px {shadow_dark}, -9px -9px 16px {shadow_light};
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: background 0.6s ease, box-shadow 0.6s ease;
+        }}
+
+        /* ── 分隔線 ── */
+        hr {{
+            border-color: {hr_color} !important;
+        }}
+
+        /* ── 輸入框 ── */
+        .stTextInput > div > div > input,
+        .stTextArea > div > div > textarea,
+        .stSelectbox > div > div > div {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+            border: 1px solid {input_border} !important;
+            border-radius: 10px !important;
+            box-shadow: inset 3px 3px 6px {shadow_dark}, inset -3px -3px 6px {shadow_light} !important;
+            transition: all 0.4s ease;
+        }}
+
+        /* ── Selectbox 下拉選項 ── */
+        .stSelectbox [data-baseweb="select"] > div {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+            border: 1px solid {input_border} !important;
+            box-shadow: inset 3px 3px 6px {shadow_dark}, inset -3px -3px 6px {shadow_light} !important;
+        }}
+
+        /* ── Radio & Checkbox 標籤 ── */
+        .stRadio label, .stCheckbox label {{
+            color: {text_color} !important;
+        }}
+
+        /* ── Expander ── */
+        .streamlit-expanderHeader {{
+            background-color: {card_bg} !important;
+            color: {text_color} !important;
+            border-radius: 12px !important;
+            box-shadow: 4px 4px 8px {shadow_dark}, -4px -4px 8px {shadow_light} !important;
+        }}
+        .streamlit-expanderContent {{
+            background-color: {card_bg} !important;
+            border-radius: 0 0 12px 12px !important;
+        }}
+
+        /* ── 一般按鈕（凸起效果） ── */
+        .stButton > button {{
+            min-height: 55px !important;
+            font-size: 18px !important;
+            font-weight: 700 !important;
+            background-color: {card_bg} !important;
+            color: {text_color} !important;
+            border: none !important;
+            border-radius: 14px !important;
+            box-shadow: 6px 6px 12px {shadow_dark}, -6px -6px 12px {shadow_light} !important;
+            transition: all 0.2s ease !important;
+        }}
+        .stButton > button:hover {{
+            box-shadow: 3px 3px 6px {shadow_dark}, -3px -3px 6px {shadow_light} !important;
+            transform: translateY(1px) !important;
+        }}
+        .stButton > button:active {{
+            box-shadow: inset 3px 3px 6px {shadow_dark}, inset -3px -3px 6px {shadow_light} !important;
+            transform: translateY(2px) !important;
+        }}
+
+        /* ── Logo 按鈕（特殊樣式，不受一般按鈕覆蓋） ── */
         div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button,
-        div.element-container:has(#logo-anchor) + div.element-container button {
-            background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png');
-            background-size: contain; background-repeat: no-repeat; background-position: left center;
+        div.element-container:has(#logo-anchor) + div.element-container button {{
+            background-image: url('https://raw.githubusercontent.com/dickson-crypto/Firebean-app/main/Firebeanlogo2026.png') !important;
+            background-size: contain !important; background-repeat: no-repeat !important; background-position: left center !important;
             background-color: transparent !important; border: none !important; box-shadow: none !important;
             min-height: 180px !important; width: 540px !important; padding: 0 !important; margin-top: -10px;
-        }
+        }}
         div.element-container:has(#logo-anchor) + div.element-container button:hover,
-        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button:hover {
-            transform: scale(1.03); background-color: transparent !important;
-        }
+        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button:hover {{
+            transform: scale(1.03) !important; background-color: transparent !important; box-shadow: none !important;
+        }}
         div.element-container:has(#logo-anchor) + div.element-container button p,
-        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {
+        div[data-testid="stElementContainer"]:has(#logo-anchor) + div[data-testid="stElementContainer"] button p {{
             display: none !important;
-        }
+        }}
 
-        button[kind="primary"] {
+        /* ── Primary 按鈕（紅色 CTA） ── */
+        button[kind="primary"] {{
             background-color: #FF2A2A !important;
             color: white !important;
             border: 2px solid #D00000 !important;
             border-radius: 12px !important;
-            transition: all 0.3s ease-in-out;
-            box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.3) !important;
-        }
-        button[kind="primary"]:hover {
+            transition: all 0.3s ease-in-out !important;
+            box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.35) !important;
+        }}
+        button[kind="primary"]:hover {{
             background-color: #D00000 !important;
-            transform: scale(1.02);
-            box-shadow: 0px 6px 20px rgba(255, 0, 0, 0.5) !important;
-        }
+            transform: scale(1.02) !important;
+            box-shadow: 0px 6px 20px rgba(255, 0, 0, 0.55) !important;
+        }}
+
+        /* ── MC 診斷題目 ── */
+        .mc-question {{
+            font-weight: 700;
+            color: #FF0000 !important;
+            margin-top: 15px;
+            border-left: 4px solid #FF0000;
+            padding-left: 10px;
+            margin-bottom: 10px;
+        }}
+        .checkbox-group {{ padding-left: 20px; }}
+
+        /* ── Debug Terminal ── */
+        .debug-terminal {{
+            background: #0D0F14 !important;
+            color: #00FF88 !important;
+            padding: 15px;
+            font-size: 11px;
+            border-top: 4px solid #FF0000;
+            border-radius: 10px;
+            height: 300px;
+            overflow-y: scroll;
+        }}
+
+        /* ── 模式標籤 ── */
+        .mode-badge {{
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            background: {toggle_bg};
+            color: {text_color};
+            border: 1px solid {toggle_border};
+            box-shadow: 3px 3px 6px {shadow_dark}, -3px -3px 6px {shadow_light};
+            margin-top: 8px;
+        }}
+
+        /* ── File Uploader ── */
+        .stFileUploader > div {{
+            background-color: {input_bg} !important;
+            border: 2px dashed {input_border} !important;
+            border-radius: 12px !important;
+            color: {text_color} !important;
+        }}
+
+        /* ── Spinner / Status ── */
+        .stSpinner > div {{
+            border-top-color: #FF2A2A !important;
+        }}
+
+        /* ── Toast / Success / Error ── */
+        .stSuccess {{
+            background-color: {'#1a2e1a' if is_dark else '#d4edda'} !important;
+            color: {'#6fcf97' if is_dark else '#155724'} !important;
+            border-radius: 10px !important;
+        }}
+        .stError {{
+            background-color: {'#2e1a1a' if is_dark else '#f8d7da'} !important;
+            color: {'#eb5757' if is_dark else '#721c24'} !important;
+            border-radius: 10px !important;
+        }}
+
     </style>""", unsafe_allow_html=True)
 
 # --- 4. Main App ---
@@ -248,7 +450,10 @@ def apply_styles():
 def main():
     st.set_page_config(page_title="Firebean Brain Collector", layout="wide")
     init_session_state()
-    apply_styles()
+
+    # 自動偵測時間決定模式
+    is_dark = get_is_dark_mode()
+    apply_styles(is_dark)
 
     c1, c2 = st.columns([1, 1])
     with c1: 
@@ -284,8 +489,9 @@ def main():
                 st.session_state.logo_black = base64.b64encode(ub.read()).decode()
             
             if st.session_state.logo_black:
+                preview_bg = "#1E2128" if is_dark else "#f9f9f9"
                 st.markdown(f'''
-                    <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: #f9f9f9; text-align: center;">
+                    <div style="margin-top: -10px; margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; background-color: {preview_bg}; text-align: center;">
                         <span style="font-size: 10px; color: #888; display: block; margin-bottom: 5px;">Preview</span>
                         <img src="data:image/png;base64,{st.session_state.logo_black}" style="max-height: 60px; max-width: 150px; object-fit: contain;">
                     </div>
@@ -368,7 +574,7 @@ def main():
 {facts}
 
 請確保題目具備深度，能引導出具體的痛點。
-必須嚴格輸出為 JSON 陣列格式：[{{\"id\":1,\"question\":\"問題內容...\",\"options\":[\"選項A\",\"選項B\"]}}]
+必須嚴格輸出為 JSON 陣列格式：[{{"id":1,"question":"問題內容...","options":["選項A","選項B"]}}]
 """
                         res = call_gemini_sdk(mc_prompt, is_json=True)
                         if res: 
@@ -407,7 +613,7 @@ def main():
             if st.session_state.project_photos:
                 st.markdown("##### 📸 Photo Preview & Select Hero Banner")
                 
-                photo_names = [f"Photo {i+1} ({f.name if hasattr(f, 'name') else 'Dummy'})" for i, f in enumerate(st.session_state.project_photos)]
+                photo_names = [f"Photo {i+1}" for i in range(len(st.session_state.project_photos))]
                 st.session_state.hero_photo_index = st.radio(
                     "請選擇一張作為 Website 的 Hero Banner (這張將會被設定為 Hero Photo Link):",
                     options=range(len(st.session_state.project_photos)),
@@ -456,7 +662,7 @@ def main():
         else: missing_items.append("最核心的概念 (文字不可留白)")
 
         final_percent = min(100, int((filled_count / 11) * 100))
-        progress_placeholder.markdown(get_circle_progress_html(final_percent), unsafe_allow_html=True)
+        progress_placeholder.markdown(get_circle_progress_html(final_percent, is_dark), unsafe_allow_html=True)
 
         if final_percent < 100:
             with st.expander("📌 還差一點點！點擊查看未完成項目", expanded=False):
@@ -473,7 +679,7 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
-                mc_sum = [f"Q:{q['question']} A:{st.session_state.get(f'ans_{q['id']}')}" for q in st.session_state.mc_questions if isinstance(q, dict)]
+                mc_sum = [f"Q:{q['question']} A:{st.session_state.get('ans_' + str(q['id']))}" for q in st.session_state.mc_questions if isinstance(q, dict)]
                 prompt = f"""
 分析專案: {st.session_state.project_name}. 生成 JSON。IG < 150 字。
 
