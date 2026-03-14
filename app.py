@@ -114,37 +114,54 @@ def log_debug(msg, type="info"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.debug_logs.append({"time": timestamp, "msg": msg, "type": type})
 
-def call_gemini_sdk(prompt, image_files=None, is_json=False):
+def call_gemini_sdk(prompt, image_files=None, is_json=False, max_retries=2):
+    """呼叫 Gemini API，內建 JSON 容錯重試機制 (優化 C)"""
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if not secret_key:
         st.error("🚨 找不到 API Key")
         return None
-    try:
-        genai.configure(api_key=secret_key)
-        model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
-        contents = [prompt]
-        
-        if image_files:
-            for f in image_files:
-                if hasattr(f, "seek"): f.seek(0)
-                img = Image.open(f)
-                img = ImageOps.exif_transpose(img)
-                img.thumbnail((800, 800))
-                contents.append(img)
-        
-        response = model.generate_content(contents, generation_config={
-            "response_mime_type": "application/json" if is_json else "text/plain",
-            "temperature": 0.2
-        })
-        
-        if response and response.text:
-            text = response.text.strip()
-            if not is_json: return text
-            match = re.search(r'(\{.*\})|(\[.*\])', text, re.DOTALL)
-            json_str = match.group(0) if match else text
-            return json_str
-    except Exception as e:
-        st.error("❌ AI 運算發生錯誤，請查看 Debug Terminal 日誌。")
+
+    for attempt in range(max_retries):
+        try:
+            genai.configure(api_key=secret_key)
+            model = genai.GenerativeModel(model_name=STABLE_MODEL_ID, system_instruction=FIREBEAN_SYSTEM_PROMPT)
+            contents = [prompt]
+
+            if image_files:
+                for f in image_files:
+                    if hasattr(f, "seek"): f.seek(0)
+                    img = Image.open(f)
+                    img = ImageOps.exif_transpose(img)
+                    img.thumbnail((800, 800))
+                    contents.append(img)
+
+            response = model.generate_content(contents, generation_config={
+                "response_mime_type": "application/json" if is_json else "text/plain",
+                "temperature": 0.2
+            })
+
+            if response and response.text:
+                text = response.text.strip()
+                if not is_json:
+                    return text
+                # 嘗試提取 JSON
+                match = re.search(r'(\{.*\})|(\[.*\])', text, re.DOTALL)
+                json_str = match.group(0) if match else text
+                # 驗證 JSON 是否有效
+                json.loads(json_str)
+                return json_str
+
+        except json.JSONDecodeError as je:
+            log_debug(f"⚠️ JSON 解析失敗 (第 {attempt+1} 次)，正在重試... 錯誤: {str(je)}", "error")
+            if attempt < max_retries - 1:
+                time.sleep(1)
+                continue
+            else:
+                st.warning("⚠️ AI 返回格式不穩定，請再試一次。")
+        except Exception as e:
+            log_debug(f"❌ API 錯誤: {str(e)}", "error")
+            st.error("❌ AI 運算發生錯誤，請查看 Debug Terminal 日誌。")
+            break
     return None
 
 def init_session_state():
@@ -679,32 +696,58 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         if st.button("生成六大平台對接文案"):
             with st.spinner("AI Strategist 正在構思文案..."):
-                mc_sum = [f"Q:{q['question']} A:{st.session_state.get('ans_' + str(q['id']))}" for q in st.session_state.mc_questions if isinstance(q, dict)]
+                # ── 優化 B：智能壓縮診斷數據，分類「痛點」與「強項」──
+                pain_points = []
+                strengths = []
+                for q in st.session_state.mc_questions:
+                    if not isinstance(q, dict): continue
+                    ans = st.session_state.get(f"ans_{q['id']}", [])
+                    ans_str = "、".join(ans) if ans else "未作答"
+                    q_text = q.get('question', '')
+                    # 判斷答案是否含有負面/優化關鍵字
+                    negative_keywords = ["優化", "改善", "不足", "欠缺", "低", "差", "未達", "問題", "挑戰", "弱", "缺乏"]
+                    is_negative = any(kw in ans_str for kw in negative_keywords)
+                    if is_negative:
+                        pain_points.append(f"[痛點] {q_text} → {ans_str}")
+                    else:
+                        strengths.append(f"[強項] {q_text} → {ans_str}")
+
+                pain_summary = "\n".join(pain_points) if pain_points else "診斷結果顯示整體表現良好，無明顯痛點。"
+                strength_summary = "\n".join(strengths[:5]) if strengths else ""  # 只取前5條強項避免 token 過多
+
                 prompt = f"""
 分析專案: {st.session_state.project_name}. 生成 JSON。IG < 150 字。
 
-【專案診斷核心數據 (Diagnostic Data)】
-{mc_sum}
+【診斷痛點 (Pain Points from Diagnostic)】
+{pain_summary}
+
+【項目強項 (Top Strengths)】
+{strength_summary}
 
 請嚴格根據以上診斷數據與以下專案基本資料，歸納出痛點與解決方案，並撰寫 6_website 的雜誌級文章與其他社群文案：
 ### Input Data:
 - [Basic Information]: Client Name: {st.session_state.client_name}, Project Name: {st.session_state.project_name}, Category: {st.session_state.category}, Scope of Work: {", ".join(st.session_state.scope)}
 - [Event Details]: Event Date: {st.session_state.event_year} {st.session_state.event_month}, Venue: {st.session_state.venue}, What we do: {", ".join(st.session_state.what_we_do)}
-- [Pain Point]: (請依據診斷數據總結。注意：務必將痛點描述大幅刪減，只保留最核心的一句話即可，字數減半) 補充背景: {st.session_state.open_question_ans}
-- [Solution]: (請依據診斷數據與活動形式總結) 相關影片參考: {st.session_state.youtube}
+- [Pain Point / Opportunity]: (請分析上方診斷痛點。若有明顯痛點，請用一句話精準總結；若整體偏正面，請將其轉化為「專案面臨的進階挑戰或突破機會」，字數控制在 30 字內) 補充背景: {st.session_state.open_question_ans}
+- [Solution]: (請依據診斷數據與活動形式總結，說明此項目如何克服上述挑戰) 相關影片參考: {st.session_state.youtube}
 """
                 res = call_gemini_sdk(prompt, is_json=True)
                 if res:
-                    data = json.loads(res)
-                    if isinstance(data, list) and len(data) > 0:
-                        data = data[0]
-                    if isinstance(data, dict):
-                        st.session_state.ai_content = data
-                        st.session_state.challenge = data.get("challenge_summary", "尚未生成")
-                        st.session_state.solution = data.get("solution_summary", "尚未生成")
-                        st.toast("✅ 策略與文案已成功生成！")
-                        time.sleep(1)
-                        st.rerun() 
+                    try:
+                        data = json.loads(res)
+                        if isinstance(data, list) and len(data) > 0:
+                            data = data[0]
+                        if isinstance(data, dict):
+                            st.session_state.ai_content = data
+                            st.session_state.challenge = data.get("challenge_summary", "尚未生成")
+                            st.session_state.solution = data.get("solution_summary", "尚未生成")
+                            log_debug(f"✅ 文案生成成功，痛點數: {len(pain_points)}，強項數: {len(strengths)}", "success")
+                            st.toast("✅ 策略與文案已成功生成！")
+                            time.sleep(1)
+                            st.rerun()
+                    except json.JSONDecodeError as e:
+                        log_debug(f"❌ 最終 JSON 解析失敗: {str(e)}", "error")
+                        st.error("❌ AI 返回格式異常，請重新點擊生成按鈕再試一次。") 
 
         if st.session_state.ai_content:
             st.json(st.session_state.ai_content)
