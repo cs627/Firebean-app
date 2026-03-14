@@ -549,7 +549,7 @@ def main():
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            ub = st.file_uploader("Black Logo (Optional)", type=['png'], key="l_b")
+            ub = st.file_uploader("Black Logo ✱ (Required)", type=['png'], key="l_b")
             if ub is not None: 
                 st.session_state.logo_black = base64.b64encode(ub.read()).decode()
             
@@ -563,7 +563,7 @@ def main():
                 ''', unsafe_allow_html=True)
 
         with col2:
-            uw = st.file_uploader("White Logo (Optional)", type=['png'], key="l_w")
+            uw = st.file_uploader("White Logo ✱ (Required)", type=['png'], key="l_w")
             if uw is not None: 
                 st.session_state.logo_white = base64.b64encode(uw.read()).decode()
                 
@@ -705,9 +705,16 @@ def main():
         # 進度計算
         filled_count = 0
         missing_items = []
-        # ── 修復：Logo 加入必填檢查（至少上傳其中一個）──
-        if st.session_state.logo_black or st.session_state.logo_white: filled_count += 1
-        else: missing_items.append("上傳 Logo（Black 或 White 至少一個）")
+        # ── 修復：Logo Black 與 White 兩個都必須上傳 ──
+        logo_ok = bool(st.session_state.logo_black) and bool(st.session_state.logo_white)
+        if logo_ok: filled_count += 1
+        else:
+            if not st.session_state.logo_black and not st.session_state.logo_white:
+                missing_items.append("上傳 Black Logo 及 White Logo（兩個均為必填）")
+            elif not st.session_state.logo_black:
+                missing_items.append("上傳 Black Logo（必填）")
+            else:
+                missing_items.append("上傳 White Logo（必填）")
         if st.session_state.client_name.strip(): filled_count += 1
         else: missing_items.append("Client")
         if st.session_state.project_name.strip(): filled_count += 1
