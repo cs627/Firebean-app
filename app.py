@@ -102,20 +102,35 @@ Format & Structure Requirements for '6_website':
     <h3>Third Section Heading</h3>
     <p>Paragraph 3...</p>
     <p>The bolded punch line sentence.</p>
-    <h4>Fast Recap FAQ</h4>
-    <p>Q1: Question 1?</p>
-    <p>A1: Answer 1...</p>
-    <p>Q2: Question 2?</p>
-    <p>A2: Answer 2...</p>
-    <p>Q3: Question 3?</p>
-    <p>A3: Answer 3...</p>
+    ### Fast Recap FAQ:
+    Q1: Question 1?
+    A1: Answer 1...
+    Q2: Question 2?
+    A2: Answer 2...
+    Q3: Question 3?
+    A3: Answer 3...
     
-    STRICT RULES:
-    1. Use ONLY <h1>, <h3>, <h4>, and <p> tags.
-    2. DO NOT use <h2>.
-    3. DO NOT use <span>, <div>, or any style attributes (no inline colors).
-    4. Q&A must use <p> tags with Q1:/A1: prefixes, NOT <h4> for questions.
-    5. The FAQ heading MUST be #### Fast Recap FAQ (or <h4>Fast Recap FAQ</h4> in HTML).
+    STRICT RULES FOR HTML:
+    1. Use ONLY <h1>, <h3>, and <p> tags for main content.
+    2. DO NOT use <h2>, <h4>, or any other heading tags.
+    3. DO NOT use <span>, <div>, <b>, <strong>, or any style attributes (no inline colors).
+    4. After the last paragraph, add a blank line, then switch to Markdown format.
+    
+    STRICT RULES FOR Q&A SECTION (CRITICAL - MUST BE IN MARKDOWN FORMAT):
+    5. The Q&A section MUST use Markdown format, NOT HTML.
+    6. The FAQ heading MUST be exactly: ### Fast Recap FAQ:
+    7. Each question MUST start with Q1:, Q2:, Q3: (with colon, not question mark).
+    8. Each answer MUST start with A1:, A2:, A3: (with colon).
+    9. Q&A pairs MUST be on separate lines, one per line.
+    10. DO NOT use <h4>, <h3>, or any HTML tags for Q&A - use pure Markdown.
+    11. Example format:
+        ### Fast Recap FAQ:
+        Q1: What was the main challenge?
+        A1: The challenge was...
+        Q2: How did you solve it?
+        A2: We solved it by...
+        Q3: What was the outcome?
+        A3: The outcome was...
 
 Language Output Requirement for '6_website':
 - "angle_chosen": State the name of the angle you selected (e.g., "Style 2: The Contrarian").
@@ -829,6 +844,28 @@ def main():
                         if isinstance(data, list) and len(data) > 0:
                             data = data[0]
                         if isinstance(data, dict):
+                            # 🔧 Q&A FORMAT VALIDATION & CORRECTION
+                            def fix_qa_format(content):
+                                """Automatically fix Q&A format to ensure it's in Markdown with ### heading."""
+                                if not content:
+                                    return content
+                                
+                                # Replace any <h4>Fast Recap FAQ</h4> with ### Fast Recap FAQ:
+                                content = re.sub(r'<h4>\s*Fast Recap FAQ\s*</h4>', '### Fast Recap FAQ:', content, flags=re.I)
+                                # Replace <b>Fast Recap FAQ</b> with ### Fast Recap FAQ:
+                                content = re.sub(r'<b>\s*Fast Recap FAQ\s*</b>', '### Fast Recap FAQ:', content, flags=re.I)
+                                # Replace standalone "Fast Recap FAQ" lines with ### Fast Recap FAQ:
+                                content = re.sub(r'^\s*Fast Recap FAQ\s*$', '### Fast Recap FAQ:', content, flags=re.MULTILINE | re.I)
+                                
+                                return content
+                            
+                            # Apply Q&A format fixes to all language versions
+                            if "6_website" in data and isinstance(data["6_website"], dict):
+                                for lang in ["en", "tc", "jp"]:
+                                    if lang in data["6_website"]:
+                                        data["6_website"][lang] = fix_qa_format(data["6_website"][lang])
+                                        log_debug(f"✅ Q&A 格式已自動修正 ({lang})", "success")
+                            
                             st.session_state.ai_content = data
                             st.session_state.challenge = data.get("challenge_summary", "尚未生成")
                             st.session_state.solution = data.get("solution_summary", "尚未生成")
