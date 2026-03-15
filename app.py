@@ -86,25 +86,36 @@ To ensure a diverse content library, RANDOMLY SELECT ONLY ONE of the 5 writing s
 
 Format & Structure Requirements for '6_website':
 - Word Count: Approximately 500 words per language.
-- Structure: Use engaging editorial Subtitles (H2/H3). Use short, punchy paragraphs.
-- The Core Narrative: Seamlessly weave the [Basic Information], [Project Outcome], [Challenge], and [Solution] into the chosen narrative angle. All written in past tense.
-- The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence about the project's impact.
-- The Fast Recap FAQ: End with a 3-question FAQ. Questions should be: (1) What was the challenge? (2) How did the team solve it? (3) What was the result? — NO questions about how to attend or register.
-
-**CRITICAL HTML STRUCTURE REQUIREMENT FOR '6_website'**:
-You MUST output valid HTML that matches the CMS parsing format exactly. The structure must be:
-<h1>Main Title</h1>
-<h2>Subtitle or Section Heading</h2>
-<p>Content paragraph...</p>
-<p>Additional content...</p>
-<h4>Q: Question 1?</h4>
-<p>A: Answer 1...</p>
-<h4>Q: Question 2?</h4>
-<p>A: Answer 2...</p>
-<h4>Q: Question 3?</h4>
-<p>A: Answer 3...</p>
-
-DO NOT use other HTML tags (no <div>, <span>, <strong>, <em>, etc. unless absolutely necessary). Keep it simple and clean.
+    - Structure: Use exactly three sections, each starting with an <h3> heading.
+    - Paragraph Count: Ensure each of the three sections contains at least one substantive paragraph (<p>). This is crucial for photo interleaving.
+    - The Core Narrative: Seamlessly weave the [Basic Information], [Project Outcome], [Challenge], and [Solution] into the chosen narrative angle. All written in past tense.
+    - The Punch Line: The final paragraph before the FAQ must be a single, bolded, highly memorable concluding sentence about the project's impact.
+    - The Fast Recap FAQ: End with exactly three Q&A pairs. Use the heading #### Fast Recap FAQ.
+    
+    **CRITICAL HTML STRUCTURE REQUIREMENT FOR '6_website'**:
+    You MUST output valid HTML that matches the CMS parsing format exactly. The structure MUST follow this pattern for photo interleaving:
+    <h1>Main Title</h1>
+    <h3>First Section Heading</h3>
+    <p>Paragraph 1...</p>
+    <h3>Second Section Heading</h3>
+    <p>Paragraph 2...</p>
+    <h3>Third Section Heading</h3>
+    <p>Paragraph 3...</p>
+    <p>The bolded punch line sentence.</p>
+    <h4>Fast Recap FAQ</h4>
+    <p>Q1: Question 1?</p>
+    <p>A1: Answer 1...</p>
+    <p>Q2: Question 2?</p>
+    <p>A2: Answer 2...</p>
+    <p>Q3: Question 3?</p>
+    <p>A3: Answer 3...</p>
+    
+    STRICT RULES:
+    1. Use ONLY <h1>, <h3>, <h4>, and <p> tags.
+    2. DO NOT use <h2>.
+    3. DO NOT use <span>, <div>, or any style attributes (no inline colors).
+    4. Q&A must use <p> tags with Q1:/A1: prefixes, NOT <h4> for questions.
+    5. The FAQ heading MUST be #### Fast Recap FAQ (or <h4>Fast Recap FAQ</h4> in HTML).
 
 Language Output Requirement for '6_website':
 - "angle_chosen": State the name of the angle you selected (e.g., "Style 2: The Contrarian").
