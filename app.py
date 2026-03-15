@@ -610,20 +610,21 @@ def load_draft_into_session(project_id):
 def save_draft_to_sheet():
     """Save current input data as a draft to Google Sheet Raw_Input_DB."""
     try:
-        # Process images to base64
+        # Process new images to base64 if any are uploaded
         processed_imgs = []
-        for f in st.session_state.project_photos:
-            if hasattr(f, "seek"): f.seek(0)
-            try:
-                img = Image.open(f).convert("RGB")
-                img = ImageOps.exif_transpose(img)
-                img.thumbnail((800, 800))  # Smaller size for drafts
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=70)
-                processed_imgs.append(base64.b64encode(buf.getvalue()).decode())
-            except Exception as e:
+        if st.session_state.project_photos:
+            for f in st.session_state.project_photos:
                 if hasattr(f, "seek"): f.seek(0)
-                processed_imgs.append(base64.b64encode(f.read()).decode())
+                try:
+                    img = Image.open(f).convert("RGB")
+                    img = ImageOps.exif_transpose(img)
+                    img.thumbnail((800, 800))  # Smaller size for drafts
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=70)
+                    processed_imgs.append(base64.b64encode(buf.getvalue()).decode())
+                except Exception as e:
+                    if hasattr(f, "seek"): f.seek(0)
+                    processed_imgs.append(base64.b64encode(f.read()).decode())
 
         # Use existing draft ID if available, otherwise generate a new one
         draft_id = st.session_state.get("draft_project_id", "") or f"DRAFT_{st.session_state.client_name.replace(' ', '_')}_{int(time.time())}"
@@ -642,7 +643,8 @@ def save_draft_to_sheet():
             "scope": st.session_state.scope,
             "mc_questions": st.session_state.mc_questions,
             "open_question": st.session_state.open_question_ans,
-            "images": processed_imgs
+            "images": processed_imgs,
+            "existing_image_urls": st.session_state.get("loaded_image_urls", []) if not processed_imgs else []
         }
         r = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
         if r.status_code == 200:
