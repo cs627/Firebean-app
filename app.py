@@ -850,12 +850,22 @@ def main():
                                 if not content:
                                     return content
                                 
-                                # Replace any <h4>Fast Recap FAQ</h4> with ### Fast Recap FAQ:
+                                # 1. Clean up malformed headers with asterisks: **### or ### **
+                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*Fast Recap FAQ[:：]?\s*(\*\*)?', '### Fast Recap FAQ:', content, flags=re.I)
+                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*快速回顧 FAQ[:：]?\s*(\*\*)?', '### 快速回顧 FAQ:', content, flags=re.I)
+                                
+                                # 2. Replace any <h4>Fast Recap FAQ</h4> with ### Fast Recap FAQ:
                                 content = re.sub(r'<h4>\s*Fast Recap FAQ\s*</h4>', '### Fast Recap FAQ:', content, flags=re.I)
                                 # Replace <b>Fast Recap FAQ</b> with ### Fast Recap FAQ:
                                 content = re.sub(r'<b>\s*Fast Recap FAQ\s*</b>', '### Fast Recap FAQ:', content, flags=re.I)
-                                # Replace standalone "Fast Recap FAQ" lines with ### Fast Recap FAQ:
+                                # Replace <strong>Fast Recap FAQ</strong> with ### Fast Recap FAQ:
+                                content = re.sub(r'<strong>\s*Fast Recap FAQ\s*</strong>', '### Fast Recap FAQ:', content, flags=re.I)
+                                
+                                # 3. Replace standalone "Fast Recap FAQ" lines with ### Fast Recap FAQ:
                                 content = re.sub(r'^\s*Fast Recap FAQ\s*$', '### Fast Recap FAQ:', content, flags=re.MULTILINE | re.I)
+                                
+                                # 4. Clean up any remaining malformed H3 headers with asterisks
+                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*(.*?)\s*(\*\*)?', r'### \3', content, flags=re.MULTILINE)
                                 
                                 return content
                             
