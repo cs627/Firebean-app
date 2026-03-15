@@ -849,24 +849,64 @@ def main():
                                 """Automatically fix Q&A format to ensure it's in Markdown with ### heading."""
                                 if not content:
                                     return content
-                                
-                                # 1. Clean up malformed headers with asterisks: **### or ### **
-                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*Fast Recap FAQ[:：]?\s*(\*\*)?', '### Fast Recap FAQ:', content, flags=re.I)
-                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*快速回顧 FAQ[:：]?\s*(\*\*)?', '### 快速回顧 FAQ:', content, flags=re.I)
-                                
-                                # 2. Replace any <h4>Fast Recap FAQ</h4> with ### Fast Recap FAQ:
-                                content = re.sub(r'<h4>\s*Fast Recap FAQ\s*</h4>', '### Fast Recap FAQ:', content, flags=re.I)
-                                # Replace <b>Fast Recap FAQ</b> with ### Fast Recap FAQ:
-                                content = re.sub(r'<b>\s*Fast Recap FAQ\s*</b>', '### Fast Recap FAQ:', content, flags=re.I)
-                                # Replace <strong>Fast Recap FAQ</strong> with ### Fast Recap FAQ:
-                                content = re.sub(r'<strong>\s*Fast Recap FAQ\s*</strong>', '### Fast Recap FAQ:', content, flags=re.I)
-                                
-                                # 3. Replace standalone "Fast Recap FAQ" lines with ### Fast Recap FAQ:
-                                content = re.sub(r'^\s*Fast Recap FAQ\s*$', '### Fast Recap FAQ:', content, flags=re.MULTILINE | re.I)
-                                
-                                # 4. Clean up any remaining malformed H3 headers with asterisks
-                                content = re.sub(r'(\*\*)?\s*###\s*(\*\*)?\s*(.*?)\s*(\*\*)?', r'### \3', content, flags=re.MULTILINE)
-                                
+
+                                # Standardize the FAQ header first
+                                content = re.sub(r'(<(h[1-6]|b|strong)[^>]*>\s*)?(?:Fast Recap\s*)?(?:FAQ|Q&A|Q & A|常見問題|よくある質問|快速回顧)(?:\s*</(h[1-6]|b|strong)>)?[:：]?', '### Fast Recap FAQ:', content, flags=re.IGNORECASE)
+
+                                # Find the standardized FAQ section
+                                qa_pattern = re.compile(r'(### Fast Recap FAQ:)(.*?)(?=(?:<h[1-6][^>]*>|###\s*[^#]|$))', re.DOTALL | re.IGNORECASE)
+                                match = qa_pattern.search(content)
+
+                                if match:
+                                    qa_header = match.group(1)
+                                    qa_raw_content = match.group(2).strip()
+                                    content_before_qa = content[:match.start()]
+                                    content_after_qa = content[match.end():]
+
+                                    # Convert HTML lists to plain text lines
+                                    qa_raw_content = re.sub(r'<ul[^>]*>|<ol[^>]*>|<\/ul>|<\/ol>', '', qa_raw_content, flags=re.IGNORECASE)
+                                    qa_raw_content = re.sub(r'<li[^>]*>(.*?)<\/li>', r'\1\n', qa_raw_content, flags=re.IGNORECASE)
+                                    qa_raw_content = re.sub(r'<p[^>]*>(.*?)<\/p>', r'\1\n', qa_raw_content, flags=re.IGNORECASE)
+                                    qa_raw_content = re.sub(r'<br[^>]*>', '\n', qa_raw_content, flags=re.IGNORECASE)
+
+                                    # Remove any remaining HTML tags
+                                    qa_raw_content = re.sub(r'<[^>]*>', '', qa_raw_content)
+
+                                    # Process lines into Qx: and Ax: format
+                                    qa_lines = qa_raw_content.strip().split('\n')
+                                    formatted_qa = []
+                                    q_count = 1
+                                    temp_q = ''
+
+                                    for line in qa_lines:
+                                        line = line.strip()
+                                        if not line: continue
+
+                                        is_q = line.upper().startswith('Q')
+                                        is_a = line.upper().startswith('A')
+
+                                        if is_q:
+                                            if temp_q: # If there was a pending Q, finalize it
+                                                formatted_qa.append(f"Q{q_count}: {temp_q}")
+                                                q_count += 1
+                                            temp_q = re.sub(r'^Q\d*[:.]?\s*', '', line, flags=re.IGNORECASE).strip()
+                                        elif is_a:
+                                            if temp_q:
+                                                formatted_qa.append(f"Q{q_count}: {temp_q}")
+                                                a_text = re.sub(r'^A\d*[:.]?\s*', '', line, flags=re.IGNORECASE).strip()
+                                                formatted_qa.append(f"A{q_count}: {a_text}")
+                                                q_count += 1
+                                                temp_q = ''
+                                        elif temp_q: # This line is a continuation of the previous Q
+                                            temp_q += ' ' + line
+                                    
+                                    if temp_q: # Add any last pending question
+                                        formatted_qa.append(f"Q{q_count}: {temp_q}")
+
+                                    qa_content_formatted = '\n'.join(formatted_qa)
+
+                                    return content_before_qa.strip() + '\n\n' + qa_header + '\n' + qa_content_formatted + '\n\n' + content_after_qa.strip()
+
                                 return content
                             
                             # Apply Q&A format fixes to all language versions
