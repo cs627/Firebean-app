@@ -238,7 +238,9 @@ def init_session_state():
         "debug_logs": [], "mc_questions": [], "open_question_ans": "", 
         "challenge": "", "solution": "", "visual_facts": "",
         "hero_photo_index": 0,
-        "sync_success": False  # 記錄同步是否成功
+        "sync_success": False,  # 記錄同步是否成功
+        "draft_project_id": "",  # 記錄已載入的草稿 ID（用於更新而非新增）
+        "loaded_image_urls": [],  # 記錄從草稿載入的圖片 URLs
     }
     for k, v in fields.items():
         if k not in st.session_state:
@@ -251,13 +253,16 @@ def reset_for_new_case():
         "event_year", "event_month", "category", "what_we_do", "scope",
         "project_photos", "ai_content", "logo_white", "logo_black",
         "mc_questions", "open_question_ans", "challenge", "solution",
-        "visual_facts", "hero_photo_index", "sync_success"
+        "visual_facts", "hero_photo_index", "sync_success",
+        "draft_project_id", "loaded_image_urls"
     ]
     defaults = {
         "event_year": str(CURRENT_YEAR), "event_month": "FEB",
         "category": WHO_WE_HELP_OPTIONS[0], "what_we_do": [], "scope": [],
         "project_photos": [], "ai_content": {}, "hero_photo_index": 0,
-        "sync_success": False
+        "sync_success": False,
+        "draft_project_id": "",
+        "loaded_image_urls": []
     }
     for k in keys_to_reset:
         st.session_state[k] = defaults.get(k, "")
@@ -556,6 +561,100 @@ def apply_styles(is_dark):
 
 # --- 4. Main App ---
 
+# ── Draft Save / Load Helper Functions ──
+
+def fetch_draft_list():
+    """Fetch the list of saved drafts from Google Sheet Raw_Input_DB."""
+    try:
+        r = requests.post(SHEET_SCRIPT_URL, json={"action": "get_raw_input_list"}, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("status") == "success":
+                return data.get("data", [])
+    except Exception as e:
+        log_debug(f"❌ 無法獲取草稿列表: {str(e)}", "error")
+    return []
+
+def load_draft_into_session(project_id):
+    """Load a specific draft from Google Sheet into session state."""
+    try:
+        r = requests.post(SHEET_SCRIPT_URL, json={"action": "get_raw_input_details", "project_id": project_id}, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("status") == "success":
+                d = data["data"]
+                st.session_state.client_name = d.get("client_name", "")
+                st.session_state.project_name = d.get("project_name", "")
+                st.session_state.venue = d.get("venue", "")
+                st.session_state.youtube = d.get("youtube", "")
+                st.session_state.open_question_ans = d.get("open_question", "")
+                yr = str(d.get("event_year", CURRENT_YEAR))
+                st.session_state.event_year = yr if yr in YEAR_OPTIONS else str(CURRENT_YEAR)
+                mo = d.get("event_month", "FEB").upper()
+                st.session_state.event_month = mo if mo in MONTH_OPTIONS else "FEB"
+                cat = d.get("category", WHO_WE_HELP_OPTIONS[0])
+                st.session_state.category = cat if cat in WHO_WE_HELP_OPTIONS else WHO_WE_HELP_OPTIONS[0]
+                st.session_state.what_we_do = [w for w in d.get("what_we_do", []) if w in WHAT_WE_DO_OPTIONS]
+                st.session_state.scope = [s for s in d.get("scope", []) if s in SOW_OPTIONS]
+                st.session_state.mc_questions = d.get("mc_questions", [])
+                st.session_state.loaded_image_urls = d.get("image_urls", [])
+                st.session_state.draft_project_id = project_id
+                st.session_state.project_photos = []  # Reset file uploader
+                st.session_state.ai_content = {}  # Reset AI content
+                log_debug(f"✅ 已成功載入草稿: {project_id}", "success")
+                return True
+    except Exception as e:
+        log_debug(f"❌ 載入草稿失敗: {str(e)}", "error")
+    return False
+
+def save_draft_to_sheet():
+    """Save current input data as a draft to Google Sheet Raw_Input_DB."""
+    try:
+        # Process images to base64
+        processed_imgs = []
+        for f in st.session_state.project_photos:
+            if hasattr(f, "seek"): f.seek(0)
+            try:
+                img = Image.open(f).convert("RGB")
+                img = ImageOps.exif_transpose(img)
+                img.thumbnail((800, 800))  # Smaller size for drafts
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=70)
+                processed_imgs.append(base64.b64encode(buf.getvalue()).decode())
+            except Exception as e:
+                if hasattr(f, "seek"): f.seek(0)
+                processed_imgs.append(base64.b64encode(f.read()).decode())
+
+        # Use existing draft ID if available, otherwise generate a new one
+        draft_id = st.session_state.get("draft_project_id", "") or f"DRAFT_{st.session_state.client_name.replace(' ', '_')}_{int(time.time())}"
+
+        payload = {
+            "action": "save_raw_input",
+            "project_id": draft_id,
+            "client_name": st.session_state.client_name,
+            "project_name": st.session_state.project_name,
+            "venue": st.session_state.venue,
+            "event_year": st.session_state.event_year,
+            "event_month": st.session_state.event_month,
+            "youtube": st.session_state.youtube,
+            "category": st.session_state.category,
+            "what_we_do": st.session_state.what_we_do,
+            "scope": st.session_state.scope,
+            "mc_questions": st.session_state.mc_questions,
+            "open_question": st.session_state.open_question_ans,
+            "images": processed_imgs
+        }
+        r = requests.post(SHEET_SCRIPT_URL, json=payload, timeout=60)
+        if r.status_code == 200:
+            result = r.json()
+            if result.get("status") == "success":
+                st.session_state.draft_project_id = result.get("project_id", draft_id)
+                log_debug(f"✅ 草稿儲存成功: {st.session_state.draft_project_id}", "success")
+                return True
+    except Exception as e:
+        log_debug(f"❌ 草稿儲存失敗: {str(e)}", "error")
+    return False
+
 def main():
     st.set_page_config(page_title="Firebean Brain Collector", layout="wide")
     init_session_state()
@@ -594,6 +693,43 @@ def main():
 
     # --- TAB 分頁內容 ---
     if st.session_state.active_tab == "Project Collector":
+
+        # ── Load Existing Project Panel ──
+        with st.expander("📂 載入已儲存的草稿項目 (Load Existing Draft)", expanded=False):
+            load_col1, load_col2 = st.columns([3, 1])
+            with load_col1:
+                if st.button("🔄 港取草稿列表", use_container_width=True):
+                    with st.spinner("正在獲取草稿列表..."):
+                        drafts = fetch_draft_list()
+                        st.session_state["_draft_list"] = drafts
+                        if not drafts:
+                            st.info("目前尚未儲存任何草稿。")
+            with load_col2:
+                if st.session_state.get("draft_project_id"):
+                    st.markdown(f"✅ 已載入: `{st.session_state.draft_project_id}`")
+
+            drafts = st.session_state.get("_draft_list", [])
+            if drafts:
+                draft_options = {f"{d['client_name']} / {d['project_name']} ({d['project_id']})": d['project_id'] for d in drafts}
+                selected_label = st.selectbox("選擇要載入的項目", list(draft_options.keys()))
+                if st.button("⬇️ 載入此項目到表單", type="primary", use_container_width=True):
+                    with st.spinner("正在載入項目資料..."):
+                        pid = draft_options[selected_label]
+                        if load_draft_into_session(pid):
+                            st.success(f"✅ 已成功載入！請檢查下方表單內容。")
+                            st.rerun()
+                        else:
+                            st.error("❌ 載入失敗，請檢查 Debug Terminal。")
+
+            # Show loaded image previews if any
+            if st.session_state.get("loaded_image_urls"):
+                st.markdown("**🖼️ 已載入的圖片（儲存於 Google Drive）:**")
+                img_cols = st.columns(min(4, len(st.session_state.loaded_image_urls)))
+                for i, url in enumerate(st.session_state.loaded_image_urls):
+                    with img_cols[i % 4]:
+                        st.markdown(f"[🖼️ 圖片 {i+1}]({url})", unsafe_allow_html=False)
+                st.info("💡 如需更換圖片，請在下方直接重新上傳新照片即可。")
+
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -786,6 +922,22 @@ def main():
 
         final_percent = min(100, int((filled_count / 12) * 100))  # 總項目由 11 改為 12
         progress_placeholder.markdown(get_circle_progress_html(final_percent, is_dark), unsafe_allow_html=True)
+
+        # ── Save Draft Button (visible at any progress) ──
+        save_col1, save_col2 = st.columns([3, 1])
+        with save_col1:
+            if st.button("💾 儲存草稿到 Google Sheet (Raw_Input_DB)", use_container_width=True, help="將目前所有輸入儲存為草稿，方便日後重新載入再生成"):
+                if not st.session_state.client_name.strip() or not st.session_state.project_name.strip():
+                    st.warning("❗ 請至少填寫 Client 及 Project 名稱才能儲存草稿。")
+                else:
+                    with st.spinner("正在儲存草稿..."):
+                        if save_draft_to_sheet():
+                            st.success(f"✅ 草稿已儲存！ID: `{st.session_state.draft_project_id}`")
+                        else:
+                            st.error("❌ 儲存失敗，請檢查 Debug Terminal。")
+        with save_col2:
+            if st.session_state.get("draft_project_id"):
+                st.markdown(f"✅ 草稿: `{st.session_state.draft_project_id}`")
 
         if final_percent < 100:
             with st.expander("📌 還差一點點！點擊查看未完成項目", expanded=False):
