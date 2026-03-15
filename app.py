@@ -680,57 +680,64 @@ def main():
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    nav_cols = st.columns(3)
+    nav_cols = st.columns(4)
     if nav_cols[0].button("Project Collector", use_container_width=True, type="primary" if st.session_state.active_tab == "Project Collector" else "secondary"):
         st.session_state.active_tab = "Project Collector"
         st.rerun()
     if nav_cols[1].button("Review & Multi-Sync", use_container_width=True, type="primary" if st.session_state.active_tab == "Review & Multi-Sync" else "secondary"):
         st.session_state.active_tab = "Review & Multi-Sync"
         st.rerun()
-    if nav_cols[2].button("老細一鍵填充 (深度內容測試)", use_container_width=True):
+    if nav_cols[2].button("📂 Load Project", use_container_width=True, type="primary" if st.session_state.active_tab == "Load Project" else "secondary"):
+        st.session_state.active_tab = "Load Project"
+        st.rerun()
+    if nav_cols[3].button("老細一鍵填充 (深度內容測試)", use_container_width=True):
         fill_dummy_data()
         st.rerun()
 
     st.markdown("<hr style='margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
     # --- TAB 分頁內容 ---
-    if st.session_state.active_tab == "Project Collector":
+    if st.session_state.active_tab == "Load Project":
+        st.markdown('<div class="neu-card">', unsafe_allow_html=True)
+        st.markdown("### 📂 載入已儲存的草稿項目 (Load Existing Draft)")
+        load_col1, load_col2 = st.columns([3, 1])
+        with load_col1:
+            if st.button("🔄 獲取草稿列表", use_container_width=True, type="primary"):
+                with st.spinner("正在獲取草稿列表..."):
+                    drafts = fetch_draft_list()
+                    st.session_state["_draft_list"] = drafts
+                    if not drafts:
+                        st.info("目前尚未儲存任何草稿。")
+        with load_col2:
+            if st.session_state.get("draft_project_id"):
+                st.markdown(f"✅ 目前已載入: `{st.session_state.draft_project_id}`")
 
-        # ── Load Existing Project Panel ──
-        with st.expander("📂 載入已儲存的草稿項目 (Load Existing Draft)", expanded=False):
-            load_col1, load_col2 = st.columns([3, 1])
-            with load_col1:
-                if st.button("🔄 港取草稿列表", use_container_width=True):
-                    with st.spinner("正在獲取草稿列表..."):
-                        drafts = fetch_draft_list()
-                        st.session_state["_draft_list"] = drafts
-                        if not drafts:
-                            st.info("目前尚未儲存任何草稿。")
-            with load_col2:
-                if st.session_state.get("draft_project_id"):
-                    st.markdown(f"✅ 已載入: `{st.session_state.draft_project_id}`")
+        drafts = st.session_state.get("_draft_list", [])
+        if drafts:
+            st.markdown("<br>", unsafe_allow_html=True)
+            draft_options = {f"{d['client_name']} / {d['project_name']} ({d['project_id']})": d['project_id'] for d in drafts}
+            selected_label = st.selectbox("選擇要載入的項目", list(draft_options.keys()))
+            if st.button("⬇️ 載入此項目到表單並前往 Project Collector", type="primary", use_container_width=True):
+                with st.spinner("正在載入項目資料..."):
+                    pid = draft_options[selected_label]
+                    if load_draft_into_session(pid):
+                        st.session_state.active_tab = "Project Collector"
+                        st.rerun()
+                    else:
+                        st.error("❌ 載入失敗，請檢查 Debug Terminal。")
 
-            drafts = st.session_state.get("_draft_list", [])
-            if drafts:
-                draft_options = {f"{d['client_name']} / {d['project_name']} ({d['project_id']})": d['project_id'] for d in drafts}
-                selected_label = st.selectbox("選擇要載入的項目", list(draft_options.keys()))
-                if st.button("⬇️ 載入此項目到表單", type="primary", use_container_width=True):
-                    with st.spinner("正在載入項目資料..."):
-                        pid = draft_options[selected_label]
-                        if load_draft_into_session(pid):
-                            st.success(f"✅ 已成功載入！請檢查下方表單內容。")
-                            st.rerun()
-                        else:
-                            st.error("❌ 載入失敗，請檢查 Debug Terminal。")
+        # Show loaded image previews if any
+        if st.session_state.get("loaded_image_urls"):
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.markdown("**🖼️ 已載入的圖片（儲存於 Google Drive）:**")
+            img_cols = st.columns(min(4, len(st.session_state.loaded_image_urls)))
+            for i, url in enumerate(st.session_state.loaded_image_urls):
+                with img_cols[i % 4]:
+                    st.markdown(f"[🖼️ 圖片 {i+1}]({url})", unsafe_allow_html=False)
+            st.info("💡 如需更換圖片，請在 Project Collector 頁面直接重新上傳新照片即可。")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            # Show loaded image previews if any
-            if st.session_state.get("loaded_image_urls"):
-                st.markdown("**🖼️ 已載入的圖片（儲存於 Google Drive）:**")
-                img_cols = st.columns(min(4, len(st.session_state.loaded_image_urls)))
-                for i, url in enumerate(st.session_state.loaded_image_urls):
-                    with img_cols[i % 4]:
-                        st.markdown(f"[🖼️ 圖片 {i+1}]({url})", unsafe_allow_html=False)
-                st.info("💡 如需更換圖片，請在下方直接重新上傳新照片即可。")
+    elif st.session_state.active_tab == "Project Collector":
 
         st.markdown('<div class="neu-card">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
